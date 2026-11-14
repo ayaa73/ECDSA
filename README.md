@@ -11,3 +11,11 @@ Python 3.11 + PySide6. The ECDSA math is written from scratch; the `ecdsa` and
 - `p4-verify` — verification, nonce-reuse attack, Learn wizard, Theory tab, report
 
 Each person works on their own branch and merges to `main` through pull requests.
+
+## Setup
+```
+python -m venv .venv
+.venv\Scripts\activate        # Windows  (macOS/Linux: source .venv/bin/activate)
+pip install PySide6 matplotlib pytest pytest-qt ecdsa cryptography
+pytest
+```
