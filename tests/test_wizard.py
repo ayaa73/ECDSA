@@ -125,3 +125,50 @@ def test_wizard_curve_toggle_does_not_crash(qtbot):
     assert tab.index == 1
     tab.real_size.setChecked(False)
     assert tab.index == 1
+
+
+# --- Step 7 quiz content (pure) ------------------------------------------------
+from ecdsa_edu.gui.learn.quiz import QUIZ, check_answer  # noqa: E402
+
+
+def test_quiz_has_three_questions_each_with_one_answer():
+    assert len(QUIZ) == 3
+    for q in QUIZ:
+        assert sum(c.correct for c in q.choices) == 1
+        assert all(c.feedback for c in q.choices)
+
+
+def test_check_answer():
+    q = QUIZ[0]
+    ok, text = check_answer(q, q.answer_index)
+    assert ok and text
+    wrong = next(i for i in range(len(q.choices)) if i != q.answer_index)
+    assert check_answer(q, wrong)[0] is False
+
+
+# --- Steps 6-7 in Qt -------------------------------------------------------------
+@needs_qt
+def test_quiz_page_feedback_and_score(qtbot):
+    from ecdsa_edu.gui.learn.pages_verify import QuizPage
+
+    page = QuizPage()
+    qtbot.addWidget(page)
+    for qi, q in enumerate(QUIZ):
+        page.groups[qi].button(q.answer_index).click()
+    assert "Score: 3 / 3" in page.score_label.text()
+    assert "Correct" in page.feedback[0].text()
+
+
+@needs_qt
+def test_verify_page_valid(qtbot):
+    pytest.importorskip("ecdsa_edu.core.curves_registry")
+    pytest.importorskip("ecdsa_edu.core.sign")
+    pytest.importorskip("ecdsa_edu.core.keys")
+    from ecdsa_edu.core.curves_registry import get_curve
+    from ecdsa_edu.gui.learn.pages_verify import VerifyPage
+
+    page = VerifyPage()
+    qtbot.addWidget(page)
+    st = LearnState(get_curve("toy-17"))
+    page.enter(st)
+    assert st.valid is True and st.w is not None and st.u1 is not None

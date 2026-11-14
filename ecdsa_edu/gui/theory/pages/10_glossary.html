@@ -1,0 +1,35 @@
+<html><body>
+<h1>Glossary</h1>
+
+<table>
+<tr><th>Term</th><th>Meaning</th></tr>
+<tr><td><b>Elliptic curve</b></td><td>The set of points (x, y) with y&sup2; = x&sup3; + a·x + b (mod p), plus the point at infinity O. The points form a group under "point addition".</td></tr>
+<tr><td><b>p</b></td><td>The prime that defines the field: all coordinates are numbers mod p.</td></tr>
+<tr><td><b>a, b</b></td><td>The curve coefficients. secp256k1 uses a = 0, b = 7.</td></tr>
+<tr><td><b>O (point at infinity)</b></td><td>The identity of the group: P + O = P. It has no coordinates.</td></tr>
+<tr><td><b>Generator G</b></td><td>A fixed public point that everyone uses. Every key is a multiple of G.</td></tr>
+<tr><td><b>Order n</b></td><td>The smallest positive n with n·G = O. All scalars (d, k, r, s) live mod n. On toy-17, n = 19.</td></tr>
+<tr><td><b>Cofactor h</b></td><td>(number of points on the curve) / n. It is 1 for secp256k1, P-256 and toy-17.</td></tr>
+<tr><td><b>Scalar multiplication</b></td><td>k·P = P + P + &hellip; + P (k times), computed quickly with double-and-add.</td></tr>
+<tr><td><b>ECDLP</b></td><td>Elliptic-curve discrete logarithm problem: given P and Q = d·P, find d. Infeasible for 256-bit curves; this is what keeps d secret.</td></tr>
+<tr><td><b>Private key d</b></td><td>A secret random number with 1 &le; d &le; n&minus;1.</td></tr>
+<tr><td><b>Public key Q</b></td><td>Q = d·G. Safe to publish because of the ECDLP.</td></tr>
+<tr><td><b>Hash e</b></td><td>The message hash (e.g. SHA-256) as an integer, truncated to the bit length of n.</td></tr>
+<tr><td><b>Nonce k</b></td><td>A per-signature secret number. Must never repeat and never be predictable or biased.</td></tr>
+<tr><td><b>R</b></td><td>The point k·G computed while signing.</td></tr>
+<tr><td><b>r</b></td><td>First half of the signature: the x-coordinate of R, mod n.</td></tr>
+<tr><td><b>s</b></td><td>Second half of the signature: s = k<sup>&minus;1</sup>(e + r·d) mod n. Binds the message, the key and the nonce together.</td></tr>
+<tr><td><b>w</b></td><td>s<sup>&minus;1</sup> mod n, computed by the verifier.</td></tr>
+<tr><td><b>u<sub>1</sub>, u<sub>2</sub></b></td><td>The verifier's scalars: u<sub>1</sub> = e·w, u<sub>2</sub> = r·w (mod n).</td></tr>
+<tr><td><b>Modular inverse</b></td><td>x<sup>&minus;1</sup> mod n is the number y with x·y = 1 mod n. It exists when gcd(x, n) = 1, which is always true for 1 &le; x &le; n&minus;1 when n is prime.</td></tr>
+<tr><td><b>RFC 6979</b></td><td>A standard for deriving k deterministically from d and the message hash using HMAC, so no random number generator is needed when signing.</td></tr>
+<tr><td><b>Nonce reuse</b></td><td>Signing two messages with the same k. Leaks the private key from just two signatures.</td></tr>
+<tr><td><b>Low-s</b></td><td>The convention of using s &le; n/2. Since (r, n&minus;s) is also valid, requiring low-s gives each message one signature.</td></tr>
+<tr><td><b>Malleability</b></td><td>Being able to change a valid signature into a different valid signature without the key, e.g. (r, s) &rarr; (r, n&minus;s).</td></tr>
+<tr><td><b>DER</b></td><td>A standard binary encoding of (r, s), used by most crypto libraries and certificates.</td></tr>
+<tr><td><b>Constant-time code</b></td><td>Code whose running time doesn't depend on secret values, so timing measurements reveal nothing.</td></tr>
+<tr><td><b>secp256k1</b></td><td>A 256-bit curve from SEC 2 with a = 0, b = 7. Used by Bitcoin and Ethereum.</td></tr>
+<tr><td><b>P-256</b></td><td>A 256-bit NIST curve (also called secp256r1), used in TLS and many other protocols.</td></tr>
+<tr><td><b>SEC 1, FIPS 186-5</b></td><td>The standards that define ECDSA signing and verification.</td></tr>
+</table>
+</body></html>
