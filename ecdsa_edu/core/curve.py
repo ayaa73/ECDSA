@@ -1,0 +1,161 @@
+"""Short-Weierstrass elliptic-curve arithmetic."""
+from dataclasses import dataclass
+from .field import inv_mod, is_probable_prime, sqrt_mod
+from .trace import add_step
+
+Point = tuple[int, int] | None  # None represents infinity O.
+
+
+@dataclass(frozen=True)
+class Curve:
+    name: str
+    p: int
+    a: int
+    b: int
+    G: tuple[int, int]
+    n: int
+    h: int
+
+
+def is_on_curve(curve: Curve, P: Point) -> bool:
+    """Return whether P belongs to the curve (including infinity O)."""
+    if P is None:
+        return True
+    if not isinstance(P, tuple) or len(P) != 2 or not all(isinstance(v, int) for v in P):
+        return False
+    x, y = P
+    return (0 <= x < curve.p and 0 <= y < curve.p
+            and (y * y - x**3 - curve.a * x - curve.b) % curve.p == 0)
+
+
+def point_neg(curve: Curve, P: Point) -> Point:
+    """Negate a point: -(x, y) = (x, -y mod p), and -O = O."""
+    if not is_on_curve(curve, P):
+        raise ValueError("point is not on curve")
+    return None if P is None else (P[0], (-P[1]) % curve.p)
+
+
+def point_add(curve: Curve, P: Point, Q: Point, trace=None) -> Point:
+    """Add two affine points, handling identity, inverses and doubling."""
+    if not is_on_curve(curve, P) or not is_on_curve(curve, Q):
+        raise ValueError("point is not on curve")
+    if P is None:
+        add_step(trace, "Identity", "O + Q = Q", Q=Q, result=Q)
+        return Q
+    if Q is None:
+        add_step(trace, "Identity", "P + O = P", P=P, result=P)
+        return P
+    if P == Q:
+        add_step(trace, "Equal points", "P + P = 2P", P=P)
+        return point_double(curve, P, trace)
+    x1, y1 = P
+    x2, y2 = Q
+    if x1 == x2:  # Distinct points with the same x have opposite y.
+        add_step(trace, "Inverse points", "P + (-P) = O", P=P, Q=Q, result="O")
+        return None
+    numerator = (y2 - y1) % curve.p
+    denominator = (x2 - x1) % curve.p
+    lam = numerator * inv_mod(denominator, curve.p) % curve.p
+    add_step(trace, "Addition slope", "lambda = (y2 - y1) / (x2 - x1) mod p",
+             numerator=numerator, denominator=denominator, **{"lambda": lam})
+    x3 = (lam * lam - x1 - x2) % curve.p
+    add_step(trace, "Addition x-coordinate", "x3 = (lambda^2 - x1 - x2) mod p",
+             x1=x1, x2=x2, **{"lambda": lam}, x3=x3)
+    y3 = (lam * (x1 - x3) - y1) % curve.p
+    add_step(trace, "Addition y-coordinate", "y3 = (lambda*(x1 - x3) - y1) mod p",
+             x1=x1, x3=x3, y1=y1, **{"lambda": lam}, y3=y3)
+    return x3, y3
+
+
+def point_double(curve: Curve, P: Point, trace=None) -> Point:
+    """Double an affine point using the tangent slope; 2O = O."""
+    if not is_on_curve(curve, P):
+        raise ValueError("point is not on curve")
+    if P is None:
+        add_step(trace, "Infinity", "2O = O", result="O")
+        return None
+    x1, y1 = P
+    if y1 == 0:
+        add_step(trace, "Vertical tangent", "2P = O when y = 0", P=P, result="O")
+        return None
+    numerator = (3 * x1 * x1 + curve.a) % curve.p
+    denominator = (2 * y1) % curve.p
+    lam = numerator * inv_mod(denominator, curve.p) % curve.p
+    add_step(trace, "Doubling slope", "lambda = (3*x1^2 + a) / (2*y1) mod p",
+             numerator=numerator, denominator=denominator, **{"lambda": lam})
+    x3 = (lam * lam - 2 * x1) % curve.p
+    add_step(trace, "Doubling x-coordinate", "x3 = (lambda^2 - 2*x1) mod p",
+             x1=x1, **{"lambda": lam}, x3=x3)
+    y3 = (lam * (x1 - x3) - y1) % curve.p
+    add_step(trace, "Doubling y-coordinate", "y3 = (lambda*(x1 - x3) - y1) mod p",
+             x1=x1, x3=x3, y1=y1, **{"lambda": lam}, y3=y3)
+    return x3, y3
+
+
+def scalar_mult(curve: Curve, k: int, P: Point, trace=None, trace_detail: str = "bits") -> Point:
+    """Left-to-right binary double-and-add; 'full' includes inner traces.
+
+    This educational affine algorithm is not constant-time.
+    """
+    if not isinstance(k, int):
+        raise TypeError("k must be an integer")
+    if trace_detail not in ("bits", "full"):
+        raise ValueError("trace_detail must be 'bits' or 'full'")
+    if not is_on_curve(curve, P):
+        raise ValueError("point is not on curve")
+    if k < 0:
+        P = point_neg(curve, P)
+        k = -k
+    result: Point = None
+    if k == 0 or P is None:
+        add_step(trace, "Scalar multiplication", "0*P = O or k*O = O", k=k, result="O")
+        return None
+    bits = bin(k)[2:]
+    inner_trace = trace if trace_detail == "full" else None
+    for index, bit in enumerate(bits):
+        result = point_double(curve, result, inner_trace)
+        doubled = result
+        if bit == "1":
+            result = point_add(curve, result, P, inner_trace)
+        add_step(trace, "Scalar bit", "R = 2*R; if bit = 1: R = R + P",
+                 bit_index=index, bit=bit, doubled=doubled,
+                 added=(bit == "1"), result=result)
+    return result
+
+
+def enumerate_points(curve: Curve) -> list[Point]:
+    """Enumerate infinity and all affine points for p < 5000."""
+    if curve.p >= 5000:
+        raise ValueError("enumeration is limited to p < 5000")
+    points: list[Point] = [None]
+    for x in range(curve.p):
+        rhs = (x**3 + curve.a * x + curve.b) % curve.p
+        y = sqrt_mod(rhs, curve.p)
+        if y is not None:
+            points.append((x, y))
+            if y != 0:
+                points.append((x, (-y) % curve.p))
+    return points
+
+
+def make_custom_curve(p, a, b, G) -> Curve:
+    """Validate a small curve; derive generator order and cofactor."""
+    if not isinstance(p, int) or p < 5 or p >= 5000 or not is_probable_prime(p):
+        raise ValueError("p must be an odd prime with 5 <= p < 5000")
+    if not isinstance(a, int) or not isinstance(b, int):
+        raise ValueError("a and b must be integers")
+    a, b = a % p, b % p
+    if (4 * a**3 + 27 * b**2) % p == 0:
+        raise ValueError("singular curve")
+    if not isinstance(G, tuple) or len(G) != 2 or not all(isinstance(v, int) for v in G):
+        raise ValueError("G must be an integer coordinate pair")
+    temporary = Curve("custom", p, a, b, G, 0, 0)
+    if not is_on_curve(temporary, G):
+        raise ValueError("G is not on the curve")
+    total = len(enumerate_points(temporary))
+    R: Point = None
+    for order in range(1, total + 1):
+        R = point_add(temporary, R, G)
+        if R is None:
+            return Curve("custom", p, a, b, G, order, total // order)
+    raise ValueError("generator order could not be determined")
