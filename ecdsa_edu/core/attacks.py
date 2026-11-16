@@ -139,7 +139,6 @@ def demo_nonce_reuse(curve: "Curve") -> dict[str, Any]:
 
     hash_name = "sha256"
     n = curve.n
-    priv, pub = generate_keypair(curve)
 
     msg1, msg2 = _DEMO_MESSAGES
     e1 = hash_message(msg1, curve, hash_name)
@@ -150,13 +149,20 @@ def demo_nonce_reuse(curve: "Curve") -> dict[str, Any]:
         i += 1
         msg2 = _DEMO_MESSAGES[1] + b" #" + str(i).encode()
 
-    for _ in range(200):
-        k = 2 + secrets.randbelow(n - 3)  # avoid k = 1 and k = n-1: too trivial for a demo
+    # Avoid k = 1 and k = n-1 (too trivial to show) when the curve is big enough.
+    # Tiny groups need the full range: on toy-97 (n = 5), k = 2 and 3 give r = 0.
+    lo = 2 if n > 100 else 1
+    for attempt in range(200):
+        # A new key every few tries: on tiny groups some keys make s = 0 for
+        # one of the messages whatever k is (e.g. toy-97, where n = 5).
+        if attempt % 5 == 0:
+            priv, pub = generate_keypair(curve)
+        k = lo + secrets.randbelow(n - 2 * lo + 1)
         try:
             sig1 = sign(priv, msg1, hash_name, k=k, deterministic=False)
             sig2 = sign(priv, msg2, hash_name, k=k, deterministic=False)
         except ValueError:
-            continue  # this k gave r = 0 or s = 0 on a toy curve; pick another
+            continue  # r = 0 or s = 0 on a toy curve; try again
         if sig1.r == sig2.r and sig1.s % n != sig2.s % n:
             return {
                 "curve": curve, "d": priv.d, "Q": pub.Q, "priv": priv, "pub": pub,
