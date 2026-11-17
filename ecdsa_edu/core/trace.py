@@ -4,7 +4,7 @@ Human-readable arithmetic traces shared by core and GUI.
 """
 from dataclasses import dataclass
 
-
+"""Create a structure containing the name of the calculation, the formula used, and the actual numbers involved."""
 @dataclass
 class TraceStep:
     title: str
@@ -16,7 +16,7 @@ Trace = list[TraceStep]
 
 
 def add_step(trace, title, formula, **values) -> None:
-    """Append a step, converting integers to decimal (and hex if > 2**32)."""
+    """Add a step converting integers to decimal (and hex if > 2^32)."""
     if trace is None:
         return
 
