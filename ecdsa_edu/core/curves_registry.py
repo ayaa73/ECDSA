@@ -1,6 +1,10 @@
-"""Named educational and standard curve parameters."""
+"""Defines the curves that we can select in the application"""
 from .curve import Curve
 
+"""Our four curves are: toy-17 small curve for learning and testing
+                        toy-97 small curve for demonstration
+                        secp256k1 standard curve used in Bitcoin
+                        P-256 standard curve used in real-world cryptographic systems."""
 CURVES: dict[str, Curve] = {
     "toy-17": Curve("toy-17", 17, 2, 2, (5, 1), 19, 1),
     "toy-97": Curve("toy-97", 97, 2, 3, (3, 6), 5, 20),
@@ -22,14 +26,10 @@ CURVES: dict[str, Curve] = {
 
 def get_curve(name: str) -> Curve:
     """Return a registered elliptic curve by name.
+    name: Name of the curve (e.g., "toy-17", "secp256k1").
 
-    Args:
-        name: Name of the curve (e.g., "toy-17", "secp256k1").
+    Returns:The Curve object associated with the given name.
 
-    Returns:
-        The Curve object associated with the given name.
-
-    Raises:
-        KeyError: If the curve name is not registered.
+    Raises: KeyError: If the curve name is not registered.
     """
     return CURVES[name]
