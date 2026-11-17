@@ -5,8 +5,9 @@ from .trace import add_step
 
 Point = tuple[int, int] | None  # None represents infinity O.
 
-
-@dataclass(frozen=True)
+"""Creating structure curve with its name, prime modulus, parameters a and b defining the curve,
+G generator point, n order of the generator and h cofactor."""
+@dataclass(frozen=True) #frozen means the object's fields can't be reassigned after creation
 class Curve:
     name: str
     p: int
@@ -18,7 +19,7 @@ class Curve:
 
 
 def is_on_curve(curve: Curve, P: Point) -> bool:
-    """Return whether P belongs to the curve (including infinity O)."""
+    """Check whether a point is valid and satisfies the curve equation."""
     if P is None:
         return True
     if not isinstance(P, tuple) or len(P) != 2 or not all(isinstance(v, int) for v in P):
@@ -29,28 +30,28 @@ def is_on_curve(curve: Curve, P: Point) -> bool:
 
 
 def point_neg(curve: Curve, P: Point) -> Point:
-    """Negate a point: -(x, y) = (x, -y mod p), and -O = O."""
+    """Negate a point: -(x, y) = (x, -y mod p), and -O = O"""
     if not is_on_curve(curve, P):
         raise ValueError("point is not on curve")
     return None if P is None else (P[0], (-P[1]) % curve.p)
 
 
 def point_add(curve: Curve, P: Point, Q: Point, trace=None) -> Point:
-    """Add two affine points, handling identity, inverses and doubling."""
+    """Add two points, handling identity, inverses and doubling."""
     if not is_on_curve(curve, P) or not is_on_curve(curve, Q):
         raise ValueError("point is not on curve")
-    if P is None:
+    if P is None: #return Q
         add_step(trace, "Identity", "O + Q = Q", Q=Q, result=Q)
         return Q
-    if Q is None:
+    if Q is None: #return P
         add_step(trace, "Identity", "P + O = P", P=P, result=P)
         return P
-    if P == Q:
+    if P == Q: #Call double_point()
         add_step(trace, "Equal points", "P + P = 2P", P=P)
         return point_double(curve, P, trace)
     x1, y1 = P
     x2, y2 = Q
-    if x1 == x2:  # Distinct points with the same x have opposite y.
+    if x1 == x2:  # Two points with the same x have opposite y.
         add_step(trace, "Inverse points", "P + (-P) = O", P=P, Q=Q, result="O")
         return None
     numerator = (y2 - y1) % curve.p
@@ -68,7 +69,7 @@ def point_add(curve: Curve, P: Point, Q: Point, trace=None) -> Point:
 
 
 def point_double(curve: Curve, P: Point, trace=None) -> Point:
-    """Double an affine point using the tangent slope; 2O = O."""
+    """Double a point using the tangent slope; 2O=O."""
     if not is_on_curve(curve, P):
         raise ValueError("point is not on curve")
     if P is None:
@@ -93,10 +94,7 @@ def point_double(curve: Curve, P: Point, trace=None) -> Point:
 
 
 def scalar_mult(curve: Curve, k: int, P: Point, trace=None, trace_detail: str = "bits") -> Point:
-    """Left-to-right binary double-and-add; 'full' includes inner traces.
-
-    This educational affine algorithm is not constant-time.
-    """
+    """Left-to-right binary double-and-add instead of adding the point k times."""
     if not isinstance(k, int):
         raise TypeError("k must be an integer")
     if trace_detail not in ("bits", "full"):
@@ -124,7 +122,8 @@ def scalar_mult(curve: Curve, k: int, P: Point, trace=None, trace_detail: str = 
 
 
 def enumerate_points(curve: Curve) -> list[Point]:
-    """Enumerate infinity and all affine points for p < 5000."""
+    """Find infinity and all points for p < 5000.
+    This checks each possible x coordinate and finds its corresponding y coordinates."""
     if curve.p >= 5000:
         raise ValueError("enumeration is limited to p < 5000")
     points: list[Point] = [None]
@@ -139,7 +138,12 @@ def enumerate_points(curve: Curve) -> list[Point]:
 
 
 def make_custom_curve(p, a, b, G) -> Curve:
-    """Validate a small curve; derive generator order and cofactor."""
+    """Validate a small curve; derive generator order and cofactor.
+    Validates that p is prime and <5000
+    checks that the curve is nonsingular
+    Verifies that generator G lies on the curve
+    Counts all points on the curve
+    Calculates the order of G and the cofactor."""
     if not isinstance(p, int) or p < 5 or p >= 5000 or not is_probable_prime(p):
         raise ValueError("p must be an odd prime with 5 <= p < 5000")
     if not isinstance(a, int) or not isinstance(b, int):
