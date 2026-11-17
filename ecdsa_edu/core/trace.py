@@ -1,4 +1,7 @@
-"""Human-readable arithmetic traces shared by core and GUI."""
+"""
+This code records mathematical calculations so we can see how ECDSA works instead of only seeing the final answer.
+Human-readable arithmetic traces shared by core and GUI.
+"""
 from dataclasses import dataclass
 
 
