@@ -2,9 +2,13 @@
 import secrets
 from .trace import add_step
 
-
+"""For modular inverse."""
 def inv_mod(a: int, m: int, trace=None) -> int:
-    """Return a^(-1) mod m using extended Euclid; trace each division."""
+    """Return a^(-1) mod m using extended Euclid; trace each division.
+    old_r and r track the remainders
+    q calculates the integer quotient
+    next_r calculates the next remainder
+    next_t tracks the coefficient needed to find the inverse"""
     if m <= 1:
         raise ValueError("modulus must exceed 1")
     reduced = a % m
@@ -17,7 +21,7 @@ def inv_mod(a: int, m: int, trace=None) -> int:
         add_step(trace, "Euclidean division", "old_r = q*r + remainder", old_r=old_r, q=q, r=r, remainder=next_r, coefficient=next_t)
         old_r, r = r, next_r
         old_t, t = t, next_t
-    if old_r != 1:
+    if old_r != 1: #if gcd isn't 1 then there's no inverse
         add_step(trace, "No inverse", "gcd(a,m) != 1", a=a, m=m, gcd=old_r)
         raise ValueError("element is not invertible")
     result = old_t % m
@@ -26,7 +30,7 @@ def inv_mod(a: int, m: int, trace=None) -> int:
 
 
 def _is_strong_probable_prime(n: int, a: int, d: int, s: int) -> bool:
-    """Test one Miller–Rabin witness."""
+    """Checks whether a number n passes one round of the Miller-Rabin primality test using base a."""
     a %= n
     if a == 0:
         return True
@@ -41,10 +45,10 @@ def _is_strong_probable_prime(n: int, a: int, d: int, s: int) -> bool:
 
 
 def is_probable_prime(n: int) -> bool:
-    """Deterministic Miller–Rabin below 3317044064679887385961981.
+    """Deterministic Miller–Rabin below specific threshold.
 
     Uses the first 13 prime bases in that range and 40 random bases above.
-    Above the bound this is a probabilistic test, not a primality proof.
+    This is a probabilistic test, not 100% sure.
     """
     if n < 2:
         return False
@@ -60,9 +64,12 @@ def is_probable_prime(n: int) -> bool:
     witnesses = bases if n < threshold else (secrets.randbelow(n - 3) + 2 for _ in range(40))
     return all(_is_strong_probable_prime(n, a, d, s) for a in witnesses)
 
-
+"""If we know the x coordinate of a point on an elliptic curve, 
+we can use modular square root to find its possible y coordinates."""
 def sqrt_mod(a: int, p: int) -> int | None:
-    """Find a square root modulo prime p using Tonelli–Shanks, if any."""
+    """Find a square root modulo prime p using Tonelli–Shanks, if any.
+    Check that p prime -> check is modular square root exists (Euler's criterion)
+    Use shortcut when p%4=3 otherwise use Tonelli-Shanks to calculate a root."""
     if p == 2:
         return a % 2
     if p < 3 or p % 2 == 0 or not is_probable_prime(p):
