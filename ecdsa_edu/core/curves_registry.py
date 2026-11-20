@@ -1,0 +1,41 @@
+"""Defines the curves that we can select in the application"""
+from .curve import Curve
+
+"""Our four curves are: toy-17 small curve for learning and testing
+                        toy-97 small curve for demonstration
+                        secp256k1 standard curve used in Bitcoin
+                        P-256 standard curve used in real-world cryptographic systems."""
+CURVES: dict[str, Curve] = {
+    "toy-17": Curve("toy-17", 17, 2, 2, (5, 1), 19, 1),
+    # Found by searching a, b over F_97, rejecting singular curves,
+    # counting all points, and selecting a curve with prime group order.
+    # y^2 = x^3 + 5 (mod 97) has 79 points including infinity.
+    # Since 79 is prime, every non-infinity point has order 79.
+    "toy-97": Curve("toy-97", 97, 0, 5, (1, 43), 79, 1),
+    # secp256k1 domain parameters.
+    "secp256k1": Curve(
+        "secp256k1", 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F,
+        0, 7,
+        (0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798,
+         0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8),
+        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141, 1),
+    # NIST P-256 domain parameters (also specified in SEC 2).
+    "P-256": Curve(
+        "P-256", 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF,
+        0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC,
+        0x5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B,
+        (0x6B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296,
+         0x4FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5),
+        0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551, 1),
+}
+
+
+def get_curve(name: str) -> Curve:
+    """Return a registered elliptic curve by name.
+    name: Name of the curve (e.g., "toy-17", "secp256k1").
+
+    Returns:The Curve object associated with the given name.
+
+    Raises: KeyError: If the curve name is not registered.
+    """
+    return CURVES[name]
