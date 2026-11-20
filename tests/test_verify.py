@@ -140,3 +140,25 @@ def test_verify_file(tmp_path):
 def test_explain_verify_math():
     text = explain_verify_math()
     assert "u1*G + u2*Q" in text and "k*G" in text
+
+
+# --- Interop the other way: our signatures verify in `cryptography` ----------
+@pytest.mark.parametrize("curve_name", ["secp256k1", "P-256"])
+@pytest.mark.parametrize("deterministic", [True, False])
+def test_our_signature_verifies_in_library(curve_name, deterministic):
+    sign_mod = pytest.importorskip("ecdsa_edu.core.sign")
+    keys_mod = pytest.importorskip("ecdsa_edu.core.keys")
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
+
+    curve = get_curve(curve_name)
+    priv, pub = keys_mod.generate_keypair(curve)
+    msg = b"signed by our code, checked by theirs"
+    sig = sign_mod.sign(priv, msg, deterministic=deterministic)
+    assert verify(pub, msg, sig) is True
+
+    lib_pub = ec.EllipticCurvePublicNumbers(pub.Q[0], pub.Q[1], LIB_CURVES[curve_name]()).public_key()
+    der = encode_dss_signature(sig.r, sig.s)
+    lib_pub.verify(der, msg, ec.ECDSA(hashes.SHA256()))  # raises InvalidSignature if wrong
+    with pytest.raises(InvalidSignature):
+        lib_pub.verify(der, msg + b"!", ec.ECDSA(hashes.SHA256()))
