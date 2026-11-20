@@ -7,13 +7,19 @@ from .curve import Curve
                         P-256 standard curve used in real-world cryptographic systems."""
 CURVES: dict[str, Curve] = {
     "toy-17": Curve("toy-17", 17, 2, 2, (5, 1), 19, 1),
-    "toy-97": Curve("toy-97", 97, 2, 3, (3, 6), 5, 20),
+    # Found by searching a, b over F_97, rejecting singular curves,
+    # counting all points, and selecting a curve with prime group order.
+    # y^2 = x^3 + 5 (mod 97) has 79 points including infinity.
+    # Since 79 is prime, every non-infinity point has order 79.
+    "toy-97": Curve("toy-97", 97, 0, 5, (1, 43), 79, 1),
+    # secp256k1 domain parameters.
     "secp256k1": Curve(
         "secp256k1", 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F,
         0, 7,
         (0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798,
          0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8),
         0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141, 1),
+    # NIST P-256 domain parameters (also specified in SEC 2).
     "P-256": Curve(
         "P-256", 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF,
         0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC,
