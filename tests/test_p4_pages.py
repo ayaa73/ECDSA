@@ -1,0 +1,134 @@
+"""pytest-qt tests for P4's pages: Verify, Attack Demo and Start here.
+
+They need PySide6 and pytest-qt (pip install PySide6 pytest-qt) and are skipped
+without them. Background jobs are awaited with qtbot.waitUntil.
+"""
+from __future__ import annotations
+
+import importlib.util
+
+import pytest
+
+HAS_QT = all(importlib.util.find_spec(m) for m in ("PySide6", "pytestqt"))
+pytestmark = pytest.mark.skipif(not HAS_QT, reason="needs PySide6 and pytest-qt")
+
+WAIT = 10_000  # ms; secp256k1 runs are still well under a second
+
+
+@pytest.fixture
+def state():
+    from ecdsa_edu.core.curves_registry import get_curve
+    from ecdsa_edu.gui.app_state import AppState
+    return AppState(get_curve("toy-17"))
+
+
+@pytest.fixture
+def signed_state(state):
+    from ecdsa_edu.core.keys import generate_keypair
+    from ecdsa_edu.core.sign import sign
+    priv, pub = generate_keypair(state.curve)
+    state.set_keys(priv, pub)
+    state.set_signature(sign(priv, b"Hello Bob"), b"Hello Bob")
+    return state
+
+
+# --- Verify ---------------------------------------------------------------------
+def test_verify_valid_then_tamper_invalid(qtbot, signed_state):
+    from ecdsa_edu.gui.tabs.verify_tab import VerifyTab
+    tab = VerifyTab(signed_state)
+    qtbot.addWidget(tab)
+    assert tab.msg_edit.toPlainText() == "Hello Bob"  # pre-filled from the last signature
+
+    tab.verify_button.click()
+    qtbot.waitUntil(lambda: tab.banner.headline == "VALID", timeout=WAIT)
+    assert tab.banner.kind == "good"
+
+    tab.tamper_button.click()
+    qtbot.waitUntil(lambda: tab.banner.headline == "INVALID", timeout=WAIT)
+    assert tab.msg_edit.toPlainText() != "Hello Bob"
+    assert tab.banner.kind == "bad"
+
+
+def test_verify_without_key_explains_next_step(qtbot, state):
+    from ecdsa_edu.gui.tabs.verify_tab import VerifyTab
+    tab = VerifyTab(state)
+    qtbot.addWidget(tab)
+    tab.show()
+    assert tab.key_go.isVisible()  # "Make a key on the Keys page"
+    tab.verify_button.click()
+    assert tab.banner.headline == "Not ready yet"
+
+
+def test_verify_curve_change_clears(qtbot, signed_state):
+    from ecdsa_edu.core.curves_registry import get_curve
+    from ecdsa_edu.gui.tabs.verify_tab import VerifyTab
+    tab = VerifyTab(signed_state)
+    qtbot.addWidget(tab)
+    signed_state.set_curve(get_curve("secp256k1"))
+    tab.set_curve(signed_state.curve)
+    assert "Curve changed" in tab.banner.headline
+
+
+# --- Attack Demo ------------------------------------------------------------------
+@pytest.mark.parametrize("curve_name", ["toy-17", "secp256k1"])
+def test_attack_shows_match(qtbot, state, curve_name):
+    from ecdsa_edu.core.curves_registry import get_curve
+    from ecdsa_edu.gui.tabs.attack_tab import AttackTab
+    state.set_curve(get_curve(curve_name))
+    tab = AttackTab(state)
+    qtbot.addWidget(tab)
+    assert not tab.attack_button.isEnabled()
+
+    tab.make_button.click()
+    qtbot.waitUntil(lambda: tab.demo is not None, timeout=WAIT)
+    assert tab.demo["sig1"].r == tab.demo["sig2"].r
+    assert "same r" in tab.same_r.text()
+
+    tab.attack_button.click()
+    qtbot.waitUntil(lambda: tab.banner.headline == "MATCH", timeout=WAIT)
+    assert tab.banner.kind == "good"
+
+
+# --- Start here -------------------------------------------------------------------
+def test_tutorial_story_and_demo(qtbot, state):
+    from ecdsa_edu.gui.tutorial.tutorial_content import FRAMES
+    from ecdsa_edu.gui.tutorial.tutorial_tab import TutorialTab
+    tab = TutorialTab(state)
+    qtbot.addWidget(tab)
+
+    for i in range(len(FRAMES) - 1):
+        assert tab.canvas.frame == i
+        tab.next_button.click()
+    assert tab.canvas.frame == len(FRAMES) - 1 and not tab.next_button.isEnabled()
+    tab.canvas.grab()  # paints the last frame (catches drawing errors)
+
+    tab.keys_button.click()
+    qtbot.waitUntil(lambda: tab.sign_button.isEnabled(), timeout=WAIT)
+    tab.sign_button.click()
+    qtbot.waitUntil(lambda: tab.verify_button.isEnabled(), timeout=WAIT)
+    tab.verify_button.click()
+    qtbot.waitUntil(lambda: tab.banner.headline == "VALID", timeout=WAIT)
+    tab.tamper_button.click()
+    qtbot.waitUntil(lambda: tab.banner.headline == "INVALID", timeout=WAIT)
+    assert state.pub is None  # the practice key never replaces the student's key
+
+
+def test_tutorial_every_frame_paints(qtbot):
+    from ecdsa_edu.gui.tutorial.tutorial_content import FRAMES
+    from ecdsa_edu.gui.tutorial.tutorial_tab import StoryCanvas
+    canvas = StoryCanvas()
+    qtbot.addWidget(canvas)
+    canvas.resize(700, 230)
+    for i in range(len(FRAMES)):
+        canvas.set_frame(i)
+        assert not canvas.grab().isNull()
+
+
+def test_tutorial_destination_uses_go_to(qtbot, state):
+    from ecdsa_edu.gui.tutorial.tutorial_tab import TutorialTab
+    requested = []
+    state.go_to = requested.append  # stands in for P2's AppState.go_to until it exists
+    tab = TutorialTab(state)
+    qtbot.addWidget(tab)
+    tab.destination_buttons["Verify"].click()
+    assert requested == ["Verify"]
