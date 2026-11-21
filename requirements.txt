@@ -1,0 +1,12 @@
+# Runtime
+PySide6>=6.5
+matplotlib>=3.7
+
+# Tests (ecdsa and cryptography are reference implementations used ONLY in tests)
+pytest>=7.4
+pytest-qt>=4.2
+ecdsa>=0.18
+cryptography>=41
+
+# Packaging
+pyinstaller>=6.0

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Key pairs: private key d and public key Q</title>
+</head>
+<body>
+<h1>4 · Key pairs: private key d and public key Q</h1>
+
+<p>Before anyone can sign, they need a <b>key pair</b>. It has two halves that belong together:</p>
+
+<table border="1" cellspacing="0" cellpadding="6">
+<tr><th align="left">Name</th><th align="left">What it is</th><th align="left">Who knows it</th><th align="left">Used for</th></tr>
+<tr><td><b>Private key d</b></td><td>a whole number, 1 ≤ d ≤ n − 1</td><td>only the owner</td><td>creating signatures</td></tr>
+<tr><td><b>Public key Q</b></td><td>a point on the curve, Q = d · G</td><td>everybody</td><td>checking signatures</td></tr>
+</table>
+
+<p>Here <b>G</b> is the curve's base point and <b>n</b> is its order (the smallest positive number
+with n · G = O, the point at infinity). Both are fixed, public parts of the curve.</p>
+
+<h2>How a key pair is generated</h2>
+<ol>
+<li><b>Pick d at random</b> from 1, 2, …, n − 1. Every value must be equally likely.</li>
+<li><b>Compute Q = d · G</b> with scalar multiplication (double-and-add, see page 3).</li>
+<li>Keep d secret. Publish Q.</li>
+</ol>
+
+<p>That is all. There is no "encryption" step: the public key is just the result of a
+multiplication on the curve.</p>
+
+<h2>Worked example on the toy curve</h2>
+
+<p>Curve <b>toy-17</b>: y² = x³ + 2x + 2 (mod 17), base point G = (5, 1), order n = 19.<br>
+Suppose we pick the private key <b>d = 7</b>. In binary, 7 = 111.</p>
+
+<p>Double-and-add reads the bits from left to right. For every bit: <i>double</i>; if the bit is 1: <i>add G</i>.</p>
+
+<table border="1" cellspacing="0" cellpadding="6">
+<tr><th>Bit</th><th align="left">Operation</th><th align="left">Running point</th></tr>
+<tr><td align="center">1</td><td>start with G</td><td>1·G = (5, 1)</td></tr>
+<tr><td align="center">1</td><td>double, then add G</td><td>2·G = (6, 3) &nbsp;→&nbsp; 3·G = (10, 6)</td></tr>
+<tr><td align="center">1</td><td>double, then add G</td><td>6·G = (16, 13) &nbsp;→&nbsp; 7·G = (0, 6)</td></tr>
+</table>
+
+<p>So the key pair is: private key <b>d = 7</b>, public key <b>Q = (0, 6)</b>.</p>
+
+<p><i>Try it:</i> open the <b>Keys</b> tab, choose curve toy-17, type 7 and press
+"Compute Q from this d". The panel on the right shows exactly these steps.</p>
+
+<h2>Why d must be truly random</h2>
+<ul>
+<li>If an attacker can <b>guess</b> d, they own the key. A d taken from a weak generator
+(a timestamp, <code>random.random()</code>, a small number) can be guessed quickly.</li>
+<li>If d is <b>biased</b> (some values more likely than others), the search becomes easier.</li>
+</ul>
+
+<p>ECDSA Lab therefore takes d from the operating system's cryptographic random generator
+(Python's <code>secrets</code> module): <code>d = secrets.randbelow(n − 1) + 1</code>.
+<code>randbelow</code> gives a uniform number in 0 … n − 2, and adding 1 moves it to 1 … n − 1.</p>
+
+<h2>Why 0 and n are not allowed</h2>
+<ul>
+<li>d = 0 would give Q = O (the point at infinity), which is not a usable public key.</li>
+<li>d = n gives the same result, because n · G = O. In general d and d + n produce the same Q,
+so only 1 … n − 1 are different keys.</li>
+</ul>
+
+<h2>Checking a public key you receive</h2>
+
+<p>A public key from somebody else is untrusted input. Before using it, check that:</p>
+<ol>
+<li>Q is not the point at infinity;</li>
+<li>both coordinates are in the range 0 … p − 1;</li>
+<li>Q satisfies the curve equation y² = x³ + ax + b (mod p);</li>
+<li>n · Q = O, i.e. Q is one of the multiples of G.</li>
+</ol>
+
+<p>Skipping these checks allows "invalid-curve" tricks, where an attacker sends a point from a
+different, weaker curve. ECDSA Lab runs all four checks whenever a public key is imported or loaded.</p>
+
+<h2>Summary</h2>
+<ul>
+<li>Private key: a random number d with 1 ≤ d ≤ n − 1.</li>
+<li>Public key: the point Q = d · G.</li>
+<li>d → Q is fast. Q → d is the hard problem explained on the next page.</li>
+</ul>
+</body>
+</html>

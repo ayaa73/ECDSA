@@ -1,103 +1,143 @@
-"""ECDSA key generation (owner: P2).
+"""Making ECDSA keys (owner: P2).
 
-A key pair on a curve with base point ``G`` of order ``n`` is
+A key pair on a curve with base point G of order n is:
 
-    private key  d   -- a secret integer, uniformly random in [1, n-1]
-    public key   Q   -- the curve point  Q = d * G
+    private key d : a secret whole number, chosen at random from 1 to n-1
+    public key  Q : the curve point Q = d * G  (G added to itself d times)
 
-Going from d to Q is one scalar multiplication. Going back from Q to d is the
-elliptic-curve discrete-log problem, which is what makes the scheme secure.
+Going from d to Q is one scalar multiplication, which is fast.
+Going back from Q to d is the "discrete logarithm problem", which nobody knows
+how to solve quickly. That is what keeps the private key safe.
 
-Every function takes an optional ``trace`` list and appends human-readable steps
-to it, so the GUI can show the math.
+Every function takes an optional `trace` list. If a list is given, the
+function adds human-readable steps to it, so the screen can show the math.
+
+The only math functions used from P1 are scalar_mult and is_on_curve.
 """
-from __future__ import annotations
-
 import secrets
 
 from .curve import Curve, Point, is_on_curve, scalar_mult
 from .trace import add_step
 from .types import PrivateKey, PublicKey
 
-__all__ = ["generate_keypair", "public_from_private", "validate_public_point"]
 
-
-def _fmt(value: int, curve: Curve) -> str:
-    """Format a number for a trace: decimal on toy curves, hex on real ones."""
-    return str(value) if curve.p.bit_length() <= 32 else hex(value)
+def _number_to_text(value: int, curve: Curve) -> str:
+    """Write a number for the trace: decimal on toy curves, hexadecimal on real ones."""
+    curve_is_small = curve.p.bit_length() <= 32
+    if curve_is_small:
+        return str(value)  # for example "7"
+    else:
+        return hex(value)  # for example "0x1f3a..."
 
 
 def generate_keypair(curve: Curve, trace=None) -> tuple[PrivateKey, PublicKey]:
-    """Create a fresh random key pair on ``curve``.
-
-    ``d`` comes from the operating system's CSPRNG (``secrets``), never from
-    ``random``: a predictable d is a broken key.
-    """
+    """Create a new random key pair on `curve`. Returns (private key, public key)."""
     n = curve.n
     if n < 2:
         raise ValueError("the base point order n must be at least 2")
-    # randbelow(n - 1) is uniform on [0, n-2]; +1 shifts it to [1, n-1].
-    # (randbelow uses rejection sampling, so there is no modulo bias.)
-    d = secrets.randbelow(n - 1) + 1
+
+    # Step 1: pick the private key d at random from 1 to n-1.
+    #
+    # secrets.randbelow(k) returns a random whole number from 0 to k-1, and
+    # every value is equally likely. With k = n-1 we get 0 .. n-2.
+    # Adding 1 shifts that to 1 .. n-1, which is exactly the allowed range.
+    #
+    # We use the `secrets` module (the operating system's secure random
+    # generator) and never the `random` module, which can be predicted.
+    random_number = secrets.randbelow(n - 1)
+    d = random_number + 1
+
     add_step(
         trace,
         "Choose the private key d",
         "d = random integer, 1 <= d <= n - 1  (from a cryptographic RNG)",
-        n=_fmt(n, curve),
-        d=_fmt(d, curve),
+        n=_number_to_text(n, curve),
+        d=_number_to_text(d, curve),
     )
-    priv = PrivateKey(d, curve)
-    return priv, public_from_private(priv, trace)
+
+    # Step 2: put d in its box and compute the matching public key.
+    private_key = PrivateKey(d, curve)
+    public_key = public_from_private(private_key, trace)
+    return private_key, public_key
 
 
 def public_from_private(priv: PrivateKey, trace=None) -> PublicKey:
-    """Compute the public key ``Q = d * G`` that belongs to ``priv``.
+    """Compute the public key Q = d * G that belongs to the private key `priv`.
 
-    Raises ValueError if d is outside [1, n-1].
+    Raises ValueError if d is not a whole number from 1 to n-1.
     """
-    curve, d = priv.curve, priv.d
+    curve = priv.curve
+    d = priv.d
+
+    # Check 1: d must be a whole number.
+    # (In Python, True and False also count as integers, so we refuse them by name.)
     if isinstance(d, bool) or not isinstance(d, int):
         raise ValueError("the private key d must be an integer")
-    if not 1 <= d <= curve.n - 1:
-        raise ValueError(f"the private key d must satisfy 1 <= d <= n - 1 (n = {_fmt(curve.n, curve)})")
 
-    gx, gy = curve.G
+    # Check 2: d must be in the range 1 .. n-1.
+    if d < 1 or d > curve.n - 1:
+        raise ValueError(
+            "the private key d must satisfy 1 <= d <= n - 1 (n = " + _number_to_text(curve.n, curve) + ")"
+        )
+
+    # Record where we start: the base point G.
+    gx = curve.G[0]
+    gy = curve.G[1]
     add_step(
         trace,
         "Start from the base point G",
         "Q = d * G  means  G + G + ... + G  (d times), computed with double-and-add",
-        d=_fmt(d, curve),
-        Gx=_fmt(gx, curve),
-        Gy=_fmt(gy, curve),
+        d=_number_to_text(d, curve),
+        Gx=_number_to_text(gx, curve),
+        Gy=_number_to_text(gy, curve),
     )
-    Q = scalar_mult(curve, d, curve.G, trace)  # P1's double-and-add adds its own steps
+
+    # The actual computation is done by P1's scalar_mult (double-and-add).
+    # Because we pass `trace`, it adds one step for every doubling and addition.
+    Q = scalar_mult(curve, d, curve.G, trace)
+
+    # None means "the point at infinity". With a correct curve and a d in
+    # range this cannot happen; the check protects against a wrong value of n.
     if Q is None:
-        # Cannot happen when G really has order n and 1 <= d < n.
         raise ValueError("d * G is the point at infinity - check the curve's order n")
+
     add_step(
         trace,
         "Public key Q = d * G",
         "Q = (Qx, Qy) is published; d stays secret",
-        Qx=_fmt(Q[0], curve),
-        Qy=_fmt(Q[1], curve),
+        Qx=_number_to_text(Q[0], curve),
+        Qy=_number_to_text(Q[1], curve),
     )
     return PublicKey(Q, curve)
 
 
 def validate_public_point(curve: Curve, Q: Point) -> None:
-    """Check that ``Q`` is a usable public key on ``curve``; raise ValueError if not.
+    """Check that Q can be used as a public key on `curve`.
 
-    These are the standard public-key checks (SEC 1, section 3.2.2.1). Skipping
-    them lets an attacker hand us points on a different, weaker curve.
+    Returns nothing when Q is fine. Raises ValueError with a clear message when
+    it is not. A public key from a file or from another person must always go
+    through these four checks before it is used: skipping them would let an
+    attacker hand us a point from a different, weaker curve.
     """
+    # Check 1: the point at infinity (None) is not a public key.
     if Q is None:
         raise ValueError("the point at infinity is not a valid public key")
-    x, y = Q
-    if not (0 <= x < curve.p and 0 <= y < curve.p):
+
+    # Check 2: both coordinates must be from 0 to p-1.
+    x = Q[0]
+    y = Q[1]
+    x_in_range = 0 <= x < curve.p
+    y_in_range = 0 <= y < curve.p
+    if not x_in_range or not y_in_range:
         raise ValueError("public key coordinates must be in the range [0, p - 1]")
+
+    # Check 3: the point must satisfy the curve equation.
     if not is_on_curve(curve, Q):
         raise ValueError("this point is not on the curve")
-    # Q must lie in the subgroup generated by G, i.e. n * Q = O.
-    # (Automatic when the cofactor h is 1, but cheap enough to always check.)
-    if scalar_mult(curve, curve.n, Q) is not None:
+
+    # Check 4: n * Q must be the point at infinity. That proves Q is one of
+    # the multiples of G. (It is automatic when the cofactor h is 1, but
+    # custom curves can have other points, so we always check.)
+    n_times_q = scalar_mult(curve, curve.n, Q)
+    if n_times_q is not None:
         raise ValueError("this point is not in the subgroup generated by G (n * Q != O)")
