@@ -1,11 +1,39 @@
+# Byte-compiled / cache
 __pycache__/
 *.py[cod]
+*$py.class
+
+# Virtual environments
 .venv/
 venv/
-.pytest_cache/
+env/
+ENV/
+
+# Packaging / build output
 build/
 dist/
-*.spec
-.idea/
+*.egg-info/
+*.egg
+.eggs/
+wheels/
+*.manifest
+
+# Test and tool caches
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Editors and OS files
 .vscode/
+.idea/
+*.swp
 .DS_Store
+Thumbs.db
+
+# Project: keys saved while trying the app (never commit private keys)
+*_private.json
+*_public.json
