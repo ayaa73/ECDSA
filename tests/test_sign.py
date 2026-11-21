@@ -43,6 +43,43 @@ def test_sign_matches_rfc6979_p256_sha256_sample_vector():
     assert sign(PrivateKey(d, curve), b"sample", "sha256") == expected
 
 
+def test_rfc6979_trace_contains_state_and_candidate_without_private_key():
+    curve = get_curve("P-256")
+    trace = []
+    sign(PrivateKey(7, curve), b"trace example", trace=trace)
+    values = [step.values for step in trace]
+    assert any("K" in item and "V" in item for item in values)
+    assert any("k" in item and item.get("accepted") == "yes" for item in values)
+    assert all("d" not in item for item in values)
+
+
+@pytest.mark.parametrize(
+    "curve_name, library_curve",
+    [
+        ("P-256", "SECP256R1"),
+        ("secp256k1", "SECP256K1"),
+    ],
+)
+def test_our_signature_verifies_with_cryptography(curve_name, library_curve):
+    """Cross-check signatures with a library that is used only inside tests."""
+    ec = pytest.importorskip("cryptography.hazmat.primitives.asymmetric.ec")
+    hashes = pytest.importorskip("cryptography.hazmat.primitives.hashes")
+    utils = pytest.importorskip("cryptography.hazmat.primitives.asymmetric.utils")
+
+    curve = get_curve(curve_name)
+    priv = PrivateKey(2026, curve)
+    pub = public_from_private(priv)
+    message = b"independent ECDSA verification"
+    sig = sign(priv, message)
+
+    curve_type = getattr(ec, library_curve)
+    library_key = ec.EllipticCurvePublicNumbers(*pub.Q, curve_type()).public_key()
+    der_signature = utils.encode_dss_signature(sig.r, sig.s)
+    # cryptography raises InvalidSignature on failure, so reaching this line's
+    # end is the successful result.
+    library_key.verify(der_signature, message, ec.ECDSA(hashes.SHA256()))
+
+
 @pytest.mark.parametrize("curve_name", ["toy-17", "secp256k1", "P-256"])
 def test_deterministic_signature_repeats_and_verifies(curve_name):
     curve = get_curve(curve_name)

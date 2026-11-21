@@ -25,6 +25,26 @@ def _int2octets(value: int, length: int) -> bytes:
     return value.to_bytes(length, "big")
 
 
+def _bits2int(data: bytes, n: int) -> int:
+    """RFC 6979 bits2int: keep the leftmost bit_length(n) bits."""
+    value = int.from_bytes(data, "big")
+    extra_bits = len(data) * 8 - n.bit_length()
+    return value >> extra_bits if extra_bits > 0 else value
+
+
+def _bits2octets(e: int, n: int, length: int) -> bytes:
+    """RFC 6979 bits2octets after hash_message has already done bits2int."""
+    # Since e has at most bit_length(n) bits, RFC 6979 needs at most one
+    # subtraction here. This is deliberately not the hash truncation step.
+    reduced = e - n if e >= n else e
+    return _int2octets(reduced, length)
+
+
+def _trace_state(trace: "Trace | None", title: str, formula: str, K: bytes, V: bytes) -> None:
+    """Record the HMAC-DRBG state in hexadecimal for the teaching trace."""
+    add_step(trace, title, formula, K=K.hex(), V=V.hex())
+
+
 def generate_k_candidates(
     d: int,
     e: int,
@@ -52,24 +72,36 @@ def generate_k_candidates(
     rolen = (qlen + 7) // 8
     holen = hashlib.new(hash_name).digest_size
 
-    # hash_message has already done bits2int.  Reducing that value and writing
-    # it at rolen bytes is exactly RFC 6979's bits2octets operation.
+    # hash_message has already performed bits2int on the message digest.
     key_bytes = _int2octets(d, rolen)
-    hash_bytes = _int2octets(e % n, rolen)
+    hash_bytes = _bits2octets(e, n, rolen)
 
     V = b"\x01" * holen
     K = b"\x00" * holen
+    _trace_state(
+        trace,
+        "Initialize RFC 6979 state",
+        "V = 0x01 repeated; K = 0x00 repeated",
+        K,
+        V,
+    )
     K = hmac.new(K, V + b"\x00" + key_bytes + hash_bytes, hash_name).digest()
     V = hmac.new(K, V, hash_name).digest()
+    _trace_state(
+        trace,
+        "Update RFC 6979 state",
+        "K = HMAC(K, V || 0x00 || int2octets(d) || bits2octets(e)); V = HMAC(K, V)",
+        K,
+        V,
+    )
     K = hmac.new(K, V + b"\x01" + key_bytes + hash_bytes, hash_name).digest()
     V = hmac.new(K, V, hash_name).digest()
-
-    add_step(
+    _trace_state(
         trace,
-        "Initialize RFC 6979",
-        "K and V are initialized with HMAC(private key d, message hash e)",
-        hash=hash_name,
-        order_bits=qlen,
+        "Finish RFC 6979 setup",
+        "K = HMAC(K, V || 0x01 || int2octets(d) || bits2octets(e)); V = HMAC(K, V)",
+        K,
+        V,
     )
 
     while True:
@@ -78,21 +110,27 @@ def generate_k_candidates(
             V = hmac.new(K, V, hash_name).digest()
             T += V
 
-        candidate = int.from_bytes(T, "big")
-        extra_bits = len(T) * 8 - qlen
-        if extra_bits > 0:
-            candidate >>= extra_bits
+        candidate = _bits2int(T, n)
+        accepted = 1 <= candidate < n
+        add_step(
+            trace,
+            "Check RFC 6979 candidate k",
+            "accept k when 1 <= k < n",
+            k=candidate,
+            accepted="yes" if accepted else "no",
+        )
 
-        if 1 <= candidate < n:
-            add_step(
-                trace,
-                "Generate deterministic nonce k",
-                "RFC 6979 candidate satisfies 1 <= k < n",
-                k=candidate,
-            )
+        if accepted:
             yield candidate
 
         # If this candidate is unusable (or sign() later finds r or s is zero),
         # RFC 6979 updates the state before producing the next candidate.
         K = hmac.new(K, V + b"\x00", hash_name).digest()
         V = hmac.new(K, V, hash_name).digest()
+        _trace_state(
+            trace,
+            "Advance RFC 6979 state",
+            "K = HMAC(K, V || 0x00); V = HMAC(K, V)",
+            K,
+            V,
+        )
