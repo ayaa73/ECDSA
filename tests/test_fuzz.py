@@ -169,7 +169,10 @@ def test_key_file_loaders_only_raise_value_error(tmp_path, loader):
 
 
 def test_signature_parsers_only_raise_value_error():
-    enc = pytest.importorskip("ecdsa_edu.core.sig_encoding")  # P3's module, not merged yet
+    enc = pytest.importorskip("ecdsa_edu.core.sig_encoding")  # P3's module
+    from ecdsa_edu.gui.tabs.p4_logic import signature_formats_available
+    if not signature_formats_available():
+        pytest.skip("sig_encoding.py is still a stub (raises NotImplementedError)")
     rng = random.Random("sig-parsers")
     for curve_name in CURVE_NAMES:
         curve = get_curve(curve_name)

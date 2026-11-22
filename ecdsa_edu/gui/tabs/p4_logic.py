@@ -35,11 +35,20 @@ def fmt_point(P: Any, curve: "Curve | None" = None) -> str:
 
 # ---------------------------------------------------------------- signature input
 def signature_formats_available() -> bool:
-    """True once P3's sig_encoding.py (hex r||s and DER) is merged."""
+    """True once P3's sig_encoding.py (hex r||s and DER) is merged AND implemented.
+
+    The first version on the p3-sign branch only has stubs that raise
+    NotImplementedError, so we probe one call instead of just importing.
+    """
     try:
-        import ecdsa_edu.core.sig_encoding  # noqa: F401
+        from ecdsa_edu.core.sig_encoding import sig_from_der
+        sig_from_der(bytes.fromhex("3006020101020101"))  # DER for r = 1, s = 1
+    except NotImplementedError:
+        return False
     except ImportError:
         return False
+    except Exception:  # noqa: BLE001 - implemented, merely strict about this sample
+        return True
     return True
 
 
