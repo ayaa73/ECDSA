@@ -198,6 +198,11 @@ class ExamplePage(LearnPage):
 class LearnTab(QWidget):
     """The Learn ECDSA tab: Back / Next through every teammate's steps."""
 
+    HELP = ("A step-by-step walkthrough of one complete ECDSA run with small numbers: the curve, the keys, "
+            "hashing, the nonce k, the signature (r, s), verification and a short quiz. Use Next and Back (or the "
+            "arrow keys). Tick \"Show real-size numbers\" to repeat the same steps on secp256k1, the curve "
+            "Bitcoin uses.")
+
     def __init__(self, state: Any = None) -> None:
         super().__init__()
         self.app_state = state

@@ -1,4 +1,6 @@
-# 4. Verification, the nonce-reuse attack, and testing
+# 4.4 Verification and the nonce-reuse attack
+
+<!-- 4.4.4 Security notes moves to 07_security.md (Mira) and 4.4.5 Testing summary to 05_testing.md (Aya). -->
 
 *Author: P4. Code: `core/verify.py`, `core/attacks.py`, `gui/tabs/verify_tab.py`, `gui/tabs/attack_tab.py`.*
 
@@ -6,14 +8,14 @@ Notation follows the rest of the report: curve $E: y^2 = x^3 + ax + b \pmod p$, 
 order $n$, private key $d \in [1, n-1]$, public key $Q = dG$, message hash $e$ (the hash output as an
 integer, truncated to the bit length of $n$), nonce $k$, signature $(r, s)$, point at infinity $\mathcal{O}$.
 
-## 4.1 The verification algorithm
+## 4.4.1 The verification algorithm
 
 Our `verify(pub, msg, sig)` implements SEC 1 v2, section 4.1.4. Given $Q$, a message $m$ and $(r, s)$:
 
 1. **Range check.** Reject unless $1 \le r \le n-1$ and $1 \le s \le n-1$.
 2. **Public-key check.** Reject unless $Q \ne \mathcal{O}$ and $Q$ satisfies the curve equation.
    (For a cofactor $h > 1$ we also require $nQ = \mathcal{O}$; all our curves have $h = 1$.)
-3. **Hash.** $e = H(m)$, truncated exactly as in signing (section 3).
+3. **Hash.** $e = H(m)$, truncated exactly as in signing (section 4.3).
 4. $w = s^{-1} \bmod n$.
 5. $u_1 = e\,w \bmod n$, $\quad u_2 = r\,w \bmod n$.
 6. $X = u_1 G + u_2 Q$. Reject if $X = \mathcal{O}$.
@@ -28,10 +30,10 @@ Two design decisions:
   `r out of range`, `public key is not on the curve` or `x1 mod n != r`. The Verify tab shows this
   reason under the red INVALID banner, so a student sees *which* check failed, not just that one did.
 
-`verify_file` is identical except that $e$ comes from the chunked `hash_file` (section 3), so large
+`verify_file` is identical except that $e$ comes from the chunked `hash_file` (section 4.3), so large
 files are never loaded into memory at once.
 
-## 4.2 Why verification works
+## 4.4.2 Why verification works
 
 The signer computed $R = kG$, $r = x_R \bmod n$ and $s = k^{-1}(e + rd) \bmod n$. Multiplying the last
 equation by $k\,s^{-1} = k\,w$ gives
@@ -69,7 +71,7 @@ $X = 16G + 6Q = 16G + 42G = 58G = G = (5, 1)$. Since $5 \ne 7$, the signature is
 These are exactly the values the app's trace shows (they are checked by
 `test_textbook_example_valid` in `tests/test_verify.py`).
 
-## 4.3 The nonce-reuse attack
+## 4.4.3 The nonce-reuse attack
 
 If the same $k$ signs two messages with hashes $e_1 \ne e_2$, both signatures share $R = kG$ and so the
 same $r$. The two signing equations are
@@ -85,7 +87,7 @@ computing $Q' = dG$ and verifying both signatures under $Q'$, so it never return
 It raises `ValueError` when the input cannot be a nonce-reuse pair ($r_1 \ne r_2$, identical signatures,
 or $e_1 \equiv e_2$).
 
-**Low-s signers.** Many implementations replace $s$ by $n - s$ when $s > n/2$ (section 4.5). That is the
+**Low-s signers.** Many implementations replace $s$ by $n - s$ when $s > n/2$ (section 7). That is the
 same as signing with $-k$, and if only one of the two signatures was flipped, the formula above returns
 a wrong $d$. Our function also tries $s_2 \to n - s_2$ and keeps the candidate whose key verifies both
 signatures. This also covers the edge case where the flipped $s_2$ equals $s_1$ exactly.
@@ -109,36 +111,40 @@ The attacker sees $r_1 = r_2 = 7$ and computes, with $7^{-1} \equiv 11 \pmod{19}
 In 2010 this exact mistake exposed Sony's PlayStation 3 signing key, because the same $k$ was used for
 every signature. The Attack Demo tab replays the attack live on toy-17 or secp256k1.
 
-## 4.4 Security notes
+## 4.4.4 Security notes
 
 This application is **educational and must not be used to protect real keys**:
 
 - **Not constant-time.** Python integers and our double-and-add scalar multiplication take time that
   depends on the scalar. Timing leaks of even a few nonce bits enable lattice attacks (e.g. Minerva and
   TPM-FAIL, 2019).
-- **Nonce generation.** Signing uses RFC 6979 deterministic nonces by default (section 3), which removes
+- **Nonce generation.** Signing uses RFC 6979 deterministic nonces by default (section 4.3), which removes
   the dependence on a random number generator and rules out accidental reuse. The Attack Demo forces a
   repeated $k$ on purpose.
-- **Malleability.** If $(r, s)$ is valid then so is $(r, n - s)$. `normalize_low_s` (section 3) produces
+- **Malleability.** If $(r, s)$ is valid then so is $(r, n - s)$. `normalize_low_s` (section 4.3) produces
   the canonical low-s form. Our verifier accepts both forms, as SEC 1 requires.
 - **Input validation.** The range and public-key checks in 4.1 are mandatory. Java 15–18 omitted the
   range check and accepted $r = s = 0$ for any message (CVE-2022-21449).
-- **Keys on disk.** Private keys are saved as plain JSON (section 2), without encryption.
+- **Keys on disk.** Private keys are saved as plain JSON (section 4.2), without encryption.
 
-## 4.5 Testing summary
+## 4.4.5 Testing summary
 
 All tests run with `pytest`. Correctness is cross-checked against independent libraries, which are used
 only inside tests.
 
-| Area | What is tested | Status |
+| Area | What is tested | Status (22 Nov, real code of all four members) |
 |---|---|---|
-| Verification (toy-17) | Textbook example gives $w = 9$, $u_1 = u_2 = 6$, $X = (7, 11)$, valid | Written; passes with stand-in modules, pending merge of P1/P3 code |
-| Rejection reasons | Tampered message, $r$ or $s$; $r$ or $s$ equal to 0 or $\ge n$; wrong key; key not on curve; garbage input never raises | Written; passes with stand-ins, pending merge |
-| Library interop (theirs → ours) | Signatures from `cryptography` on secp256k1 and P-256 verify with our code | Written; passes with stand-ins, pending merge |
-| Library interop (ours → theirs) | Our signatures verify with `cryptography` (DER via `sig_to_der`) | To do (needs P3's `sign` and `sig_encoding`) |
-| RFC 6979 test vectors | Deterministic $k$ and signatures match the RFC | P3 (section 3) |
-| Nonce-reuse attack | Recovers the true $d$ on toy-17, toy-97, secp256k1; low-s flip; flipped $s_2 = s_1$ edge case; errors for $r_1 \ne r_2$ and identical signatures | Written; passes with stand-ins, pending merge |
-| Learn wizard | Missing teammate pages show "coming soon"; Back/Next; curve toggle; quiz scoring | Model tests pass; Qt tests need PySide6 |
-| Fuzzing | 1000 round trips on toy-97, 50 on P-256; random bytes into every parser raise only `ValueError` | To do (week 4) |
+| Verification (toy-17) | Textbook example gives $w = 9$, $u_1 = u_2 = 6$, $X = (7, 11)$, valid | Passes |
+| Rejection reasons | Tampered message, $r$ or $s$; $r$ or $s$ equal to 0 or $\ge n$; wrong key; key not on curve; garbage input never raises | Passes |
+| Library interop (theirs → ours) | Signatures from `cryptography` on secp256k1 and P-256 verify with our code | Passes |
+| Library interop (ours → theirs) | Our signatures (RFC 6979 and random $k$) verify in `cryptography`, and fail for a changed message | Passes |
+| RFC 6979 test vectors | Deterministic $k$ and signatures match the RFC | Passes (Mira, section 4.3) |
+| Nonce-reuse attack | Recovers the true $d$ on toy-17, toy-97, secp256k1; low-s flip; flipped $s_2 = s_1$ edge case; errors for $r_1 \ne r_2$ and identical signatures | Passes |
+| Fuzzing | 1000 round trips on toy-97, 50 each on P-256 and secp256k1; garbage into `verify()`, the point and key-file parsers and the attack | Passes; signature-encoding parsers pending Mira's `sig_encoding.py` |
+| Learn wizard, Verify, Attack Demo, Start here, History, Learn steps 3–5 | Page logic, Back/Next, curve toggle, quiz scoring, VALID → tamper → INVALID, attack → MATCH | Logic tests pass; pytest-qt GUI tests need PySide6 |
 
-*Final pass/fail counts will be filled in once all branches are merged.*
+A measured property of toy curves: on toy-97 ($n = 79$) a signature still verified for about 2.8% of changed
+messages, close to the expected $2/n \approx 2.5\%$, because $x_X \bmod n$ only has $n$ possible values. On 256-bit
+curves this chance is negligible, and the fuzz test requires every changed message to fail.
+
+*Final pass/fail counts go in section 5 (Testing) once all branches are merged.*

@@ -46,6 +46,9 @@ EMPTY_HTML = """
 class TheoryTab(QWidget):
     """Read-only ECDSA theory notes. Does not depend on the selected curve."""
 
+    HELP = ("Short reading pages on the ideas behind the app: elliptic curves, keys, signing, why verification "
+            "works, the classic mistakes and a glossary. Pick a page from the list on the left.")
+
     def __init__(self, state=None, pages_dir: Path | str = PAGES_DIR) -> None:
         super().__init__()
         self.state = state
