@@ -6,7 +6,7 @@ by accident. Two objects with the same content compare equal.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field # using dataclasses because they provide us with constructors, printing and equality check
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # only needed for type hints; keeps this module importable on its own
@@ -14,6 +14,7 @@ if TYPE_CHECKING:  # only needed for type hints; keeps this module importable on
 
 __all__ = ["PrivateKey", "PublicKey", "Signature"]
 
+# the classes we're creating below only store values, they don't check
 
 @dataclass(frozen=True)
 class PrivateKey:
@@ -21,20 +22,20 @@ class PrivateKey:
 
     # repr=False keeps the secret out of logs, tracebacks and debug prints.
     d: int = field(repr=False)
-    curve: Curve
+    curve: Curve # which curve this key belongs to 
 
 
 @dataclass(frozen=True)
 class PublicKey:
-    """The public point ``Q = d * G`` (never the point at infinity)."""
+    """public key is a point on the curve q= d*G s.t d is the private key and G is a base point on curve"""
 
-    Q: tuple[int, int]
-    curve: Curve
+    Q: tuple[int, int] # public key is a tuple because it's a point on the curve; it has x and y coordinates 
+    curve: Curve # associated with a given curve
+    # Q cannot be O --> checked in keys.py
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True) 
 class Signature:
-    """An ECDSA signature: the pair ``(r, s)``, both in [1, n-1]."""
-
+    """An ECDSA signature is the pair (r,s) which both belong to the [1,n-1] interval."""
     r: int
     s: int

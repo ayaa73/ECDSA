@@ -57,6 +57,7 @@ class PageSpec:
 
 # The single place to edit if a teammate names a module or class differently.
 PAGE_SPECS: list[PageSpec] = [
+    PageSpec("Overview", "ecdsa_edu.gui.overview_tab", "OverviewTab", "GUI", "overview"),
     PageSpec("Keys", "ecdsa_edu.gui.tabs.keys_tab", "KeysTab", "P2", "key"),
     PageSpec("Sign", "ecdsa_edu.gui.tabs.sign_tab", "SignTab", "P3", "pen"),
     PageSpec("Verify", "ecdsa_edu.gui.tabs.verify_tab", "VerifyTab", "P4", "check"),
@@ -76,7 +77,14 @@ _CUSTOM_ENTRY = "\x00custom"  # item data of the "Custom curve…" combo entry
 def _icon_path(name: str) -> QPainterPath:
     """Outline of the icon ``name`` in a 24 x 24 box."""
     p = QPainterPath()
-    if name == "key":
+    if name == "overview":  # connected steps in the ECDSA flow
+        p.addRoundedRect(QRectF(2.5, 5, 6, 5), 1.2, 1.2)
+        p.addRoundedRect(QRectF(15.5, 5, 6, 5), 1.2, 1.2)
+        p.addRoundedRect(QRectF(9, 15, 6, 5), 1.2, 1.2)
+        p.moveTo(8.5, 7.5); p.lineTo(15.5, 7.5)
+        p.moveTo(18.5, 10); p.lineTo(13.5, 15)
+        p.moveTo(5.5, 10); p.lineTo(10.5, 15)
+    elif name == "key":
         p.addEllipse(QPointF(8, 8), 4.5, 4.5)
         p.moveTo(11.2, 11.2); p.lineTo(20.5, 20.5)
         p.moveTo(16.5, 16.5); p.lineTo(19, 14)
@@ -123,7 +131,7 @@ def _draw_icon(name: str, color: str, size: int = 22) -> QPixmap:
 
 
 def make_icon(name: str, color: str, selected_color: str | None = None) -> QIcon:
-    """Line icon by name: key, pen, check, curve, learn, warning, book."""
+    """Line icon by name: overview, key, pen, check, curve, learn, warning, book."""
     icon = QIcon()
     icon.addPixmap(_draw_icon(name, color), QIcon.Mode.Normal)
     icon.addPixmap(_draw_icon(name, selected_color or color), QIcon.Mode.Selected)
