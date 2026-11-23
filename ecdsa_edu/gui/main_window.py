@@ -185,8 +185,13 @@ class MainWindow(QMainWindow):
         self.theme_button = QToolButton()
         self.theme_button.setCheckable(True)
         self.theme_button.setToolTip("Switch between the light and the dark theme")
+        self.help_button = QToolButton()
+        self.help_button.setText("?")
+        self.help_button.setToolTip("Help for current page")
+        self.help_button.setFixedSize(36, 36)
+        self.help_button.clicked.connect(self._show_page_help)
 
-        for widget in (title, spacer, self.curve_info, label, self.curve_combo, self.theme_button):
+        for widget in (title, spacer, self.curve_info, label, self.curve_combo, self.theme_button, self.help_button):
             bar.addWidget(widget)
 
         self._fill_curve_combo()
@@ -372,6 +377,30 @@ class MainWindow(QMainWindow):
         self.show_page("Keys")
         handler()
 
+    def _show_page_help(self) -> None:
+        page = self.stack.currentWidget()
+        title = self.sidebar.currentItem().text()
+
+        help_text = getattr(page, "HELP", None)
+
+        if title == "Learn ECDSA":
+            current_page = None
+
+            if hasattr(page, "pages") and hasattr(page, "index"):
+                try:
+                    current_page = page.pages[page.index]
+                except (IndexError, KeyError, TypeError):
+                    pass
+
+            if current_page is not None:
+                help_text = getattr(current_page, "HELP", help_text)
+
+        QMessageBox.information(
+            self,
+            f"{title} - Help",
+            help_text or "No help information is available for this page yet."
+        )
+        
     def _about(self) -> None:
         QMessageBox.about(
             self,
