@@ -16,9 +16,27 @@ def finite_field_figure(curve: Curve, selected=(), arrows=False) -> Figure:
     """Reusable plot for the Explorer and Learn page (no cryptography in GUI)."""
     fig = Figure(figsize=(6, 4)); ax = fig.add_subplot(111)
     if curve.p >= 5000:
-        ax.text(.5,.55, 'A 256-bit field cannot be enumerated or plotted',ha='center',transform=ax.transAxes)
-        ax.text(.5,.4,f'G = {curve.G}',ha='center',wrap=True,fontsize=8,transform=ax.transAxes)
-        ax.set_axis_off(); return fig
+        ax.text(
+            0.5, 0.58,
+            "Large finite field",
+            ha="center", va="center",
+            fontsize=16, fontweight="bold",
+            color="#243b6b",
+            transform=ax.transAxes
+        )
+        ax.text(
+            0.5, 0.45,
+            f"{curve.name} uses a {curve.p.bit_length()}-bit prime field.\n"
+            "Plotting every point is computationally infeasible.\n\n"
+            "The curve's mathematical operations still work.\n"
+            "See the information panel for its parameters.",
+            ha="center", va="center",
+            fontsize=10, linespacing=1.7,
+            transform=ax.transAxes
+        )
+        ax.set_axis_off()
+        fig.tight_layout()
+        return fig
     points = [q for q in enumerate_points(curve) if q is not None]
     ax.scatter([q[0] for q in points],[q[1] for q in points],s=24,alpha=.55)
     for label,pt in selected:
@@ -183,10 +201,61 @@ class CurveExplorerTab(QWidget):
 
     def _refresh_finite(self):
         if self.curve is None:return
-        if self.curve.p>=5000:
+        if self.curve.p >= 5000:
             self._replace_finite_plot([])
-            self.trace_text.setPlainText(f'{self.curve.name}: p has {self.curve.p.bit_length()} bits.\nG = {self.curve.G}\nCannot enumerate approximately 2^256 points.')
-        elif self.finite_mode.currentIndex()==0:
+
+            curve = self.curve
+
+            def format_hex(value):
+                hexadecimal = f"{value:064x}"
+                return "\n".join(
+                    hexadecimal[i:i+32]
+                    for i in range(0, len(hexadecimal), 32)
+                )
+
+            gx, gy = curve.G
+
+            info = (
+                "ELLIPTIC CURVE PARAMETERS\n"
+                "========================================\n\n"
+                f"Curve: {curve.name}\n"
+                f"Field size: {curve.p.bit_length()} bits\n"
+                f"Subgroup order: {curve.n.bit_length()} bits\n"
+                f"Cofactor (h): {curve.h}\n\n"
+
+                "FIELD PRIME (p)\n"
+                "----------------------------------------\n"
+                f"0x{format_hex(curve.p)}\n\n"
+
+                "CURVE EQUATION\n"
+                "----------------------------------------\n"
+                "y² = x³ + ax + b (mod p)\n\n"
+
+                "GENERATOR POINT (G)\n"
+                "----------------------------------------\n"
+                "Gx:\n"
+                f"0x{format_hex(gx)}\n\n"
+                "Gy:\n"
+                f"0x{format_hex(gy)}\n\n"
+
+                "GROUP ORDER (n)\n"
+                "----------------------------------------\n"
+                f"0x{format_hex(curve.n)}\n\n"
+
+                "VISUALIZATION LIMITATION\n"
+                "----------------------------------------\n"
+                "This curve contains an enormous number\n"
+                "of finite-field points.\n\n"
+                "Enumerating and plotting every point\n"
+                "is computationally infeasible.\n\n"
+                "However, point addition, doubling,\n"
+                "scalar multiplication, signing, and\n"
+                "verification remain supported."
+            )
+
+            self.trace_text.setPlainText(info)
+
+        elif self.finite_mode.currentIndex() == 0:
             self._show_finite(self.finite_points)
         else:self._show_multiple()
 
@@ -204,12 +273,47 @@ class CurveExplorerTab(QWidget):
         fig = self.finite_canvas.figure
         fig.clear()
         ax = fig.add_subplot(111)
+
         if self.curve.p >= 5000:
-            ax.text(.5, .60, 'A 256-bit field cannot be enumerated or plotted',
-                    ha='center', transform=ax.transAxes)
-            ax.text(.5, .42, f'G = {self.curve.G}', ha='center',
-                    wrap=True, fontsize=8, transform=ax.transAxes)
+            ax.text(
+                0.5, 0.72,
+                "256-bit Elliptic Curve",
+                ha="center", va="center",
+                fontsize=17, fontweight="bold",
+                color="#243b6b",
+                transform=ax.transAxes
+            )
+
+            ax.text(
+                0.5, 0.60,
+                f"Curve: {self.curve.name}\n"
+                f"Field size: {self.curve.p.bit_length()} bits",
+                ha="center", va="center",
+                fontsize=11, linespacing=1.6,
+                transform=ax.transAxes
+            )
+
+            ax.text(
+                0.5, 0.42,
+                "A complete finite-field plot is not practical\n"
+                "for a cryptographic curve of this size.",
+                ha="center", va="center",
+                fontsize=11, linespacing=1.6,
+                transform=ax.transAxes
+            )
+
+            ax.text(
+                0.5, 0.25,
+                "Point addition and scalar multiplication\n"
+                "remain fully supported by the mathematical core.",
+                ha="center", va="center",
+                fontsize=10, linespacing=1.6,
+                transform=ax.transAxes
+            )
+
             ax.set_axis_off()
+
+
         else:
             points = [q for q in enumerate_points(self.curve) if q is not None]
             ax.scatter([q[0] for q in points], [q[1] for q in points],
