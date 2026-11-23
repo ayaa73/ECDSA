@@ -51,6 +51,7 @@ def state(qapp) -> AppState:
 
 @pytest.fixture
 def tab(qtbot, state) -> KeysTab:
+    state.set_mode("expert")  # most tests use the full page; Beginner mode has its own tests
     widget = KeysTab(state)
     qtbot.addWidget(widget)
     # MainWindow normally makes this connection for every page.
@@ -662,7 +663,8 @@ def _wait_dialog(qtbot, dlg) -> None:
 def test_dialog_layout_and_help_text(dialog):
     assert [type(f).__name__ for f in dialog._fields] == ["BigIntField"] * 5
     assert dialog.help_label.text() == "p must be prime and < 5000, G must lie on the curve."
-    assert dialog.btn_example.text() == "Try toy-97 values"
+    assert list(dialog.preset_buttons) == ["toy-17", "toy-97"]
+    assert dialog.btn_example is dialog.preset_buttons["toy-97"]
     assert dialog.curve() is None and not dialog.btn_ok.isEnabled()  # nothing filled in yet
 
 
@@ -743,6 +745,52 @@ def test_mistyped_field_blocks_ok_and_is_explained(dialog, boxes):
     assert not dialog._busy and boxes == []
 
 
+def test_start_from_toy17_fills_the_fields(dialog):
+    toy = get_curve("toy-17")
+    dialog.preset_buttons["toy-17"].click()
+    assert [f.value() for f in dialog._fields] == [toy.p, toy.a, toy.b, *toy.G]
+    assert dialog.p_hint.property("kind") == "ok" and dialog.g_hint.property("kind") == "ok"
+
+
+@pytest.mark.parametrize(
+    "p_text, kind, words",
+    [
+        ("", "info", "prime number from 5"),
+        ("abc", "error", "whole number"),
+        ("3", "error", "at least 5"),
+        ("15", "error", "15 is not a prime"),
+        ("6007", "error", "below 5000"),
+        ("97", "ok", "✓"),
+    ],
+)
+def test_live_hint_under_p(dialog, p_text, kind, words):
+    dialog.p_field.setText(p_text)
+    assert dialog.p_hint.property("kind") == kind and words in dialog.p_hint.text()
+
+
+@pytest.mark.parametrize(
+    "params, kind, words",
+    [
+        ((17, 2, 2, 5, 1), "ok", "lies on this curve"),
+        ((17, 2, 2, 5, 2), "error", "not on this curve"),
+        ((17, 2, 2, 17, 1), "error", "between 0 and p - 1"),
+        ((15, 2, 2, 5, 1), "info", "Pick a point"),  # p is wrong: first fix p
+    ],
+)
+def test_live_hint_under_g(dialog, params, kind, words):
+    _fill(dialog, *params)
+    assert dialog.g_hint.property("kind") == kind and words in dialog.g_hint.text()
+
+
+def test_hints_do_not_block_ok(qtbot, dialog, boxes):
+    """A hint is advice: OK still asks the core, which explains the problem in a box."""
+    _fill(dialog, 17, 2, 2, 5, 2)
+    assert dialog.g_hint.property("kind") == "error" and dialog.btn_ok.isEnabled()
+    dialog.btn_ok.click()
+    qtbot.waitUntil(lambda: bool(boxes), timeout=10_000)
+    assert boxes[0][0] == "Not a usable curve"
+
+
 def test_second_custom_curve_gets_its_own_name(qtbot, state, boxes):
     names = []
     for params in ((17, 2, 2, 5, 1), (23, 1, 1, 5, 4), (17, 2, 2, 5, 1)):
@@ -768,6 +816,7 @@ def window(qtbot, state) -> MainWindow:
 
 def test_main_window_shows_the_real_keys_page(window):
     assert isinstance(window.pages["Keys"], KeysTab)
+    window.show_page("Keys")
     assert window.stack.currentWidget() is window.pages["Keys"]
 
 

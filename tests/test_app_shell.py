@@ -227,24 +227,25 @@ def test_themes_define_the_same_colours():
 
 
 # =========================================================== MainWindow
-PAGE_TITLES = ["Start here", "Overview", "Keys", "Sign", "Verify", "Curve Explorer", "Learn ECDSA",
-               "Attack Demo", "Theory", "History"]
+PAGE_ORDER = ["Start here", "Overview", "Keys", "Sign", "Verify", "Curve Explorer", "Learn ECDSA",
+              "Attack Demo", "Theory", "History"]
 
 
 def test_sidebar_lists_every_page_in_order(qtbot, state):
     window = mw.MainWindow(state)
     qtbot.addWidget(window)
     titles = [window.sidebar.item(i).text() for i in range(window.sidebar.count())]
-    assert titles == PAGE_TITLES
-    assert titles == list(window.pages) and window.stack.count() == len(PAGE_TITLES)
-    assert all(not window.sidebar.item(i).icon().isNull() for i in range(len(PAGE_TITLES)))
+    assert titles == PAGE_ORDER
+    assert titles == list(window.pages) and window.stack.count() == len(PAGE_ORDER)
+    assert all(not window.sidebar.item(i).icon().isNull() for i in range(len(PAGE_ORDER)))
+    assert titles == list(app_state_module.PAGE_TITLES)  # go_to() knows every page
 
 
 def test_sidebar_switches_the_stack(qtbot, state):
     window = mw.MainWindow(state)
     qtbot.addWidget(window)
-    assert window.stack.currentIndex() == window._first_row()  # Start here, unless turned off in settings
-    window.sidebar.setCurrentRow(list(window.pages).index("Curve Explorer"))
+    assert window.current_page_title() == window._start_page_title()
+    window.sidebar.setCurrentRow(PAGE_ORDER.index("Curve Explorer"))
     assert window.stack.currentWidget() is window.pages["Curve Explorer"]
     window.show_page("Theory")
     assert window.stack.currentWidget() is window.pages["Theory"]
@@ -381,10 +382,10 @@ def test_theme_toggle(qtbot, qapp, state, monkeypatch, light_theme):
     window = _window(qtbot, state, monkeypatch, mw.PAGE_SPECS)
     window.show()
     qtbot.waitExposed(window)
-    assert app_module.current_theme() == "light" and window.theme_button.text() == "Dark mode"
+    assert app_module.current_theme() == "light" and window.theme_button.text() == "Dark theme"
     window.theme_button.click()
     assert app_module.current_theme() == "dark"
-    assert window.theme_button.text() == "Light mode" and window.theme_action.isChecked()
+    assert window.theme_button.text() == "Light theme" and window.theme_action.isChecked()
     assert app_module.theme_colors("dark")["window"] in qapp.styleSheet()
     window.theme_action.trigger()
     assert app_module.current_theme() == "light" and not window.theme_button.isChecked()
@@ -396,14 +397,191 @@ def test_menus(qtbot, state, monkeypatch):
     window = _window(qtbot, state, monkeypatch, [])
     menus = [a.text().replace("&", "") for a in window.menuBar().actions()]
     assert menus == ["File", "View", "Help"]
+    view_actions = [a.text().replace("&", "") for a in window.menuBar().actions()[1].menu().actions() if not a.isSeparator()]
+    assert view_actions == ["Dark theme", "Expert mode", "Show “Start here” at startup"]
     file_actions = [a.text().replace("&", "") for a in window.menuBar().actions()[0].menu().actions() if not a.isSeparator()]
     assert file_actions[-2:] == ["Custom curve…", "Quit"]
 
 
-@pytest.mark.parametrize("name", ["home", "overview", "key", "pen", "check", "curve", "learn", "warning", "book",
-                                  "clock", "unknown"])
+@pytest.mark.parametrize("name", ["home", "overview", "start", "key", "pen", "check", "curve", "learn",
+                                  "warning", "book", "clock", "history", "unknown"])
 def test_icons_are_drawn(qapp, name):
     icon = mw.make_icon(name, "#ffffff", "#000000")
     assert not icon.isNull()
     image = icon.pixmap(22, 22).toImage()
     assert any(image.pixelColor(x, y).alpha() > 0 for x in range(image.width()) for y in range(image.height()))
+
+
+
+# ======================================================= mode, go_to, settings
+def test_mode_is_beginner_by_default_and_can_change(qtbot, state):
+    assert state.mode == "beginner" and not state.is_expert()
+    with qtbot.waitSignal(state.modeChanged) as blocker:
+        state.set_mode("expert")
+    assert blocker.args == ["expert"] and state.mode == "expert" and state.is_expert()
+    with qtbot.assertNotEmitted(state.modeChanged):
+        state.set_mode("expert")  # same mode again: nothing happens
+    with pytest.raises(ValueError):
+        state.set_mode("wizard")
+
+
+def test_go_to_asks_for_a_page(qtbot, state):
+    with qtbot.waitSignal(state.pageRequested) as blocker:
+        state.go_to("Keys")
+    assert blocker.args == ["Keys"]
+    with pytest.raises(ValueError):
+        state.go_to("Kitchen")
+
+
+def test_curve_and_mode_are_remembered(qapp, monkeypatch):
+    monkeypatch.setattr(app_state_module, "_builtin_curves", lambda: dict(BUILTIN))
+    first = AppState()
+    first.set_curve(K1)
+    first.set_mode("expert")
+    first.settings.sync()  # write to disk now, as happens when the app closes
+
+    second = AppState()  # like starting the app again
+    assert second.curve == K1 and second.mode == "expert"
+
+
+def test_bad_or_missing_settings_fall_back_to_defaults(qapp, monkeypatch):
+    monkeypatch.setattr(app_state_module, "_builtin_curves", lambda: dict(BUILTIN))
+    first = AppState()
+    first.settings.setValue(app_state_module.SETTING_CURVE, "no-such-curve")
+    first.settings.setValue(app_state_module.SETTING_MODE, "wizard")
+    first.settings.sync()
+    second = AppState()
+    assert second.curve == TOY and second.mode == "beginner"
+
+
+def test_custom_curves_are_not_remembered(qapp, monkeypatch):
+    monkeypatch.setattr(app_state_module, "_builtin_curves", lambda: dict(BUILTIN))
+    first = AppState()
+    custom = FakeCurve("mine", p=23)
+    first.register_curve(custom)
+    first.set_curve(custom)
+    first.settings.sync()
+    assert AppState().curve == TOY
+
+
+def test_curve_change_says_what_was_cleared(qtbot, state, monkeypatch):
+    window = _window(qtbot, state, monkeypatch, [])
+    state.set_keys(PrivateKey(7, TOY), PublicKey((0, 6), TOY))
+    state.set_signature(Signature(3, 4), b"hi")
+    state.set_curve(TOY97)
+    assert window.statusBar().currentMessage() == "New curve toy-97: keys and signature cleared."
+    state.set_curve(K1)
+    assert window.statusBar().currentMessage() == "New curve: secp256k1."
+
+
+def test_mode_button_and_menu_follow_each_other(qtbot, state, monkeypatch):
+    window = _window(qtbot, state, monkeypatch, [])
+    assert window.mode_button.text() == "Mode: Beginner" and not window.mode_action.isChecked()
+    assert "Ctrl+E" in window.mode_button.toolTip()
+    with qtbot.waitSignal(state.modeChanged):
+        window.mode_button.click()
+    assert state.mode == "expert" and window.mode_button.text() == "Mode: Expert"
+    assert window.mode_action.isChecked()
+    window.mode_action.trigger()
+    assert state.mode == "beginner" and not window.mode_button.isChecked()
+    state.set_mode("expert")  # a page could change it too
+    assert window.mode_button.isChecked()
+
+
+def test_go_to_switches_the_page(qtbot, state, monkeypatch):
+    _install_module(monkeypatch, "fake_pages", GoodTab=FakePage)
+    window = _window(qtbot, state, monkeypatch, [
+        mw.PageSpec("Keys", "fake_pages", "GoodTab", "P2", "key"),
+        mw.PageSpec("Sign", "fake_pages", "GoodTab", "P3", "pen"),
+    ])
+    assert window.current_page_title() == "Keys"
+    state.go_to("Sign")
+    assert window.current_page_title() == "Sign" and window.stack.currentWidget() is window.pages["Sign"]
+    state.go_to("History")  # a real title, but not in this window: a message, no crash
+    assert window.current_page_title() == "Sign" and "History" in window.statusBar().currentMessage()
+
+
+def test_help_button_shows_the_pages_help(qtbot, state, monkeypatch):
+    class HelpfulTab(FakePage):
+        HELP = "This page does useful things."
+
+    _install_module(monkeypatch, "fake_pages", HelpfulTab=HelpfulTab, GoodTab=FakePage)
+    window = _window(qtbot, state, monkeypatch, [
+        mw.PageSpec("Keys", "fake_pages", "HelpfulTab", "P2", "key"),
+        mw.PageSpec("Sign", "fake_pages", "GoodTab", "P3", "pen"),
+        mw.PageSpec("Verify", "no_such_package.verify", "VerifyTab", "P4", "check"),
+    ])
+    shown = []
+    monkeypatch.setattr(mw.QMessageBox, "information", lambda parent, title, text: shown.append((title, text)))
+    window.help_button.click()
+    window.show_page("Sign")
+    window.show_help()
+    window.show_page("Verify")
+    window.show_help()
+    assert shown[0] == ("Help: Keys", "This page does useful things.")
+    assert shown[1] == ("Help: Sign", mw.NO_HELP_TEXT)
+    assert "coming soon" in shown[2][1]
+    assert "F1" in window.help_button.toolTip()
+
+
+def test_start_here_is_shown_first_when_it_exists(qtbot, state, monkeypatch):
+    _install_module(monkeypatch, "fake_pages", GoodTab=FakePage)
+    specs = [
+        mw.PageSpec("Start here", "fake_pages", "GoodTab", "P4", "start"),
+        mw.PageSpec("Keys", "fake_pages", "GoodTab", "P2", "key"),
+    ]
+    window = _window(qtbot, state, monkeypatch, specs)
+    assert window.current_page_title() == "Start here"
+
+    # The user turns it off (View menu): next start opens on Keys.
+    window.tutorial_action.setChecked(False)
+    again = _window(qtbot, AppState(settings=state.settings), monkeypatch, specs)
+    assert again.current_page_title() == "Keys"
+
+
+def test_window_size_is_remembered_but_fits_the_screen(qtbot, state, monkeypatch):
+    from PySide6.QtCore import QSize
+
+    window = _window(qtbot, state, monkeypatch, [])
+    window.resize(1000, 700)
+    window.close()  # closing saves the size
+    assert state.settings.value(mw.SETTING_WINDOW_SIZE) == QSize(1000, 700)
+
+    # The test screen may be small, so work out what the window can actually be.
+    screen = QApplication.primaryScreen().availableGeometry()
+
+    def expected(width, height):
+        fitted_w = max(min(width, screen.width()), window.minimumWidth())
+        fitted_h = max(min(height, screen.height()), window.minimumHeight())
+        return (fitted_w, fitted_h)
+
+    again = _window(qtbot, AppState(settings=state.settings), monkeypatch, [])
+    assert (again.width(), again.height()) == expected(1000, 700)
+
+    state.settings.setValue(mw.SETTING_WINDOW_SIZE, QSize(9000, 9000))  # bigger than any screen
+    huge = _window(qtbot, AppState(settings=state.settings), monkeypatch, [])
+    assert (huge.width(), huge.height()) == expected(9000, 9000)
+
+
+def test_custom_curve_summary_is_friendly(qtbot, state, monkeypatch):
+    custom = FakeCurve("my-curve", p=23, n=7, h=4)
+
+    class FakeDialog:
+        def __init__(self, state, parent=None):
+            pass
+
+        def exec(self):
+            return 1
+
+        def curve(self):
+            return custom
+
+    _install_module(monkeypatch, "fake_dialog", CustomCurveDialog=FakeDialog)
+    monkeypatch.setattr(mw, "CUSTOM_DIALOG", ("fake_dialog", "CustomCurveDialog"))
+    shown = []
+    monkeypatch.setattr(mw.QMessageBox, "information", lambda parent, title, text: shown.append(text))
+    window = _window(qtbot, state, monkeypatch, [])
+    window.open_custom_curve_dialog()
+    assert len(shown) == 1
+    assert "n = 7 points in G's group" in shown[0] and "cofactor h = 4" in shown[0]
+    assert "works for ECDSA" in shown[0]
