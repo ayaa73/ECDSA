@@ -50,6 +50,7 @@ class Destination:
 
 
 DESTINATIONS: tuple[Destination, ...] = (
+    Destination("See the big picture", "A clickable map of how every part of ECDSA fits together.", "Overview"),
     Destination("Learn step by step", "Walk through one full ECDSA run with small numbers.", "Learn ECDSA"),
     Destination("Make your own key", "Generate a key pair and save it to a file.", "Keys"),
     Destination("Sign a message or file", "Create a signature and see every step.", "Sign"),
