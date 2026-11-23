@@ -1,1 +1,46 @@
-<html><body style="font-family:Arial,sans-serif;line-height:1.55;color:#253247;max-width:780px"><h1>Scalar multiplication and ECDLP</h1><p>Double-and-add computes kG efficiently using the binary representation of k. The reverse problem, finding k from G and kG, is called the elliptic-curve discrete logarithm problem. On properly chosen large curves, this reverse problem is computationally infeasible.</p><p style="text-align:center"><img src="img/p1_03.png" alt="Formula"></p><p><b>Toy example:</b> y² = x³ + 2x + 2 (mod 17), G = (5,1), 2G = (6,3), 3G = (10,6), and 19G = O.</p></body></html>
+
+<h2>What Is Scalar Multiplication?</h2>
+<p>Scalar multiplication means repeatedly adding an elliptic-curve point to itself.</p>
+<p><b>Q = kG</b></p>
+<p>Here, G is the generator point, k is an integer called a scalar, and Q is the resulting elliptic-curve point.</p>
+<p>For example:</p>
+<ul>
+<li>1G = G = (5, 1)</li>
+<li>2G = G + G = (6, 3)</li>
+<li>3G = 2G + G = (10, 6)</li>
+<li>4G = 3G + G = (3, 1)</li>
+<li>7G = (0, 6)</li>
+</ul>
+
+<h2>Efficient Computation: Double-and-Add</h2>
+<p>Adding G to itself k times would be inefficient for very large values of k. Instead, elliptic-curve cryptography uses the double-and-add algorithm.</p>
+<p>This algorithm expresses the scalar in binary and combines point doubling with point addition.</p>
+
+<h3>Worked Example: Calculating 7G</h3>
+<p>The binary representation of 7 is 111, meaning:</p>
+<p><b>7G = 4G + 2G + G</b></p>
+<ol>
+<li>Start with G = (5, 1).</li>
+<li>Double G to obtain 2G = (6, 3).</li>
+<li>Double 2G to obtain 4G = (3, 1).</li>
+<li>Add 4G and 2G to obtain 6G = (16, 13).</li>
+<li>Add G to 6G to obtain 7G = (0, 6).</li>
+</ol>
+<p><b>Result: 7G = (0, 6).</b></p>
+<p>Double-and-add requires only a logarithmic number of group operations relative to k, making scalar multiplication efficient even for large scalars.</p>
+
+<h2>The Elliptic-Curve Discrete Logarithm Problem</h2>
+<p>Scalar multiplication is easy to compute in the forward direction:</p>
+<p><b>Given k and G, calculate Q = kG.</b></p>
+<p>However, the reverse problem is much harder:</p>
+<p><b>Given G and Q, determine the unknown scalar k.</b></p>
+<p>This is called the Elliptic-Curve Discrete Logarithm Problem (ECDLP).</p>
+<p>On our small toy-17 curve, an attacker can try every possible scalar until the correct one is found. This is practical because the generator has order n = 19.</p>
+<p>On properly chosen cryptographic curves such as secp256k1, the group order is approximately 2^256. The best known generic classical attacks require an enormous number of operations, making private-key recovery computationally infeasible.</p>
+
+<h2>How This Relates to ECDSA</h2>
+<p>In ECDSA, a user chooses a secret private key d and computes the corresponding public key:</p>
+<p><b>Q = dG</b></p>
+<p>The public key Q can be shared without revealing d, because recovering d from Q and G requires solving the ECDLP.</p>
+<p>ECDSA uses the private key to generate digital signatures and the public key to verify them.</p>
+<p>Security also depends on correct nonce generation, curve validation, and implementation. Reusing a signing nonce can reveal the private key even when the underlying ECDLP remains difficult.</p>
