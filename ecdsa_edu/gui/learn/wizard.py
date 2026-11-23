@@ -52,7 +52,7 @@ from ecdsa_edu.gui.learn.model import (
     step_count,
 )
 
-__all__ = ["LearnState", "LearnPage", "LearnTab", "ExamplePage", "LEARN_KEYS"]
+__all__ = ["LearnState", "LearnPage", "LearnTab", "LearnWizard", "ExamplePage", "LEARN_KEYS"]
 
 TOY_CURVE = "toy-17"
 REAL_CURVE = "secp256k1"
@@ -198,6 +198,11 @@ class ExamplePage(LearnPage):
 class LearnTab(QWidget):
     """The Learn ECDSA tab: Back / Next through every teammate's steps."""
 
+    HELP = ("A step-by-step walkthrough of one complete ECDSA run with small numbers: the curve, the keys, "
+            "hashing, the nonce k, the signature (r, s), verification and a short quiz. Use Next and Back (or the "
+            "arrow keys). Tick \"Show real-size numbers\" to repeat the same steps on secp256k1, the curve "
+            "Bitcoin uses.")
+
     def __init__(self, state: Any = None) -> None:
         super().__init__()
         self.app_state = state
@@ -305,3 +310,7 @@ class LearnTab(QWidget):
     def set_curve(self, curve: Any) -> None:
         """Part of the tab contract. The walkthrough uses its own teaching curves
         (toy-17 or secp256k1 via the checkbox), so the app's curve is ignored."""
+
+
+# The main window (P2) loads this tab by the name LearnWizard.
+LearnWizard = LearnTab

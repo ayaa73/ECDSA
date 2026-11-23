@@ -8,6 +8,13 @@ from ecdsa_edu.gui.tabs.curve_explorer_tab import finite_field_figure
 
 class CurvePage(LearnPage):
     title = 'Step 1: the curve and G'
+
+    HELP = (
+        "This page introduces the elliptic curve and its generator point G. "
+        "The generator is used to produce other points through repeated addition. "
+        "For small curves, the page displays the valid points and a table of multiples of G. "
+        "Enable real-size numbers to explore the parameters of secp256k1."
+    )
     def __init__(self,parent=None):
         super().__init__(parent)
         self.plot=FigureCanvasQTAgg(finite_field_figure(get_curve('toy-17')))
@@ -15,18 +22,57 @@ class CurvePage(LearnPage):
         self.table=QTableWidget(0,2);self.table.setHorizontalHeaderLabels(['k','kG'])
         self.layout().addWidget(self.table)
 
-    def enter(self,st: LearnState)->None:
-        curve=get_curve('toy-17');st.curve=curve
-        self.set_text('An elliptic curve is a set of points satisfying an equation. '
-            'Here all arithmetic happens modulo 17, so there are only 17 possible x-values. '
-            'G is our starting point, called the generator. '
-            'Repeatedly adding G produces the table below and eventually returns to O.')
-        self.set_formula('y² = x³ + 2x + 2 (mod 17)     G = (5, 1)')
-        self.set_values({'p':curve.p,'a':curve.a,'b':curve.b,'G':curve.G,'n':curve.n})
-        self.table.setRowCount(curve.n)
-        for i in range(1,curve.n+1):
-            q=scalar_mult(curve,i,curve.G)
-            self.table.setItem(i-1,0,QTableWidgetItem(str(i)))
-            self.table.setItem(i-1,1,QTableWidgetItem(str(q) if q is not None else 'O'))
+
+    def enter(self, st: LearnState) -> None:
+        if st.curve is None:
+            st.curve = get_curve('toy-17')
+
+        curve = st.curve
+
+        self.set_text(
+            'An elliptic curve consists of points satisfying an equation '
+            'over a mathematical field. The generator G is a starting point '
+            'used to produce other points through repeated addition. '
+            'These operations form the mathematical foundation of ECDSA.'
+        )
+
+        self.set_formula(
+            f'y² = x³ + ({curve.a})x + ({curve.b}) (mod p)'
+        )
+
+        self.set_values({
+            'curve': curve.name,
+            'p': curve.p,
+            'a': curve.a,
+            'b': curve.b,
+            'G': curve.G,
+            'n': curve.n,
+            'h': curve.h
+        })
+
+        if curve.p < 5000:
+            self.plot.figure = finite_field_figure(curve)
+            self.plot.draw_idle()
+            self.plot.show()
+            self.table.show()
+
+            self.table.setRowCount(curve.n)
+
+            for i in range(1, curve.n + 1):
+                q = scalar_mult(curve, i, curve.G)
+                self.table.setItem(
+                    i - 1, 0, QTableWidgetItem(str(i))
+                )
+                self.table.setItem(
+                    i - 1, 1,
+                    QTableWidgetItem(
+                        str(q) if q is not None else 'O'
+                    )
+                )
+        else:
+            self.plot.hide()
+            self.table.setRowCount(0)
+            self.table.hide()
+
 
 PAGES=[CurvePage]

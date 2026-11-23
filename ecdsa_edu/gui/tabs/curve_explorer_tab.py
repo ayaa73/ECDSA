@@ -53,6 +53,12 @@ def finite_field_figure(curve: Curve, selected=(), arrows=False) -> Figure:
 
 class CurveExplorerTab(QWidget):
     """A QWidget(state) with real chord/tangent and finite-field views."""
+    HELP = (
+        "The Curve Explorer demonstrates elliptic-curve point operations. "
+        "In Real Numbers mode, select points to visualize addition using a chord or doubling using a tangent. "
+        "In Finite Field mode, select two points to calculate their sum or animate multiples of the generator G. "
+        "Large cryptographic curves cannot be fully plotted, so their parameters are displayed instead."
+    )
     def __init__(self,state):
         super().__init__(); self.state=state; self.curve=state.curve
         self.real_points=[]; self.finite_points=[]; self.multiples=[]; self.index=0
