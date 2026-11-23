@@ -6,7 +6,11 @@ import hashlib
 import pytest
 
 from ecdsa_edu.core.curves_registry import get_curve
-from ecdsa_edu.core.hashing import hash_file, hash_message
+from ecdsa_edu.core.hashing import HASHES, hash_file, hash_message
+
+
+def test_supported_hashes_match_the_contract():
+    assert HASHES == ["sha256", "sha384", "sha512", "sha1"]
 
 
 def test_sha256_message_matches_hashlib_on_256_bit_order():
@@ -42,6 +46,13 @@ def test_hash_trace_explains_digest_and_truncation():
     ]
     assert trace[-1].values["order_bits"] == "5"
     assert trace[-1].values["removed_bits"] == "251"
+
+
+def test_sha1_trace_marks_it_as_insecure():
+    trace = []
+    hash_message(b"historical example", get_curve("toy-17"), "sha1", trace)
+    assert trace[0].title == "Warning: SHA-1 is insecure"
+    assert trace[0].values["status"] == "insecure, for comparison only"
 
 
 def test_rejects_unknown_hash_and_non_bytes_message():

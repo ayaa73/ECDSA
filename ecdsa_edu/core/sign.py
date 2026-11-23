@@ -97,7 +97,6 @@ def _sign_digest(
             "s = k^-1 * (e + r*d) mod n",
             e=e,
             r=r,
-            d=d,
             k_inverse=k_inverse,
             s=s,
         )
@@ -147,10 +146,11 @@ def sign_file(
 
 
 def normalize_low_s(sig: Signature, n: int) -> Signature:
-    """Return the equivalent signature whose s value is at most n/2.
+    """Return the equivalent signature whose ``s`` value is at most ``n/2``.
 
-    ECDSA accepts both ``s`` and ``n-s``.  We leave normal signatures unchanged
-    by default, but this helper gives encoders one predictable representation.
+    ECDSA accepts both ``s`` and ``n-s``. This signature malleability lets one
+    valid signature have two encodings, so low-s normalization gives encoders
+    one predictable representation. Signing does not apply it by default.
     """
     if not isinstance(n, int) or isinstance(n, bool) or n <= 1:
         raise ValueError("n must be an integer greater than 1")

@@ -21,7 +21,7 @@ __all__ = ["HASHES", "hash_message", "hash_file"]
 
 # SHA-1 is included because it is useful when comparing old examples, but it
 # should not be chosen for a new real-world signature system.
-HASHES = ("sha256", "sha384", "sha512", "sha1")
+HASHES = ["sha256", "sha384", "sha512", "sha1"]
 _FILE_CHUNK_SIZE = 64 * 1024
 
 
@@ -55,6 +55,14 @@ def _finish_hash(hasher, curve: "Curve", trace: "Trace | None", source: str) -> 
     """Finish a prepared hash object and record the student-facing trace."""
     digest = hasher.digest()
     e, removed_bits = _digest_to_int(digest, curve.n)
+    if hasher.name == "sha1":
+        add_step(
+            trace,
+            "Warning: SHA-1 is insecure",
+            "SHA-1 is available for comparison only; choose SHA-256 or stronger",
+            hash="sha1",
+            status="insecure, for comparison only",
+        )
     add_step(
         trace,
         "Hash the message" if source == "message" else "Hash the file",
