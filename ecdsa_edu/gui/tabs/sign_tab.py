@@ -9,10 +9,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QEvent, Qt
+from PySide6.QtCore import QEvent, Qt, QTimer
 from PySide6.QtGui import QAction, QFont, QKeySequence, QPainter, QPen
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QApplication,
     QComboBox,
     QFileDialog,
     QFormLayout,
@@ -122,6 +123,7 @@ class SignTab(QWidget):
         self._job_priv: PrivateKey | None = None
         self._last_signature: Signature | None = None
         self._last_trace: list[TraceStep] = []
+        self._style_refresh_pending = False
 
         heading = QLabel("Sign a message")
         heading.setObjectName("signHeading")
@@ -474,7 +476,8 @@ class SignTab(QWidget):
 
     def _apply_visual_style(self) -> None:
         """Give this teaching page the same visual character as Overview."""
-        dark = self.palette().window().color().lightness() < 128
+        app = QApplication.instance()
+        dark = app is not None and app.property("theme") == "dark"
         # setStyleSheet can produce another palette event. Remembering the
         # current choice keeps that event from styling the page a second time.
         if getattr(self, "_visual_dark", None) == dark:
@@ -556,7 +559,19 @@ class SignTab(QWidget):
         super().changeEvent(event)
         if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.ApplicationPaletteChange):
             if hasattr(self, "page_content"):
-                self._apply_visual_style()
+                self._queue_visual_refresh()
+
+    def _queue_visual_refresh(self) -> None:
+        """Combine several palette events into one final style update."""
+        if self._style_refresh_pending:
+            return
+        self._style_refresh_pending = True
+        QTimer.singleShot(0, self, self._finish_visual_refresh)
+
+    def _finish_visual_refresh(self) -> None:
+        """Apply the final selected theme after the app finishes toggling."""
+        self._style_refresh_pending = False
+        self._apply_visual_style()
 
     # ------------------------------------------------------------- tab API
     def set_curve(self, curve) -> None:

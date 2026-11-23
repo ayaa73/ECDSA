@@ -6,6 +6,7 @@ from PySide6.QtCore import QSettings
 from ecdsa_edu.core.curves_registry import get_curve
 from ecdsa_edu.core.keys import public_from_private
 from ecdsa_edu.core.types import PrivateKey
+from ecdsa_edu.gui import app as app_module
 from ecdsa_edu.gui.app_state import AppState
 from ecdsa_edu.gui.main_window import MainWindow
 from ecdsa_edu.gui.tabs.sign_tab import SignTab
@@ -128,3 +129,31 @@ def test_sign_page_has_one_outer_scroll_area(qtbot):
 
     assert tab.page_scroll.widgetResizable()
     assert tab.trace_view.minimumHeight() >= 360
+
+
+def test_rapid_theme_toggles_settle_on_the_final_theme(qtbot, qapp):
+    saved = (qapp.styleSheet(), qapp.palette(), qapp.style().objectName(), qapp.property("theme"))
+    try:
+        app_module.apply_theme(qapp, "light")
+        tab = SignTab(_state_with_key())
+        qtbot.addWidget(tab)
+        tab.show()
+
+        # These calls happen without a wait between them, just like several
+        # quick clicks on the toolbar theme button.
+        for theme in ("dark", "light", "dark", "light"):
+            app_module.apply_theme(qapp, theme)
+
+        qtbot.waitUntil(
+            lambda: not tab._style_refresh_pending
+            and not tab.trace_view._style_refresh_pending,
+            timeout=2_000,
+        )
+        assert app_module.current_theme(qapp) == "light"
+        assert tab._visual_dark is False
+        assert tab.trace_view._visual_dark is False
+    finally:
+        qapp.setStyle(saved[2])
+        qapp.setPalette(saved[1])
+        qapp.setStyleSheet(saved[0])
+        qapp.setProperty("theme", saved[3])

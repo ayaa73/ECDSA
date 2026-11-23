@@ -202,9 +202,18 @@ class _StepPanel(QFrame):
         return "\n".join(lines)
 
     def _refresh_values(self) -> None:
+        variable_font = QFont("Georgia", 10)
+        variable_font.setBold(True)
+        value_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+        value_font.setPointSize(max(10, value_font.pointSize()))
+        value_font.setFixedPitch(True)
         for row, (name, value) in enumerate(self.display_rows()):
             name_item = QTableWidgetItem(name)
             value_item = QTableWidgetItem(_soft_wrap(value))
+            # Variable names read like labels, while calculated values keep a
+            # fixed-width font so long numbers remain easy to compare.
+            name_item.setFont(variable_font)
+            value_item.setFont(value_font)
             name_item.setToolTip(name)
             value_item.setToolTip(value)
             self.values_table.setItem(row, 0, name_item)
@@ -239,6 +248,7 @@ class TraceViewer(QWidget):
         self._trace: Trace = []
         self._panels: list[_StepPanel] = []
         self._step_index: int | None = None
+        self._style_refresh_pending = False
 
         self.step_through_button = QPushButton("Step through")
         self.step_through_button.setObjectName("tracePrimaryButton")
@@ -247,6 +257,7 @@ class TraceViewer(QWidget):
         self.show_all_button = QPushButton("Show all")
         self.copy_button = QPushButton("Copy as text")
         self.hex_toggle = QCheckBox("Show numbers in hex")
+        self.hex_toggle.setObjectName("hexDisplayToggle")
         self.step_label = QLabel("No steps")
         self.step_label.setObjectName("traceStepCount")
 
@@ -301,9 +312,8 @@ class TraceViewer(QWidget):
 
     def _apply_visual_style(self) -> None:
         """Use the same calm blue cards as the rest of the teaching app."""
-        # The widget's own palette changes while its stylesheet is applied.
-        # The application palette is stable and represents the chosen theme.
-        dark = QApplication.palette().window().color().lightness() < 128
+        app = QApplication.instance()
+        dark = app is not None and app.property("theme") == "dark"
         if getattr(self, "_visual_dark", None) == dark:
             return
         self._visual_dark = dark
@@ -359,7 +369,12 @@ class TraceViewer(QWidget):
             QPushButton:hover {{ color: {accent}; border-color: {accent}; background: {accent_soft}; }}
             QPushButton#tracePrimaryButton {{ background: {accent}; color: white; border-color: {accent}; }}
             QPushButton:disabled {{ color: {muted}; background: {inner}; }}
-            QCheckBox, QLabel#traceStepCount {{ color: {muted}; font-family: Georgia; }}
+            QCheckBox#hexDisplayToggle {{
+                color: {text}; background: {inner}; border: 1px solid {border};
+                border-radius: 9px; padding: 7px 11px; font-family: Georgia;
+            }}
+            QCheckBox#hexDisplayToggle:hover {{ border-color: {accent}; background: {accent_soft}; }}
+            QLabel#traceStepCount {{ color: {muted}; font-family: Georgia; }}
             QScrollBar:vertical {{ background: transparent; width: 10px; margin: 3px; }}
             QScrollBar::handle:vertical {{ background: {border}; min-height: 34px; border-radius: 4px; }}
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
@@ -370,7 +385,19 @@ class TraceViewer(QWidget):
         """Refresh the trace colours when the whole app changes theme."""
         super().changeEvent(event)
         if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.ApplicationPaletteChange):
-            self._apply_visual_style()
+            self._queue_visual_refresh()
+
+    def _queue_visual_refresh(self) -> None:
+        """Combine repeated palette events so rapid toggles stay responsive."""
+        if self._style_refresh_pending:
+            return
+        self._style_refresh_pending = True
+        QTimer.singleShot(0, self, self._finish_visual_refresh)
+
+    def _finish_visual_refresh(self) -> None:
+        """Style once using the final theme selected by the application."""
+        self._style_refresh_pending = False
+        self._apply_visual_style()
 
     def set_trace(self, trace: Trace) -> None:
         """Replace the displayed calculation with ``trace`` and show all steps."""

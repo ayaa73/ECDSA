@@ -87,6 +87,19 @@ def test_decimal_hex_toggle_and_private_key_redaction(qtbot):
     assert panel.values_table.item(2, 1).text() == "(7, 11)"
 
 
+def test_variable_names_use_teaching_font_and_values_stay_fixed_width(qtbot):
+    viewer = TraceViewer()
+    qtbot.addWidget(viewer)
+    viewer.set_trace([TraceStep("Values", "r = x mod n", {"r": "17"})])
+
+    name_item = viewer._panels[0].values_table.item(0, 0)
+    value_item = viewer._panels[0].values_table.item(0, 1)
+    assert name_item.font().bold()
+    assert name_item.font().family() == "Georgia"
+    assert value_item.font().fixedPitch()
+    assert viewer.hex_toggle.objectName() == "hexDisplayToggle"
+
+
 def test_copy_as_text_uses_visible_number_base_and_hides_d(qtbot):
     viewer = TraceViewer()
     qtbot.addWidget(viewer)
