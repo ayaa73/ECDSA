@@ -1,11 +1,13 @@
 """Learn walkthrough steps 3-5 (owner: P4): how Alice signs.
 
   Step 3  Hash the message and keep only as many bits as n has.
-  Step 4  Pick a secret nonce k, compute R = k·G and r = x(R) mod n.
+  Step 4  The secret nonce k (RFC 6979 by default, like the Sign page), R = k·G, r = x(R) mod n.
   Step 5  Compute s = k⁻¹ (e + r·d) mod n, with the Euclid steps for k⁻¹.
 
 All values come from the real core functions and their traces (hash_message,
-sign with a chosen k, inv_mod); nothing is recomputed here. Results are stored
+sign, inv_mod); nothing is recomputed here. By default k is the one RFC 6979
+derives (sign() without k, read back from its trace); students may also try
+their own k to see how r changes. Results are stored
 in the shared LearnState (e, k, R, r, s) for step 6 (verification).
 
 Before step 2 (Keys, P2) is merged, step 3 makes a practice key itself.
@@ -47,16 +49,28 @@ def _ensure_keys(st: LearnState) -> str:
     return ("<i>(Step 2 didn't run, so a practice key was made for this walkthrough.)</i><br><br>")
 
 
-def _sign_with_k(st: LearnState) -> list:
-    """Sign st.msg with the nonce st.k using the real sign(); store R, r, s. Returns the trace.
+def _first_int(text: str) -> int:
+    """Trace values look like "123" or "123 (0x7b)"; return 123."""
+    return int(text.split()[0])
 
-    Raises ValueError when this k is unusable (r = 0 or s = 0 can happen on toy curves).
+
+def _sign_with_k(st: LearnState) -> list:
+    """Sign st.msg with the real sign() and store k, R, r, s. Returns the trace.
+
+    If st["k_source"] is "chosen", the student's st.k is used. Otherwise sign()
+    picks k itself with RFC 6979 (the app's default), and st.k is read back from
+    the trace: the accepted candidate is the last "Compute the point R" step.
+    Raises ValueError when a chosen k is unusable (r = 0 or s = 0 on toy curves).
     """
     trace: list = []
-    sig = sign(PrivateKey(st.d, st.curve), st.msg, HASH, k=st.k, trace=trace)
-    point = _values(trace, "Compute the point R")
-    st.R = (int(point["Rx"].split()[0]), int(point["Ry"].split()[0]))  # "123 (0x7b)" -> 123
+    chosen = st.get("k_source") == "chosen" and st.k is not None
+    priv = PrivateKey(st.d, st.curve)
+    sig = sign(priv, st.msg, HASH, k=st.k, trace=trace) if chosen else sign(priv, st.msg, HASH, trace=trace)
+    point = [step for step in trace if step.title.startswith("Compute the point R")][-1].values
+    st.k = _first_int(point["k"])
+    st.R = (_first_int(point["Rx"]), _first_int(point["Ry"]))
     st.r, st.s = sig.r, sig.s
+    st["k_source"] = "chosen" if chosen else "rfc6979"
     st["sign_trace"] = trace
     return trace
 
@@ -104,14 +118,18 @@ class NoncePage(LearnPage):
         self.k_box.setPrefix("k = ")
         self.k_box.setToolTip("Choose the secret nonce k yourself (1 to n-1)")
         self.k_box.valueChanged.connect(self._k_typed)
-        self.random_button = QPushButton("New random k")
+        self.random_button = QPushButton("Try a random k")
         self.random_button.clicked.connect(self._new_random_k)
+        self.rfc_button = QPushButton("Back to the RFC 6979 k")
+        self.rfc_button.setToolTip("The k the app really uses: derived from the private key and the message")
+        self.rfc_button.clicked.connect(self._use_rfc6979)
         self.k_note = QLabel()
         self.k_note.setWordWrap(True)
         row = QHBoxLayout()
-        row.addWidget(QLabel("Try another nonce:"))
+        row.addWidget(QLabel("Experiment:"))
         row.addWidget(self.k_box)
         row.addWidget(self.random_button)
+        row.addWidget(self.rfc_button)
         row.addStretch(1)
         self.layout().addLayout(row)
         self.layout().addWidget(self.k_note)
@@ -130,26 +148,29 @@ class NoncePage(LearnPage):
             self.k_box.blockSignals(True)
             self.k_box.setRange(1, n - 1)
             self.k_box.blockSignals(False)
-        if st.k is None or not 1 <= st.k < n:
-            st.k = 1 + secrets.randbelow(n - 1)
+        if st.get("k_source") != "chosen" or st.k is None or not 1 <= st.k < n:
+            st["k_source"] = "rfc6979"  # default: the same k the Sign page would use
         self._show()
 
     def _k_typed(self, value: int) -> None:
         if self.st is not None and value != self.st.k:
             self.st.k = value
+            self.st["k_source"] = "chosen"
             self._show()
 
     def _new_random_k(self, *_: Any) -> None:
         if self.st is not None and self.st.curve is not None:
             self.st.k = 1 + secrets.randbelow(self.st.curve.n - 1)
+            self.st["k_source"] = "chosen"
+            self._show()
+
+    def _use_rfc6979(self, *_: Any) -> None:
+        if self.st is not None and self.st.curve is not None:
+            self.st["k_source"] = "rfc6979"
             self._show()
 
     def _show(self) -> None:
         st = self.st
-        if st.curve.n < 2**31:  # the spin box only exists for small curves
-            self.k_box.blockSignals(True)
-            self.k_box.setValue(st.k)
-            self.k_box.blockSignals(False)
         try:
             _sign_with_k(st)
         except ValueError:
@@ -159,13 +180,25 @@ class NoncePage(LearnPage):
                                 "s = 0, which is not allowed. Pick another k.</span>")
             self.set_values({"k": st.k})
             return
-        self.k_note.setText("")
+        if st.curve.n < 2**31:  # the spin box only exists for small curves
+            self.k_box.blockSignals(True)
+            self.k_box.setValue(st.k)
+            self.k_box.blockSignals(False)
+        rfc = st["k_source"] == "rfc6979"
+        self.rfc_button.setEnabled(not rfc)
+        self.k_note.setText("" if rfc else
+                            "<i>You chose this k yourself. Real signing uses the RFC 6979 k: press "
+                            "\"Back to the RFC 6979 k\".</i>")
         self.set_text(
-            "Every signature needs a fresh secret number <b>k</b>, the <i>nonce</i>. Alice computes the point "
-            "R = k·G and keeps its x-coordinate, reduced mod n, as <b>r</b>, the first half of the signature. "
-            "<b>k must stay secret and must never be reused</b>: the Attack Demo shows what happens otherwise.")
-        self.set_formula("R = k·G      r = x(R) mod n")
-        self.set_values({"k (secret)": st.k, "R = k·G": st.R, "r = x(R) mod n": st.r})
+            "Every signature needs a secret number <b>k</b>, the <i>nonce</i>. Alice computes the point R = k·G "
+            "and keeps its x-coordinate, reduced mod n, as <b>r</b>, the first half of the signature. "
+            "<b>k must stay secret and must never repeat for different messages</b>: the Attack Demo shows what "
+            "happens otherwise. That is why our app uses <b>RFC 6979</b>: k is computed from the private key and "
+            "the message hash, so the same message always gets the same k and different messages get unrelated "
+            "ones, with no random-number generator to go wrong. Try your own k to see how r changes.")
+        self.set_formula("k = RFC 6979(d, e)      R = k·G      r = x(R) mod n")
+        self.set_values({"k (secret)": st.k, "where k comes from": "RFC 6979 (as in the Sign page)" if rfc
+                         else "chosen by you", "R = k·G": st.R, "r = x(R) mod n": st.r})
 
 
 # ================================================================== step 5
@@ -179,7 +212,7 @@ class SPage(LearnPage):
         _ensure_keys(st)
         if st.get("sign_trace") is None:
             if st.k is None:
-                st.k = 1 + secrets.randbelow(st.curve.n - 1)
+                st["k_source"] = "rfc6979"
             try:
                 _sign_with_k(st)
             except ValueError:

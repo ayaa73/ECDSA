@@ -47,3 +47,31 @@ def test_choosing_another_k_changes_r(qtbot):
         if st.r is not None:
             seen.add(st.r)
     assert len(seen) > 3  # different k give different r
+
+
+@pytest.mark.parametrize("curve_name", ["toy-17", "secp256k1"])
+def test_default_k_is_rfc6979(qtbot, curve_name):
+    """By default the walkthrough signs exactly like the Sign page: RFC 6979 k, same (r, s)."""
+    from ecdsa_edu.core.curves_registry import get_curve
+    from ecdsa_edu.core.sign import sign
+    from ecdsa_edu.core.types import PrivateKey
+    from ecdsa_edu.gui.learn.pages_sign import PAGES
+    from ecdsa_edu.gui.learn.wizard import LearnState
+
+    st = LearnState(get_curve(curve_name))
+    for cls in PAGES:
+        page = cls()
+        qtbot.addWidget(page)
+        page.enter(st)
+    expected = sign(PrivateKey(st.d, st.curve), st.msg)  # deterministic (RFC 6979) by default
+    assert st["k_source"] == "rfc6979"
+    assert (st.r, st.s) == (expected.r, expected.s)
+
+    # trying another k and coming back restores the RFC 6979 signature
+    nonce = next(p for p in [cls() for cls in PAGES] if type(p).__name__ == "NoncePage")
+    qtbot.addWidget(nonce)
+    nonce.enter(st)
+    nonce.random_button.click()
+    assert st["k_source"] == "chosen"
+    nonce.rfc_button.click()
+    assert st["k_source"] == "rfc6979" and (st.r, st.s) == (expected.r, expected.s)
