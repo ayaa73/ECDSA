@@ -1,1 +1,45 @@
-<html><body style="font-family:Arial,sans-serif;line-height:1.55;color:#253247;max-width:780px"><h1>The elliptic-curve group law</h1><p>Adding two distinct points uses the slope of their chord; doubling uses the tangent slope. The resulting point is reflected across the x-axis. Over finite fields, division means multiplication by a modular inverse.</p><p style="text-align:center"><img src="img/p1_02.png" alt="Formula"></p><p><b>Toy example:</b> y² = x³ + 2x + 2 (mod 17), G = (5,1), 2G = (6,3), 3G = (10,6), and 19G = O.</p></body></html>
+
+<h2>Point Addition: P + Q</h2>
+<p>Suppose P = (x1, y1) and Q = (x2, y2) are two different points on the elliptic curve, with x1 different from x2.</p>
+<p>First, calculate the slope:</p>
+<p><b>lambda = (y2 - y1) * (x2 - x1)^(-1) mod p</b></p>
+<p>Then calculate the resulting point R = (x3, y3):</p>
+<p><b>x3 = (lambda² - x1 - x2) mod p</b></p>
+<p><b>y3 = (lambda(x1 - x3) - y1) mod p</b></p>
+<p>The notation ^(-1) represents a modular multiplicative inverse, not ordinary division.</p>
+
+<h2>Worked Example: Calculating 3G</h2>
+<p>On our toy curve, G = (5, 1) and 2G = (6, 3). To calculate 3G, add these two points.</p>
+<ol>
+<li>Calculate the slope: lambda = (3 - 1) * (6 - 5)^(-1) mod 17 = 2.</li>
+<li>Calculate x3: (2² - 5 - 6) mod 17 = -7 mod 17 = 10.</li>
+<li>Calculate y3: (2(5 - 10) - 1) mod 17 = -11 mod 17 = 6.</li>
+</ol>
+<p><b>Therefore, 3G = (10, 6).</b></p>
+
+<h2>Point Doubling: 2P</h2>
+<p>When adding a point to itself, we use the tangent slope instead of the chord slope.</p>
+<p>For P = (x1, y1), provided y1 is not zero:</p>
+<p><b>lambda = (3x1² + a) * (2y1)^(-1) mod p</b></p>
+<p>The resulting coordinates are calculated using the same x3 and y3 formulas.</p>
+
+<h2>Worked Example: Calculating 2G</h2>
+<p>Let G = (5, 1), a = 2, and p = 17.</p>
+<ol>
+<li>Calculate the numerator: 3(5²) + 2 = 77.</li>
+<li>Calculate the denominator: 2(1) = 2.</li>
+<li>The inverse of 2 modulo 17 is 9, because 2 * 9 mod 17 = 1.</li>
+<li>Calculate lambda: 77 * 9 mod 17 = 13.</li>
+<li>Calculate x3: (13² - 5 - 5) mod 17 = 6.</li>
+<li>Calculate y3: (13(5 - 6) - 1) mod 17 = 3.</li>
+</ol>
+<p><b>Therefore, 2G = (6, 3).</b></p>
+
+<h2>Special Cases</h2>
+<ul>
+<li>Adding O to any point P returns P.</li>
+<li>Adding a point to its inverse returns O.</li>
+<li>Doubling a point whose y-coordinate is zero returns O.</li>
+<li>Modular division is only possible when the denominator has an inverse modulo p.</li>
+</ul>
+<p>These rules are used repeatedly during scalar multiplication, key generation, signing, and signature verification.</p>
