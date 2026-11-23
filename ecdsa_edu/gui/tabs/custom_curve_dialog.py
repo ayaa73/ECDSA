@@ -12,6 +12,15 @@ dialog closes and ``curve()`` returns the new curve.
 
 The main window opens this dialog from the "Custom curve…" entry of the curve
 selector, adds the curve to the selector and selects it.
+
+Help for beginners:
+  - "Start from" buttons fill in the numbers of a built-in toy curve;
+  - "Suggest values for me": type only p, and P1's suggest_small_curves(p)
+    finds a few working curves (a, b and G); one click fills them in. The
+    button is disabled until P1's function exists in curves_registry.py;
+  - while the student types, a plain hint under p and under G says whether
+    the value is fine and, if not, what to change. These hints call core
+    functions (is_probable_prime, is_on_curve); the dialog does no math itself.
 """
 from __future__ import annotations
 
@@ -31,7 +40,8 @@ from PySide6.QtWidgets import (
 )
 from shiboken6 import isValid
 
-from ecdsa_edu.core.curve import Curve, make_custom_curve
+from ecdsa_edu.core.curve import Curve, is_on_curve, make_custom_curve
+from ecdsa_edu.core import curves_registry
 from ecdsa_edu.core.curves_registry import CURVES
 from ecdsa_edu.core.field import is_probable_prime
 from ecdsa_edu.gui.app_state import AppState
@@ -41,7 +51,10 @@ from ecdsa_edu.gui.widgets.worker import run_in_background
 
 __all__ = ["CustomCurveDialog"]
 
-_EXAMPLE = "toy-97"  # the "Try toy-97 values" button copies this built-in curve
+_EXAMPLE = "toy-97"  # fill_example() copies this built-in curve
+PRESETS = ("toy-17", "toy-97")  # the "Start from" buttons
+MAX_P = 5000  # P1's make_custom_curve only accepts p below this
+MIN_P = 5
 _MIN_ORDER = 5  # with a smaller n there are hardly any keys to choose from
 
 
@@ -81,11 +94,20 @@ class CustomCurveDialog(QDialog):
         self._fields = (self.p_field, self.a_field, self.b_field, self.gx_field, self.gy_field)
         self._labels = ("p", "a", "b", "Gx", "Gy")
 
+        # One plain hint under p and one under G, updated while the student types.
+        self.p_hint = QLabel()
+        self.p_hint.setWordWrap(True)
+        self.g_hint = QLabel()
+        self.g_hint.setWordWrap(True)
+
         form = QFormLayout()
         form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         for label, field in zip(("Prime p", "a", "b", "Base point Gx", "Base point Gy"), self._fields):
             field.setAccessibleName(label)
             form.addRow(label, field)
+            if field is self.p_field:
+                form.addRow("", self.p_hint)
+        form.addRow("", self.g_hint)
 
         self.equation_label = QLabel()
         self.equation_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -94,13 +116,28 @@ class CustomCurveDialog(QDialog):
         self.hint_label.setWordWrap(True)
         self.hint_label.setMinimumHeight(34)
 
-        self.btn_example = QPushButton("Try toy-97 values")
-        self.btn_example.setToolTip("Fill in the parameters of the built-in curve toy-97")
-        self.btn_example.setAutoDefault(False)
-        self.btn_example.setVisible(_EXAMPLE in CURVES)
+        # "Start from" buttons: one per preset curve that exists in P1's registry.
         row = QHBoxLayout()
-        row.addWidget(self.btn_example)
+        row.addWidget(QLabel("Start from:"))
+        self.preset_buttons: dict[str, QPushButton] = {}
+        for name in PRESETS:
+            if name not in CURVES:
+                continue
+            button = QPushButton(name)
+            button.setToolTip("Fill in the numbers of the built-in curve " + name + ", then change them")
+            button.setAutoDefault(False)
+            button.clicked.connect(lambda _checked=False, preset=name: self.fill_preset(preset))
+            row.addWidget(button)
+            self.preset_buttons[name] = button
         row.addStretch(1)
+        # "Suggest values for me": the core finds curves for the typed p.
+        self.btn_suggest = QPushButton("Suggest values for me")
+        self.btn_suggest.setAutoDefault(False)
+        self.suggest_row = QVBoxLayout()  # one button per suggestion, under each other
+        self.suggestion_buttons: list[QPushButton] = []
+        self.btn_suggest.clicked.connect(self.suggest_values)
+        # Kept for older code and tests: the toy-97 button.
+        self.btn_example = self.preset_buttons.get(_EXAMPLE, QPushButton())
 
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -115,12 +152,16 @@ class CustomCurveDialog(QDialog):
         lay.addLayout(form)
         lay.addWidget(self.equation_label)
         lay.addLayout(row)
+        suggest_line = QHBoxLayout()
+        suggest_line.addWidget(self.btn_suggest)
+        suggest_line.addStretch(1)
+        lay.addLayout(suggest_line)
+        lay.addLayout(self.suggest_row)
         lay.addWidget(self.hint_label)
         lay.addWidget(self.buttons)
 
         for field in self._fields:
             field.textChanged.connect(self._on_edited)
-        self.btn_example.clicked.connect(self.fill_example)
         self.buttons.accepted.connect(self.create_curve)  # OK validates first; see create_curve
         self.buttons.rejected.connect(self.reject)
         self._on_edited()
@@ -130,13 +171,78 @@ class CustomCurveDialog(QDialog):
         """The curve that was created, or None (dialog cancelled / nothing valid yet)."""
         return self._curve
 
+    def fill_preset(self, name: str) -> None:
+        """Fill in p, a, b, Gx, Gy from the built-in curve `name` (e.g. "toy-17")."""
+        preset = CURVES.get(name)
+        if preset is None:
+            return
+        values = (preset.p, preset.a, preset.b, preset.G[0], preset.G[1])
+        for field, value in zip(self._fields, values):
+            field.set_value(value)
+
     def fill_example(self) -> None:
         """Fill in the parameters of the built-in curve toy-97."""
-        example = CURVES.get(_EXAMPLE)
-        if example is None:
+        self.fill_preset(_EXAMPLE)
+
+    def suggest_values(self) -> None:
+        """Ask the core for working curves with the typed p and show them as buttons."""
+        suggest = getattr(curves_registry, "suggest_small_curves", None)
+        if suggest is None or not self._p_is_fine():
             return
-        for field, value in zip(self._fields, (example.p, example.a, example.b, *example.G)):
+        p = self.p_field.value()
+        self._clear_suggestions()
+        self._suggest_job = getattr(self, "_suggest_job", 0) + 1
+        job = self._suggest_job
+        self.btn_suggest.setEnabled(False)
+        set_message(self.hint_label, "Looking for good curves with p = " + str(p) + "…", "info")
+
+        def done(curves) -> None:
+            if not isValid(self) or job != self._suggest_job:
+                return
+            self.btn_suggest.setEnabled(True)
+            if not curves:
+                set_message(self.hint_label, "No curve found for this p. Try another prime.", "error")
+                return
+            set_message(self.hint_label, "Click a suggestion to fill in the fields.", "ok")
+            for curve in curves:
+                text = ("a = " + str(curve.a) + ",  b = " + str(curve.b) + ",  G = (" + str(curve.G[0]) + ", "
+                        + str(curve.G[1]) + ")      →  n = " + str(curve.n) + " points")
+                button = QPushButton(text)
+                button.setAutoDefault(False)
+                button.setToolTip("Use this curve: its group has n = " + str(curve.n) + " points (a prime)")
+                button.clicked.connect(lambda _checked=False, c=curve: self._use_suggestion(c))
+                self.suggest_row.addWidget(button)
+                self.suggestion_buttons.append(button)
+
+        def failed(exc: Exception) -> bool:
+            if isValid(self) and job == self._suggest_job:
+                self.btn_suggest.setEnabled(True)
+                set_message(self.hint_label, str(exc), "error")
+            return True
+
+        run_in_background(suggest, p, on_done=done, on_error=failed)
+
+    def _use_suggestion(self, curve: Curve) -> None:
+        """Fill the fields with a suggested curve (p stays the same)."""
+        for field, value in zip(self._fields, (curve.p, curve.a, curve.b, curve.G[0], curve.G[1])):
             field.set_value(value)
+
+    def _clear_suggestions(self) -> None:
+        for button in self.suggestion_buttons:
+            self.suggest_row.removeWidget(button)
+            button.deleteLater()
+        self.suggestion_buttons = []
+
+    def _update_suggest_button(self) -> None:
+        if getattr(curves_registry, "suggest_small_curves", None) is None:
+            self.btn_suggest.setEnabled(False)
+            self.btn_suggest.setToolTip("Coming soon: needs suggest_small_curves() from P1's curves_registry.py")
+        elif not self._p_is_fine():
+            self.btn_suggest.setEnabled(False)
+            self.btn_suggest.setToolTip("Type a prime p (5 to 4999) first")
+        else:
+            self.btn_suggest.setEnabled(True)
+            self.btn_suggest.setToolTip("Find a, b and G that make a good curve for this p")
 
     def create_curve(self) -> None:
         """OK was pressed: build the curve with the core; close the dialog if it is valid."""
@@ -225,3 +331,47 @@ class CustomCurveDialog(QDialog):
         self.btn_ok.setEnabled(not problem)
         mistyped = any(field.error() for field in self._fields)
         set_message(self.hint_label, problem if mistyped else "", "error")
+        self._update_field_hints()
+        self._update_suggest_button()
+
+    # ------------------------------------------------------ live hints
+    def _update_field_hints(self) -> None:
+        """Refresh the plain hints under p and G."""
+        p_text, p_kind = self._p_hint()
+        set_message(self.p_hint, p_text, p_kind)
+        g_text, g_kind = self._g_hint()
+        set_message(self.g_hint, g_text, g_kind)
+
+    def _p_is_fine(self) -> bool:
+        p = self.p_field.value()
+        return p is not None and MIN_P <= p < MAX_P and is_probable_prime(p)
+
+    def _p_hint(self) -> tuple[str, str]:
+        """(text, kind) for the hint under p."""
+        p = self.p_field.value()
+        if p is None:
+            if self.p_field.error():
+                return "p must be a whole number.", "error"
+            return "A prime number from 5 to 4999, for example 17 or 97.", "info"
+        if p < MIN_P:
+            return "p must be at least 5.", "error"
+        if p >= MAX_P:
+            return "p must be below 5000, so the app can count all the points.", "error"
+        if not is_probable_prime(p):
+            return str(p) + " is not a prime number. Try 17, 97 or 251.", "error"
+        return "✓ p is a prime below 5000.", "ok"
+
+    def _g_hint(self) -> tuple[str, str]:
+        """(text, kind) for the hint under G."""
+        p, a, b, gx, gy = (field.value() for field in self._fields)
+        if None in (a, b, gx, gy) or not self._p_is_fine():
+            return "Pick a point G = (Gx, Gy) on the curve, or press a “Start from” button.", "info"
+        if not (0 <= gx < p and 0 <= gy < p):
+            return "Gx and Gy must be between 0 and p - 1 (here 0 to " + str(p - 1) + ").", "error"
+        tip = "try a suggestion" if getattr(curves_registry, "suggest_small_curves", None) else "try a “Start from” button"
+        # Ask the core whether G satisfies y^2 = x^3 + a*x + b (mod p).
+        # n and h are not known yet; is_on_curve does not use them.
+        test_curve = Curve(name="check", p=p, a=a % p, b=b % p, G=(gx, gy), n=1, h=1)
+        if is_on_curve(test_curve, (gx, gy)):
+            return "✓ G lies on this curve.", "ok"
+        return "G is not on this curve: " + tip + ", or another point.", "error"
