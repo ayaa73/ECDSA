@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ecdsa-lab"
+dynamic = ["version"]
+description = "ECDSA Lab - an educational desktop app that implements ECDSA from scratch and shows the math"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6>=6.5",
+    "matplotlib>=3.7",
+]
+
+[project.optional-dependencies]
+# ecdsa and cryptography are reference implementations used ONLY by the tests.
+dev = ["pytest>=7.4", "pytest-qt>=4.2", "ecdsa>=0.18", "cryptography>=41"]
+package = ["pyinstaller>=6.0"]
+
+[project.gui-scripts]
+ecdsa-lab = "ecdsa_edu.gui.app:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "ecdsa_edu.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["ecdsa_edu*"]
+
+[tool.setuptools.package-data]
+"ecdsa_edu.gui.theory" = ["pages/*"]
