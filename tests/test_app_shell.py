@@ -227,20 +227,24 @@ def test_themes_define_the_same_colours():
 
 
 # =========================================================== MainWindow
-def test_sidebar_lists_the_seven_pages_in_order(qtbot, state):
+PAGE_TITLES = ["Start here", "Overview", "Keys", "Sign", "Verify", "Curve Explorer", "Learn ECDSA",
+               "Attack Demo", "Theory", "History"]
+
+
+def test_sidebar_lists_every_page_in_order(qtbot, state):
     window = mw.MainWindow(state)
     qtbot.addWidget(window)
     titles = [window.sidebar.item(i).text() for i in range(window.sidebar.count())]
-    assert titles == ["Keys", "Sign", "Verify", "Curve Explorer", "Learn ECDSA", "Attack Demo", "Theory"]
-    assert titles == list(window.pages) and window.stack.count() == 7
-    assert all(not window.sidebar.item(i).icon().isNull() for i in range(7))
+    assert titles == PAGE_TITLES
+    assert titles == list(window.pages) and window.stack.count() == len(PAGE_TITLES)
+    assert all(not window.sidebar.item(i).icon().isNull() for i in range(len(PAGE_TITLES)))
 
 
 def test_sidebar_switches_the_stack(qtbot, state):
     window = mw.MainWindow(state)
     qtbot.addWidget(window)
-    assert window.stack.currentIndex() == 0
-    window.sidebar.setCurrentRow(3)
+    assert window.stack.currentIndex() == window._first_row()  # Start here, unless turned off in settings
+    window.sidebar.setCurrentRow(list(window.pages).index("Curve Explorer"))
     assert window.stack.currentWidget() is window.pages["Curve Explorer"]
     window.show_page("Theory")
     assert window.stack.currentWidget() is window.pages["Theory"]
@@ -396,7 +400,8 @@ def test_menus(qtbot, state, monkeypatch):
     assert file_actions[-2:] == ["Custom curve…", "Quit"]
 
 
-@pytest.mark.parametrize("name", ["key", "pen", "check", "curve", "learn", "warning", "book", "unknown"])
+@pytest.mark.parametrize("name", ["home", "overview", "key", "pen", "check", "curve", "learn", "warning", "book",
+                                  "clock", "unknown"])
 def test_icons_are_drawn(qapp, name):
     icon = mw.make_icon(name, "#ffffff", "#000000")
     assert not icon.isNull()

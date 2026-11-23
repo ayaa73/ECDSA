@@ -57,6 +57,7 @@ class PageSpec:
 
 # The single place to edit if a teammate names a module or class differently.
 PAGE_SPECS: list[PageSpec] = [
+    PageSpec("Start here", "ecdsa_edu.gui.tutorial.tutorial_tab", "TutorialTab", "P4", "home"),
     PageSpec("Overview", "ecdsa_edu.gui.overview_tab", "OverviewTab", "GUI", "overview"),
     PageSpec("Keys", "ecdsa_edu.gui.tabs.keys_tab", "KeysTab", "P2", "key"),
     PageSpec("Sign", "ecdsa_edu.gui.tabs.sign_tab", "SignTab", "P3", "pen"),
@@ -65,6 +66,7 @@ PAGE_SPECS: list[PageSpec] = [
     PageSpec("Learn ECDSA", "ecdsa_edu.gui.learn.wizard", "LearnWizard", "P4", "learn"),
     PageSpec("Attack Demo", "ecdsa_edu.gui.tabs.attack_tab", "AttackTab", "P4", "warning"),
     PageSpec("Theory", "ecdsa_edu.gui.theory.theory_tab", "TheoryTab", "P4", "book"),
+    PageSpec("History", "ecdsa_edu.gui.tabs.history_tab", "HistoryTab", "P4", "clock"),
 ]
 
 CUSTOM_DIALOG = ("ecdsa_edu.gui.tabs.custom_curve_dialog", "CustomCurveDialog")
@@ -105,6 +107,13 @@ def _icon_path(name: str) -> QPainterPath:
         p.moveTo(12, 3.5); p.lineTo(22, 20); p.lineTo(2, 20); p.closeSubpath()
         p.moveTo(12, 9.5); p.lineTo(12, 14.5)
         p.addEllipse(QPointF(12, 17.2), 0.4, 0.4)
+    elif name == "home":  # house: the Start here page
+        p.moveTo(3, 11.5); p.lineTo(12, 3.5); p.lineTo(21, 11.5)
+        p.moveTo(5.5, 9.5); p.lineTo(5.5, 20.5); p.lineTo(18.5, 20.5); p.lineTo(18.5, 9.5)
+        p.moveTo(10, 20.5); p.lineTo(10, 14.5); p.lineTo(14, 14.5); p.lineTo(14, 20.5)
+    elif name == "clock":  # clock: the History page
+        p.addEllipse(QPointF(12, 12), 9, 9)
+        p.moveTo(12, 6.5); p.lineTo(12, 12); p.lineTo(16, 14.5)
     elif name == "book":
         p.moveTo(12, 6); p.quadTo(7, 3.5, 3, 5); p.lineTo(3, 19); p.quadTo(7, 17.5, 12, 20)
         p.quadTo(17, 17.5, 21, 19); p.lineTo(21, 5); p.quadTo(17, 3.5, 12, 6); p.lineTo(12, 20)
@@ -131,7 +140,7 @@ def _draw_icon(name: str, color: str, size: int = 22) -> QPixmap:
 
 
 def make_icon(name: str, color: str, selected_color: str | None = None) -> QIcon:
-    """Line icon by name: overview, key, pen, check, curve, learn, warning, book."""
+    """Line icon by name: home, overview, key, pen, check, curve, learn, warning, book, clock."""
     icon = QIcon()
     icon.addPixmap(_draw_icon(name, color), QIcon.Mode.Normal)
     icon.addPixmap(_draw_icon(name, selected_color or color), QIcon.Mode.Selected)
@@ -292,7 +301,21 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
         self.sidebar.currentRowChanged.connect(self.stack.setCurrentIndex)
-        self.sidebar.setCurrentRow(0)
+        self.sidebar.setCurrentRow(self._first_row())
+
+    def _first_row(self) -> int:
+        """Open on "Start here" unless the student unticked "Show this page when the app starts"."""
+        titles = list(self.pages)
+        if "Start here" not in titles:
+            return 0
+        try:
+            from ecdsa_edu.gui.tutorial.tutorial_tab import TutorialTab
+            show = TutorialTab.show_at_startup()
+        except Exception:  # noqa: BLE001 - never block startup over a setting
+            show = True
+        if show or len(titles) == 1:
+            return titles.index("Start here")
+        return 1 if titles.index("Start here") == 0 else 0
 
     def _load_page(self, spec: PageSpec) -> QWidget:
         """Import and build one page; fall back to "coming soon" on any failure."""
