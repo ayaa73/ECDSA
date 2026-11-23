@@ -52,6 +52,7 @@ class CurvePage(LearnPage):
 
         if curve.p < 5000:
             self.plot.figure = finite_field_figure(curve)
+            self.plot.figure.set_canvas(self.plot)  # link the new figure to this canvas so resizing/redraws work
             self.plot.draw_idle()
             self.plot.show()
             self.table.show()
