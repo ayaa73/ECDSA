@@ -15,7 +15,6 @@ from PySide6.QtCore import QEvent, Qt, QTimer
 from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import (
     QApplication,
-    QCheckBox,
     QFrame,
     QHeaderView,
     QHBoxLayout,
@@ -256,8 +255,9 @@ class TraceViewer(QWidget):
         self.next_button = QPushButton("Next")
         self.show_all_button = QPushButton("Show all")
         self.copy_button = QPushButton("Copy as text")
-        self.hex_toggle = QCheckBox("Show numbers in hex")
-        self.hex_toggle.setObjectName("hexDisplayToggle")
+        self.hex_toggle = QPushButton("Show numbers in hex")
+        self.hex_toggle.setObjectName("numberFormatToggle")
+        self.hex_toggle.setCheckable(True)
         self.step_label = QLabel("No steps")
         self.step_label.setObjectName("traceStepCount")
 
@@ -369,11 +369,14 @@ class TraceViewer(QWidget):
             QPushButton:hover {{ color: {accent}; border-color: {accent}; background: {accent_soft}; }}
             QPushButton#tracePrimaryButton {{ background: {accent}; color: white; border-color: {accent}; }}
             QPushButton:disabled {{ color: {muted}; background: {inner}; }}
-            QCheckBox#hexDisplayToggle {{
+            QPushButton#numberFormatToggle {{
                 color: {text}; background: {inner}; border: 1px solid {border};
                 border-radius: 9px; padding: 7px 11px; font-family: Georgia;
             }}
-            QCheckBox#hexDisplayToggle:hover {{ border-color: {accent}; background: {accent_soft}; }}
+            QPushButton#numberFormatToggle:hover {{ border-color: {accent}; background: {accent_soft}; }}
+            QPushButton#numberFormatToggle:checked {{
+                color: white; background: {accent}; border-color: {accent};
+            }}
             QLabel#traceStepCount {{ color: {muted}; font-family: Georgia; }}
             QScrollBar:vertical {{ background: transparent; width: 10px; margin: 3px; }}
             QScrollBar::handle:vertical {{ background: {border}; min-height: 34px; border-radius: 4px; }}
@@ -474,6 +477,7 @@ class TraceViewer(QWidget):
             panel.set_expanded(True)
 
     def _set_use_hex(self, use_hex: bool) -> None:
+        self.hex_toggle.setText("Show numbers in decimal" if use_hex else "Show numbers in hex")
         for panel in self._panels:
             panel.set_use_hex(use_hex)
 

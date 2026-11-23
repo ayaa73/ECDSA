@@ -97,7 +97,21 @@ def test_variable_names_use_teaching_font_and_values_stay_fixed_width(qtbot):
     assert name_item.font().bold()
     assert name_item.font().family() == "Georgia"
     assert value_item.font().fixedPitch()
-    assert viewer.hex_toggle.objectName() == "hexDisplayToggle"
+    assert viewer.hex_toggle.objectName() == "numberFormatToggle"
+
+
+def test_number_format_button_explains_the_next_action(qtbot):
+    viewer = TraceViewer()
+    qtbot.addWidget(viewer)
+    viewer.set_trace([TraceStep("Values", "r = x mod n", {"r": "17"})])
+
+    assert viewer.hex_toggle.text() == "Show numbers in hex"
+    viewer.hex_toggle.click()
+    assert viewer.hex_toggle.text() == "Show numbers in decimal"
+    assert viewer._panels[0].values_table.item(0, 1).text() == "0x11"
+    viewer.hex_toggle.click()
+    assert viewer.hex_toggle.text() == "Show numbers in hex"
+    assert viewer._panels[0].values_table.item(0, 1).text() == "17"
 
 
 def test_copy_as_text_uses_visible_number_base_and_hides_d(qtbot):
