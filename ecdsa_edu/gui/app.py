@@ -108,6 +108,17 @@ QLineEdit:read-only, QPlainTextEdit[readOnly="true"] {{ background: {input_reado
 QLineEdit[invalid="true"], QPlainTextEdit[invalid="true"] {{ border: 1px solid {error}; background: {invalid}; }}
 QComboBox {{ padding: 4px 8px; font-weight: normal; }}
 
+/* curve picker cards (gui/widgets/curve_picker.py) and the toolbar curve button */
+QPushButton[card="true"] {{ background: {panel}; border: 1px solid {border}; border-radius: 8px; padding: 0; text-align: left; }}
+QPushButton[card="true"]:hover {{ background: {hover}; border-color: {accent}; }}
+QPushButton[card="true"]:focus {{ border: 2px solid {accent}; }}
+QPushButton[card="true"][current="true"] {{ border: 2px solid {ok}; }}
+QLabel[cardTitle="true"] {{ color: {heading}; font-size: 11pt; background: transparent; }}
+QLabel[badge="true"] {{ background: {ok}; color: {accent_text}; border-radius: 8px; padding: 1px 8px; font-size: 8pt; font-weight: 600; }}
+QLabel[groupTitle="true"] {{ color: {heading}; font-size: 12pt; font-weight: 600; padding-top: 8px; }}
+QPushButton#curveButton {{ font-weight: 600; padding: 6px 16px; }}
+QPushButton[big="true"] {{ padding: 10px 22px; font-size: 11pt; }}
+
 /* menus and status bar */
 QMenuBar {{ background: {toolbar}; color: {toolbar_text}; }}
 QMenuBar::item:selected, QMenu::item:selected {{ background: {hover}; color: {text}; }}

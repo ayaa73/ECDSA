@@ -9,6 +9,11 @@ What a page must provide (see the interface contract):
     class XTab(QWidget):
         def __init__(self, state: AppState): ...
         def set_curve(self, curve): ...      # called whenever the active curve changes
+        HELP = "3-4 plain sentences"         # optional: shown by the toolbar "?" button
+
+Toolbar: curve selector, Beginner/Expert switch (Ctrl+E), help "?" (F1) and the
+light/dark theme switch (Ctrl+D). The window size, the mode and the
+"show Start here at startup" choice are remembered between runs.
 """
 from __future__ import annotations
 
@@ -30,6 +35,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QProgressBar,
+    QPushButton,
     QSizePolicy,
     QStackedWidget,
     QToolBar,
@@ -69,7 +75,21 @@ PAGE_SPECS: list[PageSpec] = [
     PageSpec("History", "ecdsa_edu.gui.tabs.history_tab", "HistoryTab", "P4", "clock"),
 ]
 
+START_PAGE = "Start here"  # shown first, unless the user turned that off
+FALLBACK_START_PAGE = "Keys"  # shown first otherwise
+SETTING_SHOW_TUTORIAL = "tutorial/show_at_startup"  # P4's "Don't show at startup" box writes this
+SETTING_WINDOW_SIZE = "window/size"
+DEFAULT_WINDOW_SIZE = (1200, 800)
+NO_HELP_TEXT = "No help written yet for this page."
+
+MODE_TOOLTIP = (
+    "Beginner mode shows only what you need for the main task.\n"
+    "Expert mode also shows advanced options, such as typing your own private key,\n"
+    "choosing the hash, DER encoding and the full step-by-step math.  (Ctrl+E)"
+)
+
 CUSTOM_DIALOG = ("ecdsa_edu.gui.tabs.custom_curve_dialog", "CustomCurveDialog")
+CURVE_PICKER = ("ecdsa_edu.gui.widgets.curve_picker", "CurvePicker")
 _CUSTOM_ENTRY = "\x00custom"  # item data of the "Custom curve…" combo entry
 
 
@@ -86,6 +106,13 @@ def _icon_path(name: str) -> QPainterPath:
         p.moveTo(8.5, 7.5); p.lineTo(15.5, 7.5)
         p.moveTo(18.5, 10); p.lineTo(13.5, 15)
         p.moveTo(5.5, 10); p.lineTo(10.5, 15)
+    elif name == "home":  # house: the Start here page
+        p.moveTo(3, 11.5); p.lineTo(12, 3.5); p.lineTo(21, 11.5)
+        p.moveTo(5.5, 9.5); p.lineTo(5.5, 20.5); p.lineTo(18.5, 20.5); p.lineTo(18.5, 9.5)
+        p.moveTo(10, 20.5); p.lineTo(10, 14.5); p.lineTo(14, 14.5); p.lineTo(14, 20.5)
+    elif name == "clock":  # clock: the History page
+        p.addEllipse(QPointF(12, 12), 9, 9)
+        p.moveTo(12, 6.5); p.lineTo(12, 12); p.lineTo(16, 14.5)
     elif name == "key":
         p.addEllipse(QPointF(8, 8), 4.5, 4.5)
         p.moveTo(11.2, 11.2); p.lineTo(20.5, 20.5)
@@ -107,16 +134,15 @@ def _icon_path(name: str) -> QPainterPath:
         p.moveTo(12, 3.5); p.lineTo(22, 20); p.lineTo(2, 20); p.closeSubpath()
         p.moveTo(12, 9.5); p.lineTo(12, 14.5)
         p.addEllipse(QPointF(12, 17.2), 0.4, 0.4)
-    elif name == "home":  # house: the Start here page
-        p.moveTo(3, 11.5); p.lineTo(12, 3.5); p.lineTo(21, 11.5)
-        p.moveTo(5.5, 9.5); p.lineTo(5.5, 20.5); p.lineTo(18.5, 20.5); p.lineTo(18.5, 9.5)
-        p.moveTo(10, 20.5); p.lineTo(10, 14.5); p.lineTo(14, 14.5); p.lineTo(14, 20.5)
-    elif name == "clock":  # clock: the History page
-        p.addEllipse(QPointF(12, 12), 9, 9)
-        p.moveTo(12, 6.5); p.lineTo(12, 12); p.lineTo(16, 14.5)
     elif name == "book":
         p.moveTo(12, 6); p.quadTo(7, 3.5, 3, 5); p.lineTo(3, 19); p.quadTo(7, 17.5, 12, 20)
         p.quadTo(17, 17.5, 21, 19); p.lineTo(21, 5); p.quadTo(17, 3.5, 12, 6); p.lineTo(12, 20)
+    elif name == "start":  # a "play" triangle in a circle
+        p.addEllipse(QPointF(12, 12), 9, 9)
+        p.moveTo(10, 8); p.lineTo(16, 12); p.lineTo(10, 16); p.closeSubpath()
+    elif name == "history":  # a clock
+        p.addEllipse(QPointF(12, 12), 9, 9)
+        p.moveTo(12, 7); p.lineTo(12, 12); p.lineTo(15.5, 14)
     else:  # unknown name: a plain dot
         p.addEllipse(QPointF(12, 12), 3, 3)
     return p
@@ -140,7 +166,8 @@ def _draw_icon(name: str, color: str, size: int = 22) -> QPixmap:
 
 
 def make_icon(name: str, color: str, selected_color: str | None = None) -> QIcon:
-    """Line icon by name: home, overview, key, pen, check, curve, learn, warning, book, clock."""
+    """Line icon by name: home, overview, key, pen, check, curve, learn, warning, book, clock
+    (start and history are older names that still work)."""
     icon = QIcon()
     icon.addPixmap(_draw_icon(name, color), QIcon.Mode.Normal)
     icon.addPixmap(_draw_icon(name, selected_color or color), QIcon.Mode.Selected)
@@ -157,7 +184,8 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
         self.state = state
         self.setWindowTitle("ECDSA Lab")
-        self.resize(1240, 800)
+        self.setMinimumSize(900, 600)
+        self._restore_window_size()
 
         self._build_toolbar()
         self._build_pages()
@@ -165,6 +193,8 @@ class MainWindow(QMainWindow):
         self._build_status_bar()
 
         state.curveChanged.connect(self._on_curve_changed)
+        state.modeChanged.connect(self._sync_mode_controls)
+        state.pageRequested.connect(self.show_page)
         state.curvesListChanged.connect(self._fill_curve_combo)
         state.keysChanged.connect(self._update_status)
         state.signatureChanged.connect(self._update_status)
@@ -191,22 +221,48 @@ class MainWindow(QMainWindow):
         self.curve_combo.setAccessibleName("Curve")
         self.curve_combo.setToolTip("The curve used by every page")
         label.setBuddy(self.curve_combo)
-        self.theme_button = QToolButton()
-        self.theme_button.setCheckable(True)
-        self.theme_button.setToolTip("Switch between the light and the dark theme")
+        self.curve_combo.setToolTip("The curve used by every page. The last entry makes your own curve.")
+
+        # Beginner / Expert switch: a button that stays pressed in Expert mode.
+        self.mode_button = QToolButton()
+        self.mode_button.setCheckable(True)
+        self.mode_button.setAccessibleName("Expert mode")
+        self.mode_button.setToolTip(MODE_TOOLTIP)
+
+        # "?" button: help for the page that is shown.
         self.help_button = QToolButton()
         self.help_button.setText("?")
-        self.help_button.setToolTip("Help for current page")
-        self.help_button.setFixedSize(36, 36)
-        self.help_button.clicked.connect(self._show_page_help)
+        self.help_button.setAccessibleName("Help for this page")
+        self.help_button.setToolTip("Help for this page  (F1)")
 
-        for widget in (title, spacer, self.curve_info, label, self.curve_combo, self.theme_button, self.help_button):
-            bar.addWidget(widget)
+        self.theme_button = QToolButton()
+        self.theme_button.setCheckable(True)
+        self.theme_button.setToolTip("Switch between the light and the dark theme  (Ctrl+D)")
+
+        # The main way to choose a curve: a big button that opens the card picker.
+        # (The combo box above stays as a quick shortcut, but only in Expert mode.)
+        self.curve_button = QPushButton()
+        self.curve_button.setObjectName("curveButton")
+        self.curve_button.setAccessibleName("Choose a curve")
+        self.curve_button.setToolTip("Choose the curve every page uses (Ctrl+K)")
+        self.curve_button.setShortcut(QKeySequence("Ctrl+K"))
+
+        widgets = [title, spacer, self.curve_info, self.curve_button, label, self.curve_combo,
+                   self.mode_button, self.help_button, self.theme_button]
+        self._toolbar_actions = {}
+        for widget in widgets:
+            # Widgets inside a toolbar are shown and hidden through their action.
+            self._toolbar_actions[widget] = bar.addWidget(widget)
+        self._expert_only = [label, self.curve_combo]
 
         self._fill_curve_combo()
         self.curve_combo.activated.connect(self._on_combo_activated)  # user choices only
+        self.curve_button.clicked.connect(self.open_curve_picker)
+        self.mode_button.clicked.connect(self._on_mode_button)
+        self.help_button.clicked.connect(self.show_help)
         self.theme_button.clicked.connect(lambda checked: self.set_theme("dark" if checked else "light"))
         self._sync_theme_controls()
+        self._sync_mode_controls()
 
     def _fill_curve_combo(self) -> None:
         """(Re)build the curve list: built-in curves, custom curves, then "Custom curve…"."""
@@ -243,6 +299,22 @@ class MainWindow(QMainWindow):
         if curve is not None:
             self.state.set_curve(curve)  # -> curveChanged -> every page's set_curve()
 
+    def open_curve_picker(self) -> None:
+        """Show the curve cards; use the chosen curve, or open the custom-curve dialog."""
+        module_name, class_name = CURVE_PICKER
+        try:
+            picker_class = getattr(importlib.import_module(module_name), class_name)
+        except (ImportError, AttributeError):
+            self.curve_combo.showPopup()  # no picker available: fall back to the plain list
+            return
+        picker = picker_class(self.state, self)
+        if not picker.exec():
+            return
+        if picker.wants_custom():
+            self.open_custom_curve_dialog()
+        elif picker.chosen() is not None:
+            self.use_curve(picker.chosen())
+
     def open_custom_curve_dialog(self) -> None:
         """Open the custom-curve dialog, or say "coming soon" while it does not exist."""
         module_name, class_name = CUSTOM_DIALOG
@@ -260,6 +332,13 @@ class MainWindow(QMainWindow):
             if self.state.curve == curve:
                 self.statusBar().showMessage(
                     f"Custom curve “{curve.name}” added: n = {curve.n}, h = {curve.h}", 15000
+                )
+                QMessageBox.information(
+                    self,
+                    "Your curve is ready",
+                    f"Your curve “{curve.name}” has n = {curve.n} points in G's group and "
+                    f"cofactor h = {curve.h}, so it works for ECDSA.\n\n"
+                    "It is now selected on every page.",
                 )
 
     def use_curve(self, curve) -> None:
@@ -301,21 +380,43 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
         self.sidebar.currentRowChanged.connect(self.stack.setCurrentIndex)
-        self.sidebar.setCurrentRow(self._first_row())
+        self.show_page(self._start_page_title())
 
-    def _first_row(self) -> int:
-        """Open on "Start here" unless the student unticked "Show this page when the app starts"."""
-        titles = list(self.pages)
-        if "Start here" not in titles:
-            return 0
+    def _tutorial_settings(self):
+        """Where the "show Start here at startup" choice lives.
+
+        P4's Start here page stores it with its own settings() helper; we read and
+        write the same place, so its checkbox and the View menu always agree.
+        """
         try:
-            from ecdsa_edu.gui.tutorial.tutorial_tab import TutorialTab
-            show = TutorialTab.show_at_startup()
-        except Exception:  # noqa: BLE001 - never block startup over a setting
-            show = True
-        if show or len(titles) == 1:
-            return titles.index("Start here")
-        return 1 if titles.index("Start here") == 0 else 0
+            from ecdsa_edu.gui.tutorial import tutorial_tab
+            return tutorial_tab.settings()
+        except Exception:  # page not written yet, or a different version
+            return self.state.settings
+
+    def _show_tutorial_at_startup(self) -> bool:
+        value = self._tutorial_settings().value(SETTING_SHOW_TUTORIAL, True)
+        return value not in (False, "false", "0", 0)
+
+    def _set_show_tutorial(self, checked: bool) -> None:
+        self._tutorial_settings().setValue(SETTING_SHOW_TUTORIAL, bool(checked))
+        box = getattr(self.pages.get(START_PAGE), "startup_box", None)  # P4's checkbox, if shown
+        if box is not None and box.isChecked() != bool(checked):
+            box.blockSignals(True)
+            box.setChecked(bool(checked))
+            box.blockSignals(False)
+
+    def _start_page_title(self) -> str:
+        """Which page to show first: "Start here", unless it is turned off or not written yet."""
+        show_tutorial = self._show_tutorial_at_startup()
+        tutorial = self.pages.get(START_PAGE)
+        if show_tutorial and tutorial is not None and not tutorial.property("placeholder"):
+            return START_PAGE
+        if FALLBACK_START_PAGE in self.pages:
+            return FALLBACK_START_PAGE
+        for title in self.pages:  # otherwise the first page in the sidebar
+            return title
+        return ""  # no pages at all
 
     def _load_page(self, spec: PageSpec) -> QWidget:
         """Import and build one page; fall back to "coming soon" on any failure."""
@@ -351,8 +452,86 @@ class MainWindow(QMainWindow):
         return label
 
     def show_page(self, title: str) -> None:
-        """Switch to the page with this sidebar title."""
-        self.sidebar.setCurrentRow(list(self.pages).index(title))
+        """Switch to the page with this sidebar title (also used by state.go_to)."""
+        titles = list(self.pages)
+        if title not in titles:
+            if title:
+                self.statusBar().showMessage(f"There is no page called “{title}”.", 5000)
+            return
+        self.sidebar.setCurrentRow(titles.index(title))
+
+    def current_page_title(self) -> str:
+        """Title of the page that is shown ('' if there are no pages)."""
+        row = self.sidebar.currentRow()
+        titles = list(self.pages)
+        if 0 <= row < len(titles):
+            return titles[row]
+        return ""
+
+    # ------------------------------------------------------- help and mode
+    def show_help(self) -> None:
+        """Show the HELP text of the current page (the toolbar "?" button, F1)."""
+        title = self.current_page_title()
+        if not title:
+            return
+        page = self.pages[title]
+        if page.property("placeholder"):
+            text = "This page is not written yet. It is coming soon."
+        else:
+            text = getattr(page, "HELP", None)
+            # The Learn wizard: prefer the help of the step that is on screen.
+            steps = getattr(page, "pages", None)
+            index = getattr(page, "index", None)
+            if isinstance(steps, list) and isinstance(index, int) and 0 <= index < len(steps):
+                text = getattr(steps[index], "HELP", None) or text
+            text = text or NO_HELP_TEXT
+        QMessageBox.information(self, f"Help: {title}", text)
+
+    def _on_mode_button(self, checked: bool) -> None:
+        if checked:
+            self.state.set_mode("expert")
+        else:
+            self.state.set_mode("beginner")
+
+    def toggle_mode(self) -> None:
+        """Switch between Beginner and Expert (View menu, Ctrl+E)."""
+        if self.state.mode == "expert":
+            self.state.set_mode("beginner")
+        else:
+            self.state.set_mode("expert")
+
+    def _sync_mode_controls(self, _mode: str = "") -> None:
+        """Make the toolbar button and the menu entry show the current mode."""
+        expert = self.state.mode == "expert"
+        self.mode_button.setChecked(expert)
+        if expert:
+            self.mode_button.setText("Mode: Expert")
+        else:
+            self.mode_button.setText("Mode: Beginner")
+        action = getattr(self, "mode_action", None)  # menus are built after the toolbar
+        if action is not None:
+            action.setChecked(expert)
+        for widget in self._expert_only:  # the curve combo is an Expert shortcut
+            self._toolbar_actions[widget].setVisible(expert)
+
+    # ---------------------------------------------------- window size
+    def _restore_window_size(self) -> None:
+        """Use the size from last time, but never bigger than the screen."""
+        width, height = DEFAULT_WINDOW_SIZE
+        saved = self.state.settings.value(SETTING_WINDOW_SIZE)
+        if isinstance(saved, QSize) and saved.isValid():
+            width, height = saved.width(), saved.height()
+        screen = QApplication.primaryScreen()
+        if screen is not None:
+            available = screen.availableGeometry()
+            width = min(width, available.width())
+            height = min(height, available.height())
+        self.resize(width, height)
+
+    def closeEvent(self, event) -> None:  # noqa: N802 (Qt naming)
+        """Remember the window size for next time."""
+        self.state.settings.setValue(SETTING_WINDOW_SIZE, self.size())
+        super().closeEvent(event)
 
     # -------------------------------------------------------------- menus
     def _build_menus(self) -> None:
@@ -389,9 +568,29 @@ class MainWindow(QMainWindow):
         self.theme_action.setShortcut(QKeySequence("Ctrl+D"))
         self.theme_action.triggered.connect(lambda checked: self.set_theme("dark" if checked else "light"))
         view_menu.addAction(self.theme_action)
+        self.mode_action = QAction("&Expert mode", self)
+        self.mode_action.setCheckable(True)
+        self.mode_action.setShortcut(QKeySequence("Ctrl+E"))
+        self.mode_action.triggered.connect(self.toggle_mode)
+        view_menu.addAction(self.mode_action)
+        view_menu.addSeparator()
+        self.tutorial_action = QAction("Show “Start here” at startup", self)
+        self.tutorial_action.setCheckable(True)
+        self.tutorial_action.setChecked(self._show_tutorial_at_startup())
+        self.tutorial_action.toggled.connect(
+            self._set_show_tutorial
+        )
+        view_menu.addAction(self.tutorial_action)
+        # P4's "Show this page when the app starts" box can change it too: refresh on open.
+        view_menu.aboutToShow.connect(lambda: self.tutorial_action.setChecked(self._show_tutorial_at_startup()))
         self._sync_theme_controls()
+        self._sync_mode_controls()
 
         help_menu = self.menuBar().addMenu("&Help")
+        page_help = QAction("&Help for this page", self)
+        page_help.setShortcut(QKeySequence("F1"))
+        page_help.triggered.connect(self.show_help)
+        help_menu.addAction(page_help)
         about = QAction("&About ECDSA Lab", self)
         about.triggered.connect(self._about)
         help_menu.addAction(about)
@@ -400,30 +599,6 @@ class MainWindow(QMainWindow):
         self.show_page("Keys")
         handler()
 
-    def _show_page_help(self) -> None:
-        page = self.stack.currentWidget()
-        title = self.sidebar.currentItem().text()
-
-        help_text = getattr(page, "HELP", None)
-
-        if title == "Learn ECDSA":
-            current_page = None
-
-            if hasattr(page, "pages") and hasattr(page, "index"):
-                try:
-                    current_page = page.pages[page.index]
-                except (IndexError, KeyError, TypeError):
-                    pass
-
-            if current_page is not None:
-                help_text = getattr(current_page, "HELP", help_text)
-
-        QMessageBox.information(
-            self,
-            f"{title} - Help",
-            help_text or "No help information is available for this page yet."
-        )
-        
     def _about(self) -> None:
         QMessageBox.about(
             self,
@@ -448,7 +623,7 @@ class MainWindow(QMainWindow):
     def _sync_theme_controls(self) -> None:
         dark = current_theme() == "dark"
         self.theme_button.setChecked(dark)
-        self.theme_button.setText("Light mode" if dark else "Dark mode")
+        self.theme_button.setText("Light theme" if dark else "Dark theme")
         action = getattr(self, "theme_action", None)  # menus are built after the toolbar
         if action is not None:
             action.setChecked(dark)
@@ -492,16 +667,23 @@ class MainWindow(QMainWindow):
         else:
             self.statusBar().clearMessage()
 
-    def _on_curve_changed(self, _curve) -> None:
+    def _on_curve_changed(self, curve) -> None:
         self._refresh_curve_widgets()
         self._update_status()
+        cleared = self.state.cleared_by_last_curve_change
+        if cleared:
+            self.statusBar().showMessage(f"New curve {curve.name}: {cleared} cleared.", 8000)
+        else:
+            self.statusBar().showMessage(f"New curve: {curve.name}.", 5000)
 
     def _refresh_curve_widgets(self) -> None:
         self._select_current_curve()
         curve = self.state.curve
         if curve is None:
             self.curve_info.setText("no curves available yet")
+            self.curve_button.setText("Curve: none  ▾")
         else:
+            self.curve_button.setText("Curve: " + curve.name + "  ▾")
             bits = curve.p.bit_length()
             kind = "toy curve" if bits <= 32 else "real-world curve"
             self.curve_info.setText(f"{bits}-bit field · {kind}")
