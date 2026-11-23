@@ -37,6 +37,9 @@ def _point(s: str) -> tuple[int, int] | None:
 
 class VerifyPage(LearnPage):
     title = "Step 6: Bob verifies the signature"
+    HELP = ("Step 6 checks the signature the way Bob would, using only the public key Q, the message and (r, s). "
+            "Bob computes w = s⁻¹, then u1 and u2, then the point u1·G + u2·Q. If its x-coordinate mod n equals "
+            "r, the signature is VALID. The box below the table explains why this always works.")
 
     def enter(self, st: LearnState) -> None:
         if st.curve is None:
@@ -102,6 +105,8 @@ class VerifyPage(LearnPage):
 
 class QuizPage(LearnPage):
     title = "Step 7: Quiz"
+    HELP = ("Three questions on what you just saw. Click an answer to see right away whether it's correct and "
+            "why. You can change your answers; the score at the bottom updates.")
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
