@@ -98,14 +98,15 @@ def test_curve_button_shows_the_curve_and_opens_the_picker(qtbot, state, monkeyp
     assert state.curve == CURVES["toy-97"] and "toy-97" in window.curve_button.text()
 
 
-def test_combo_is_an_expert_shortcut(qtbot, state):
+def test_expert_mode_does_not_add_a_second_curve_control(qtbot, state):
     window = MainWindow(state)
     qtbot.addWidget(window)
     combo_action = window._toolbar_actions[window.curve_combo]
     state.set_mode("beginner")
     assert not combo_action.isVisible()
     state.set_mode("expert")
-    assert combo_action.isVisible()
+    assert not combo_action.isVisible()
+    assert "toy-17" in window.curve_button.text()
 
 
 # ======================================================= Keys page modes

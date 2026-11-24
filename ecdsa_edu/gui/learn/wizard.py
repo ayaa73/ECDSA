@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QPushButton,
+    QScrollArea,
     QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -108,17 +109,21 @@ class LearnPage(QWidget):
         self.formula_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.formula_label.setWordWrap(True)
         self.formula_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.formula_label.setStyleSheet(
-            "font-family: Consolas, 'Courier New', monospace; font-size: 20pt;"
-            "padding: 14px; background: #f3f5f8; border-radius: 8px;")
+        self.formula_label.setProperty("formula", True)
+        self.formula_label.setProperty("mono", True)
 
         self.values_table = QTableWidget(0, 2)
         self.values_table.setHorizontalHeaderLabels(["Name", "Value"])
         self.values_table.verticalHeader().setVisible(False)
         self.values_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        # Keep a usable viewport even when a step also contains a plot or trace.
+        # Long numbers extend the column and can be read with the horizontal bar.
+        self.values_table.setMinimumHeight(180)
+        self.values_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.values_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.values_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        self.values_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        self.values_table.setWordWrap(True)
+        self.values_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.values_table.setWordWrap(False)
 
         layout = QVBoxLayout(self)
         layout.addWidget(self.title_label)
@@ -213,7 +218,7 @@ class LearnTab(QWidget):
 
         # Header: step indicator + real-size toggle
         self.step_label = QLabel()
-        self.step_label.setStyleSheet("color: #555; font-weight: bold;")
+        self.step_label.setProperty("muted", True)
         self.real_size = QCheckBox(f"Show real-size numbers ({REAL_CURVE})")
         self.real_size.setToolTip(f"Repeat the walkthrough on {REAL_CURVE} instead of the toy curve {TOY_CURVE}")
         self.real_size.toggled.connect(self._toggle_curve)
@@ -232,8 +237,16 @@ class LearnTab(QWidget):
             else:
                 for part in range(1, m.spec.expected_steps + 1):
                     self.pages.append(ComingSoonPage(m.spec, m.error, part))
+        # Each step scrolls independently, rather than squeezing tables to fit
+        # alongside plots, explanations and traces in the available height.
+        self._page_scrolls: dict[LearnPage, QScrollArea] = {}
         for p in self.pages:
-            self.stack.addWidget(p)
+            scroll = QScrollArea()
+            scroll.setFrameShape(QFrame.Shape.NoFrame)
+            scroll.setWidgetResizable(True)
+            scroll.setWidget(p)
+            self._page_scrolls[p] = scroll
+            self.stack.addWidget(scroll)
         self.error_page = ErrorPage()
         self.stack.addWidget(self.error_page)
 
@@ -278,7 +291,7 @@ class LearnTab(QWidget):
         page = self.pages[self.index]
         try:
             page.enter(self.st)
-            self.stack.setCurrentWidget(page)
+            self.stack.setCurrentWidget(self._page_scrolls[page])
         except Exception as exc:  # noqa: BLE001 - show it, don't crash the app
             self.error_page.show_error(page.title, exc)
             self.stack.setCurrentWidget(self.error_page)

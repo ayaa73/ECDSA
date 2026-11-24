@@ -19,10 +19,10 @@ class Category:
 
 
 CATEGORIES: dict[str, Category] = {
-    "math": Category("math", "Math idea", "#2e5c8a"),
-    "standard": Category("standard", "Standard", "#1e7e34"),
-    "real-world": Category("real-world", "Real-world use", "#c27c0e"),
-    "attack": Category("attack", "Attack or bug", "#b00020"),
+    "math": Category("math", "Math idea", "#9FB3F2"),
+    "standard": Category("standard", "Standard", "#A7B26A"),
+    "real-world": Category("real-world", "Real-world use", "#F4D35E"),
+    "attack": Category("attack", "Attack or bug", "#F5A8D0"),
 }
 
 

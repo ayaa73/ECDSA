@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 
 from ecdsa_edu.gui.tabs.history_data import CATEGORIES, MILESTONES, Milestone, filter_milestones
 from ecdsa_edu.gui.tabs.p4_widgets import explanation, go_to, heading
+from ecdsa_edu.gui.widgets.cards import Card
 
 __all__ = ["HistoryTab", "TimelineStrip"]
 
@@ -72,15 +73,15 @@ class TimelineStrip(QWidget):
         for i, m in enumerate(self.items):
             x = self._x(i)
             cat = CATEGORIES[m.category]
-            radius = 11 if i == self.selected else 8
-            p.setPen(QPen(QColor("#1f2a44"), 3 if i == self.selected else 1))
+            radius = 11
+            p.setPen(QPen(QColor("#141414"), 3 if i == self.selected else 2))
             p.setBrush(QColor(cat.color))
             p.drawEllipse(QPointF(x, y), radius, radius)
             p.setPen(QColor("#1f2a44"))
             p.setFont(bold)
             p.drawText(QRectF(x - 40, 15, 80, 20), Qt.AlignmentFlag.AlignCenter, str(m.year))
             p.setFont(small)
-            p.setPen(QColor(cat.color))
+            p.setPen(QColor("#141414"))
             p.drawText(QRectF(x - SPACING / 2, 72, SPACING, 40),
                        Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap,
                        cat.label)
@@ -107,9 +108,10 @@ class HistoryTab(QWidget):
         chips.addWidget(QLabel("<b>Show:</b>"))
         self.chips: dict[str, QCheckBox] = {}
         for key, cat in CATEGORIES.items():
-            box = QCheckBox(cat.label)
+            box = QPushButton(cat.label)
+            box.setCheckable(True)
             box.setChecked(True)
-            box.setStyleSheet(f"QCheckBox {{ color: {cat.color}; font-weight: bold; }}")
+            box.setProperty("chip", True)
             box.toggled.connect(lambda on, k=key: self.set_category(k, on))
             chips.addWidget(box)
             self.chips[key] = box
@@ -121,7 +123,7 @@ class HistoryTab(QWidget):
         strip_scroll = QScrollArea()
         strip_scroll.setWidget(self.strip)
         strip_scroll.setFixedHeight(160)
-        strip_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        strip_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.strip_scroll = strip_scroll
 
         self.prev_button = QPushButton("◀ Earlier")
@@ -138,7 +140,7 @@ class HistoryTab(QWidget):
         # ---- details
         self.detail_title = QLabel()
         self.detail_title.setWordWrap(True)
-        self.detail_title.setStyleSheet("font-size: 15pt; font-weight: bold;")
+        self.detail_title.setProperty("heading", "section")
         self.detail_category = QLabel()
         self.story = explanation("")
         self.why = explanation("")
@@ -149,8 +151,9 @@ class HistoryTab(QWidget):
         self.see_button = QPushButton()
         self.see_button.clicked.connect(self.open_page)
         self.empty_note = QLabel("No events match. Tick at least one box above.")
-        details = QGroupBox("What happened")
-        dl = QVBoxLayout(details)
+        details = Card("What happened", "periwinkle")
+        self.details = details
+        dl = details.body
         for w in (self.detail_title, self.detail_category, self.story, self.why, self.source):
             dl.addWidget(w)
         dl.addWidget(self.see_button, alignment=Qt.AlignmentFlag.AlignLeft)
@@ -220,8 +223,10 @@ class HistoryTab(QWidget):
         if not has:
             return
         cat = CATEGORIES[m.category]
+        self.details.setProperty("card", {"math": "periwinkle", "standard": "olive", "real-world": "yellow", "attack": "pink"}[m.category])
+        self.details.update()
         self.detail_title.setText(f"{m.year}: {html.escape(m.title)}")
-        self.detail_category.setText(f"<span style='color:{cat.color}; font-weight:bold'>● {cat.label}</span>")
+        self.detail_category.setText(cat.label)
         self.story.setText(html.escape(m.story))
         self.why.setText(f"<b>Why it matters for ECDSA:</b> {html.escape(m.why_it_matters)}")
         self.source.setText(f"Source: <a href='{html.escape(m.source_url)}'>{html.escape(m.source_title)}</a>")

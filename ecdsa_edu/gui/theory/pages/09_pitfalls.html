@@ -24,10 +24,11 @@ away d. If k is only slightly biased (for example its top few bits are often zer
 many signatures lets lattice techniques (the "hidden number problem") recover d.</p>
 <p>In 2013 a flaw in Android's random number generator made some Bitcoin wallet apps produce
 repeated k values, and funds were stolen from those wallets.</p>
-<p class="note"><b>Fix: RFC 6979.</b> Derive k deterministically from the private key and the
-message hash with HMAC. The same (key, message) always gives the same k, different messages give
-unrelated k values, and no random number generator is involved at signing time. Our Sign tab
-uses RFC 6979 by default.</p>
+<p class="note"><b>Fix weak or biased nonce generation: use RFC 6979.</b> It derives k
+deterministically from the private key and message hash with HMAC. The same key and message
+produce the same k; for different messages, the HMAC-derived values are computationally
+unpredictable. No random number generator is needed at signing time. Our Sign tab uses RFC 6979
+by default.</p>
 
 <h2>3. Code that is not constant-time</h2>
 <p>If the time taken to compute k·G depends on the bits of k (for example, an extra point

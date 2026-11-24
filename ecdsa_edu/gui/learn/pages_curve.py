@@ -1,5 +1,6 @@
 """P1 Learn wizard: the curve and its generator."""
-from PySide6.QtWidgets import QLabel, QTableWidget, QTableWidgetItem
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QLabel, QHeaderView, QTableWidget, QTableWidgetItem
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from ecdsa_edu.core.curves_registry import get_curve
 from ecdsa_edu.core.curve import scalar_mult
@@ -20,6 +21,10 @@ class CurvePage(LearnPage):
         self.plot=FigureCanvasQTAgg(finite_field_figure(get_curve('toy-17')))
         self.layout().insertWidget(3,self.plot)
         self.table=QTableWidget(0,2);self.table.setHorizontalHeaderLabels(['k','kG'])
+        self.table.setMinimumHeight(180)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.layout().addWidget(self.table)
 
 

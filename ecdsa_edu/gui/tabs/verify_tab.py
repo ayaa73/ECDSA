@@ -20,7 +20,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit,
-    QPushButton, QScrollArea, QVBoxLayout, QWidget,
+    QPushButton, QScrollArea, QVBoxLayout, QWidget, QBoxLayout, QSizePolicy,
 )
 
 from ecdsa_edu.core.hashing import HASHES
@@ -32,6 +32,7 @@ from ecdsa_edu.gui.tabs.p4_widgets import (
     ResultBanner, current_mode, explanation, go_to, heading, make_trace_view, on_mode_changed,
 )
 from ecdsa_edu.gui.widgets.worker import run_in_background
+from ecdsa_edu.gui.widgets.cards import Card, make_page_header
 
 __all__ = ["VerifyTab"]
 
@@ -59,7 +60,7 @@ class VerifyTab(QWidget):
         # ---- message
         self.msg_edit = QPlainTextEdit()
         self.msg_edit.setPlaceholderText("Type or paste the message that was signed.")
-        self.msg_edit.setFixedHeight(80)
+        self.msg_edit.setFixedHeight(120)
         self.msg_edit.textChanged.connect(self._on_message_edited)
         self.file_button = QPushButton("Use a file instead…")
         self.file_button.clicked.connect(self._choose_file)
@@ -70,8 +71,8 @@ class VerifyTab(QWidget):
         for w in (self.file_button, self.file_label, self.file_clear):
             file_row.addWidget(w)
         file_row.addStretch(1)
-        msg_box = QGroupBox("1. The message")
-        msg_layout = QVBoxLayout(msg_box)
+        msg_box = Card("The message", "periwinkle", "1")
+        msg_layout = msg_box.body
         msg_layout.addWidget(self.msg_edit)
         msg_layout.addLayout(file_row)
 
@@ -85,10 +86,11 @@ class VerifyTab(QWidget):
         self.key_hex.setPlaceholderText("02… or 03… (compressed) or 04… (uncompressed)")
         self.key_status = QLabel()
         self.key_status.setWordWrap(True)
-        self.key_go = QPushButton("Make a key on the Keys page")
+        self.key_go = QPushButton("Make a key →")
+        self.key_go.setProperty("primary", True)
         self.key_go.clicked.connect(lambda *_: go_to(self, self.state, "Keys"))
-        key_box = QGroupBox("2. The signer's public key")
-        key_layout = QVBoxLayout(key_box)
+        key_box = Card("Public key", "periwinkle", "2")
+        key_layout = key_box.body
         key_layout.addWidget(self.key_source)
         key_layout.addWidget(self.key_hex)
         key_layout.addWidget(self.key_status)
@@ -100,14 +102,17 @@ class VerifyTab(QWidget):
         self.sig_source.addItem("Paste a signature", PASTE)
         self.sig_source.addItem("Load a signature file…", FILE)
         self.sig_source.activated.connect(self._sig_source_chosen)
+        for combo in (self.key_source, self.sig_source):
+            combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            combo.setMinimumContentsLength(8)
         self.sig_text = QLineEdit()
         self.sig_text.setPlaceholderText("r, s   for example: 7, 17   (or the hex / DER from the Sign page)")
         self.sig_status = QLabel()
         self.sig_status.setWordWrap(True)
         self.sig_go = QPushButton("Sign something on the Sign page")
         self.sig_go.clicked.connect(lambda *_: go_to(self, self.state, "Sign"))
-        sig_box = QGroupBox("3. The signature (r, s)")
-        sig_layout = QVBoxLayout(sig_box)
+        sig_box = Card("Signature (r, s)", "periwinkle", "3")
+        sig_layout = sig_box.body
         sig_layout.addWidget(self.sig_source)
         sig_layout.addWidget(self.sig_text)
         sig_layout.addWidget(self.sig_status)
@@ -124,38 +129,49 @@ class VerifyTab(QWidget):
 
         # ---- actions + result
         self.verify_button = QPushButton("Verify")
-        self.verify_button.setMinimumHeight(40)
-        self.verify_button.setStyleSheet("font-size: 13pt; font-weight: bold;")
+        self.verify_button.setMinimumHeight(52)
+        self.verify_button.setProperty("big", True)
+        self.verify_button.setProperty("primary", True)
         self.verify_button.setToolTip("Check the signature (Ctrl+Shift+V)")
         self.verify_button.clicked.connect(self.run_verify)
         QShortcut(QKeySequence("Ctrl+Shift+V"), self, activated=self.run_verify)
-        self.tamper_button = QPushButton("Change one letter and check again")
+        self.tamper_button = QPushButton("Change one letter")
+        self.tamper_button.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         self.tamper_button.setToolTip("Changes one character of the message, then verifies again")
         self.tamper_button.clicked.connect(self.tamper_and_verify)
-        buttons = QHBoxLayout()
-        buttons.addWidget(self.verify_button, 2)
-        buttons.addWidget(self.tamper_button, 1)
-
         self.banner = ResultBanner()
-        self.show_math = QCheckBox("Show the math (the steps Bob computes)")
+        self.show_math = QCheckBox("Show the math")
         self.show_math.toggled.connect(lambda on: self.trace_view.setVisible(on))
         self.trace_view = make_trace_view()
 
         # ---- page layout
         content = QWidget()
         page = QVBoxLayout(content)
-        page.addWidget(heading("Verify a signature"))
-        page.addWidget(explanation(
-            "Bob receives a message and a signature (r, s) and wants to know if Alice really signed "
-            "<i>this exact</i> message. He only needs Alice's <b>public</b> key: never her private key."))
-        page.addWidget(msg_box)
-        page.addWidget(key_box)
-        page.addWidget(sig_box)
-        page.addWidget(self.options_box)
-        page.addLayout(buttons)
-        page.addWidget(self.banner)
-        page.addWidget(self.show_math)
-        page.addWidget(self.trace_view, 1)
+        page.setContentsMargins(12, 12, 12, 24)
+        page.setSpacing(24)
+        page.addWidget(make_page_header("Verify a signature", "Check that this exact message was signed with the matching private key."))
+        self.columns = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.columns.setSpacing(24)
+        left = QVBoxLayout()
+        left.setSpacing(24)
+        left.addWidget(msg_box)
+        self.inputs = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.inputs.setSpacing(24)
+        self.inputs.addWidget(key_box)
+        self.inputs.addWidget(sig_box)
+        left.addLayout(self.inputs)
+        left.addWidget(self.options_box)
+        left.addStretch()
+        self.columns.addLayout(left, 3)
+        self.result_card = Card("Result", "olive")
+        self.result_card.body.addWidget(self.verify_button)
+        self.result_card.body.addWidget(self.banner)
+        self.result_card.body.addWidget(self.tamper_button)
+        self.result_card.body.addWidget(self.show_math)
+        self.result_card.body.addWidget(self.trace_view, 1)
+        self.result_card.body.addStretch()
+        self.columns.addWidget(self.result_card, 2)
+        page.addLayout(self.columns, 1)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(content)
@@ -173,6 +189,14 @@ class VerifyTab(QWidget):
         self._apply_mode(current_mode(state))
         self._on_new_signature()
         self._refresh_key_status()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        if hasattr(self, "columns"):
+            wide = self.window().width() >= 1100
+            direction = QBoxLayout.Direction.LeftToRight if wide else QBoxLayout.Direction.TopToBottom
+            self.columns.setDirection(direction)
+            self.inputs.setDirection(direction)
 
     # ------------------------------------------------------------ tab contract
     def set_curve(self, curve: Any) -> None:
@@ -397,7 +421,13 @@ class VerifyTab(QWidget):
         self._tamper_note = ""
         detail = (f"We {note}. " if note else "") + verdict.reason
         self.banner.show_message("good" if verdict.valid else "bad", verdict.headline, detail)
+        self.result_card.setProperty("card", "olive" if verdict.valid else "pink")
+        self.result_card.style().unpolish(self.result_card)
+        self.result_card.style().polish(self.result_card)
         self.trace_view.set_trace(trace)
+        signal = getattr(self.state, "verificationCompleted", None)
+        if signal is not None:
+            signal.emit(bool(ok))
 
     def _show_error(self, exc: Exception) -> bool:
         self._set_busy(False)

@@ -64,6 +64,7 @@ from ecdsa_edu.gui.app_state import AppState
 from ecdsa_edu.gui.widgets.bigint_field import BigIntField
 from ecdsa_edu.gui.widgets.hex_field import HexField, HexOutputField
 from ecdsa_edu.gui.widgets.worker import run_in_background
+from ecdsa_edu.gui.widgets.cards import Card, make_page_header
 
 __all__ = ["KeysTab", "make_trace_view", "set_message"]
 
@@ -132,7 +133,9 @@ class KeysTab(QWidget):
     # Shown by the toolbar "?" button.
     HELP = (
         "This page makes Alice's key pair. Press “Generate key pair” (Ctrl+G): the app picks a "
-        "secret number d and computes the public point Q = d · G.\n\n"
+        "secret number d at random and computes the public point Q = d · G. In real use, d should "
+        "always be chosen randomly. The Learn ECDSA walkthrough also lets you enter d yourself as "
+        "a learning feature, so you can follow a worked example.\n\n"
         "Keep d secret: anyone who has it can sign as you. Q is safe to share; others use it to "
         "check your signatures.\n\n"
         "You can save both keys as small files, load them later, or paste somebody else's "
@@ -165,7 +168,7 @@ class KeysTab(QWidget):
         header.addWidget(self.hex_check)
 
         # --- 1. private key
-        box_priv = QGroupBox("1 ·  Private key d   (keep it secret)")
+        box_priv = Card("Private key d · keep it secret", "yellow", "1")
         self.d_field = BigIntField(minimum=1)
         self.d_field.setAccessibleName("Private key d")
         self.hide_check = QCheckBox("Hide d")
@@ -192,7 +195,7 @@ class KeysTab(QWidget):
         buttons.addWidget(self.btn_generate)
         buttons.addWidget(self.btn_derive)
         buttons.addStretch(1)
-        lay = QVBoxLayout(box_priv)
+        lay = box_priv.body
         lay.addWidget(self.d_note)
         lay.addLayout(d_row)
         lay.addWidget(self.warning)
@@ -201,12 +204,13 @@ class KeysTab(QWidget):
         lay.addLayout(buttons)
 
         # --- 2. public key
-        box_pub = QGroupBox("2 ·  Public key Q = d · G   (safe to share)")
+        box_pub = Card("Public key Q = d · G", "peach", "2")
         self.qx_field = BigIntField(read_only=True)
         self.qy_field = BigIntField(read_only=True)
         self.compressed_field = HexOutputField(lines=3, save_name="public_key_compressed")
         self.uncompressed_field = HexOutputField(lines=5, save_name="public_key_uncompressed")
-        form = QFormLayout(box_pub)
+        form = QFormLayout()
+        box_pub.body.addLayout(form)
         form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         form.addRow("Qx", self.qx_field)
         form.addRow("Qy", self.qy_field)
@@ -221,12 +225,13 @@ class KeysTab(QWidget):
         self._pub_form = form
 
         # --- key files
-        box_files = QGroupBox("Key files")
+        box_files = Card("Key files", "lavender")
         self.btn_save_priv = QPushButton("Save private key…")
         self.btn_save_pub = QPushButton("Save public key…")
         self.btn_load_priv = QPushButton("Load private key…")
         self.btn_load_pub = QPushButton("Load public key…")
-        grid = QGridLayout(box_files)
+        grid = QGridLayout()
+        box_files.body.addLayout(grid)
         grid.addWidget(self.btn_save_priv, 0, 0)
         grid.addWidget(self.btn_save_pub, 0, 1)
         grid.addWidget(self.btn_load_priv, 1, 0)
@@ -234,14 +239,14 @@ class KeysTab(QWidget):
         grid.addWidget(_note("Small JSON files. Private-key files are not encrypted."), 2, 0, 1, 2)
 
         # --- import
-        box_import = QGroupBox("Use someone else's public key")
+        box_import = Card("Use someone else's public key", "pink")
         self.import_field = HexField(lines=2)
         self.import_field.setAccessibleName("Public key hex to import")
         self.btn_import = QPushButton("Use this public key")
         row = QHBoxLayout()
         row.addWidget(self.btn_import)
         row.addStretch(1)
-        lay = QVBoxLayout(box_import)
+        lay = box_import.body
         lay.addWidget(_note("Paste a compressed or uncompressed public key (hex) to verify that person's signatures."))
         lay.addWidget(self.import_field)
         lay.addLayout(row)
@@ -270,6 +275,7 @@ class KeysTab(QWidget):
         columns.addLayout(right, 1)
         top = QWidget()
         top_lay = QVBoxLayout(top)
+        top_lay.addWidget(make_page_header("Your keys", "Create a private key and share its matching public key."))
         top_lay.addLayout(header)
         top_lay.addLayout(status_row)  # right under the header, so notices are never scrolled away
         top_lay.addLayout(columns)
@@ -279,11 +285,11 @@ class KeysTab(QWidget):
         scroll.setWidget(top)
 
         # Bottom half: the math.
-        box_trace = QGroupBox("How Q = d · G was computed")
+        box_trace = Card("How Q = d · G was computed", "white")
         self._box_trace = box_trace
         self.trace_note = _note("")
         self.trace_view = make_trace_view()
-        lay = QVBoxLayout(box_trace)
+        lay = box_trace.body
         lay.addWidget(self.trace_note)
         lay.addWidget(self.trace_view, 1)
 
@@ -327,9 +333,12 @@ class KeysTab(QWidget):
         self.d_field.setReadOnly(not expert)
         self.btn_derive.setVisible(expert)
         if expert:
-            self.d_note.setText("A secret whole number. Type your own, or let the app pick a random one.")
+            self.d_note.setText(
+                "In real use, d is selected randomly. You can enter a value here in Expert mode "
+                "to explore the math; the Learn ECDSA walkthrough also supports choosing d as a learning feature."
+            )
         else:
-            self.d_note.setText("The app picks a random secret number for you. "
+            self.d_note.setText("The app picks a random secret number for you, as it should be in real use. "
                                 "(Expert mode, Ctrl+E, lets you type your own.)")
             self.hide_check.setChecked(True)  # Beginner: d is hidden by default
         # Beginner sees only the compressed public key.

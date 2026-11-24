@@ -23,7 +23,7 @@ import sys
 import traceback
 from dataclasses import dataclass
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QIcon, QKeySequence, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -40,6 +40,9 @@ from PySide6.QtWidgets import (
     QStackedWidget,
     QToolBar,
     QToolButton,
+    QVBoxLayout,
+    QStyledItemDelegate,
+    QStyle,
     QWidget,
 )
 
@@ -79,7 +82,7 @@ START_PAGE = "Start here"  # shown first, unless the user turned that off
 FALLBACK_START_PAGE = "Keys"  # shown first otherwise
 SETTING_SHOW_TUTORIAL = "tutorial/show_at_startup"  # P4's "Don't show at startup" box writes this
 SETTING_WINDOW_SIZE = "window/size"
-DEFAULT_WINDOW_SIZE = (1200, 800)
+DEFAULT_WINDOW_SIZE = (1360, 900)
 NO_HELP_TEXT = "No help written yet for this page."
 
 MODE_TOOLTIP = (
@@ -137,6 +140,13 @@ def _icon_path(name: str) -> QPainterPath:
     elif name == "book":
         p.moveTo(12, 6); p.quadTo(7, 3.5, 3, 5); p.lineTo(3, 19); p.quadTo(7, 17.5, 12, 20)
         p.quadTo(17, 17.5, 21, 19); p.lineTo(21, 5); p.quadTo(17, 3.5, 12, 6); p.lineTo(12, 20)
+    elif name == "moon":
+        p.moveTo(17, 3); p.cubicTo(7, 4, 5, 17, 18, 19); p.cubicTo(6, 25, -1, 11, 8, 4); p.cubicTo(11, 2, 14, 2, 17, 3)
+    elif name == "help":
+        p.moveTo(8, 8); p.cubicTo(8, 3, 17, 3, 17, 8); p.cubicTo(17, 11, 12, 11, 12, 14)
+        p.addEllipse(QPointF(12, 18), 0.8, 0.8)
+    elif name == "settings":
+        p.addEllipse(QPointF(12, 12), 8, 8); p.addEllipse(QPointF(12, 12), 3, 3)
     elif name == "start":  # a "play" triangle in a circle
         p.addEllipse(QPointF(12, 12), 9, 9)
         p.moveTo(10, 8); p.lineTo(16, 12); p.lineTo(10, 16); p.closeSubpath()
@@ -177,6 +187,92 @@ def make_icon(name: str, color: str, selected_color: str | None = None) -> QIcon
 # --------------------------------------------------------------------------
 # The window
 # --------------------------------------------------------------------------
+class NavigationRail(QWidget):
+    """Button-based navigation with the small list API used by the shell."""
+    currentRowChanged = Signal(int)
+
+    def __init__(self):
+        super().__init__()
+        self.setObjectName("sidebar")
+        self.setAccessibleName("Pages")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self._items = []
+        self._buttons = []
+        self._row = -1
+        self._compact = False
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(8, 0, 8, 0)
+        self._layout.setSpacing(3)
+
+    def addItem(self, item):
+        row = len(self._items)
+        self._items.append(item)
+        button = QPushButton(item.data(Qt.ItemDataRole.UserRole))
+        button.setCheckable(True)
+        button.setAccessibleName(item.data(Qt.ItemDataRole.UserRole))
+        button.setToolTip(item.toolTip())
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.setProperty("nav", True)
+        button.setFixedHeight(38)
+        button.clicked.connect(lambda checked=False, i=row: self.setCurrentRow(i))
+        self._layout.addWidget(button)
+        self._buttons.append(button)
+
+    def count(self):
+        return len(self._items)
+
+    def item(self, index):
+        return self._items[index]
+
+    def currentRow(self):
+        return self._row
+
+    def setCurrentRow(self, row):
+        if not 0 <= row < len(self._items) or row == self._row:
+            return
+        self._row = row
+        for index, button in enumerate(self._buttons):
+            button.setChecked(index == row)
+        self.refreshIcons(theme_colors(current_theme()))
+        self.currentRowChanged.emit(row)
+
+    def setCompact(self, compact):
+        self._compact = compact
+        for item, button in zip(self._items, self._buttons):
+            button.setText("" if compact else item.data(Qt.ItemDataRole.UserRole))
+
+    def refreshIcons(self, colors):
+        for item, button in zip(self._items, self._buttons):
+            icon = make_icon(item.data(Qt.ItemDataRole.UserRole + 1), colors["sidebar_text"], colors["sidebar_selected_text"])
+            item.setIcon(icon)
+            button.setIcon(make_icon(item.data(Qt.ItemDataRole.UserRole + 1),
+                                     colors["sidebar_selected_text"] if button.isChecked() else colors["sidebar_text"]))
+
+
+class ActivityChart(QWidget):
+    """Small session chart: each bar records a key, signature, or verification event."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.values = []
+        self.setMinimumHeight(105)
+
+    def record(self, category):
+        self.values = (self.values + [category])[-8:]
+        self.update()
+
+    def paintEvent(self, event):  # noqa: N802
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        palette = ("#F4C6C6", "#CFC8F7", "#BFE8D6")
+        for index, value in enumerate(self.values):
+            x = 10 + index * 24
+            height = 25 + value * 18
+            rect = QRectF(x, self.height() - height - 10, 16, height)
+            painter.setBrush(QColor(palette[value]))
+            painter.setPen(QPen(QColor("#141414"), 2) if index == len(self.values)-1 else Qt.PenStyle.NoPen)
+            painter.drawRoundedRect(rect, 8, 8)
+
+
 class MainWindow(QMainWindow):
     """Application shell: toolbar, sidebar, pages, menus, status bar."""
 
@@ -191,6 +287,7 @@ class MainWindow(QMainWindow):
         self._build_pages()
         self._build_menus()
         self._build_status_bar()
+        self.statusBar().hide()
 
         state.curveChanged.connect(self._on_curve_changed)
         state.modeChanged.connect(self._sync_mode_controls)
@@ -198,6 +295,9 @@ class MainWindow(QMainWindow):
         state.curvesListChanged.connect(self._fill_curve_combo)
         state.keysChanged.connect(self._update_status)
         state.signatureChanged.connect(self._update_status)
+        state.keysChanged.connect(lambda: self._record_activity(0))
+        state.signatureChanged.connect(lambda: self._record_activity(1))
+        state.verificationCompleted.connect(lambda valid: self._record_activity(2))
         self._refresh_curve_widgets()
         self._update_status()
         self._apply_icons()
@@ -207,7 +307,8 @@ class MainWindow(QMainWindow):
         bar = QToolBar("Main")
         bar.setMovable(False)
         bar.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
-        self.addToolBar(bar)
+        # Embed the existing controls in the surface instead of a window toolbar.
+        self._toolbar = bar
 
         title = QLabel("ECDSA Lab")
         title.setObjectName("appTitle")
@@ -232,28 +333,38 @@ class MainWindow(QMainWindow):
         # "?" button: help for the page that is shown.
         self.help_button = QToolButton()
         self.help_button.setText("?")
+        self.help_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.help_button.setIcon(make_icon("help", "#141414"))
         self.help_button.setAccessibleName("Help for this page")
         self.help_button.setToolTip("Help for this page  (F1)")
 
         self.theme_button = QToolButton()
         self.theme_button.setCheckable(True)
+        self.theme_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.theme_button.setIcon(make_icon("moon", "#141414"))
+        self.theme_button.setFixedSize(36, 36)
+        self.help_button.setFixedSize(36, 36)
         self.theme_button.setToolTip("Switch between the light and the dark theme  (Ctrl+D)")
 
-        # The main way to choose a curve: a big button that opens the card picker.
-        # (The combo box above stays as a quick shortcut, but only in Expert mode.)
+        # The single visible way to choose a curve opens the card picker.
+        # The old combo remains hidden as a fallback if the picker is unavailable.
         self.curve_button = QPushButton()
         self.curve_button.setObjectName("curveButton")
         self.curve_button.setAccessibleName("Choose a curve")
         self.curve_button.setToolTip("Choose the curve every page uses (Ctrl+K)")
         self.curve_button.setShortcut(QKeySequence("Ctrl+K"))
 
-        widgets = [title, spacer, self.curve_info, self.curve_button, label, self.curve_combo,
+        widgets = [spacer, self.curve_info, self.curve_button, label, self.curve_combo,
                    self.mode_button, self.help_button, self.theme_button]
         self._toolbar_actions = {}
         for widget in widgets:
             # Widgets inside a toolbar are shown and hidden through their action.
             self._toolbar_actions[widget] = bar.addWidget(widget)
-        self._expert_only = [label, self.curve_combo]
+        # Keep the legacy selector available as a fallback command, but don't
+        # show a second curve control beside the curve picker button.
+        self._hidden_toolbar_widgets = [label, self.curve_combo]
+        for widget in self._hidden_toolbar_widgets:
+            self._toolbar_actions[widget].setVisible(False)
 
         self._fill_curve_combo()
         self.curve_combo.activated.connect(self._on_combo_activated)  # user choices only
@@ -352,12 +463,7 @@ class MainWindow(QMainWindow):
 
     # -------------------------------------------------------------- pages
     def _build_pages(self) -> None:
-        self.sidebar = QListWidget()
-        self.sidebar.setObjectName("sidebar")
-        self.sidebar.setFixedWidth(200)
-        self.sidebar.setIconSize(QSize(22, 22))
-        self.sidebar.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.sidebar.setAccessibleName("Pages")
+        self.sidebar = NavigationRail()
         self.stack = QStackedWidget()
         self.pages: dict[str, QWidget] = {}
 
@@ -365,18 +471,104 @@ class MainWindow(QMainWindow):
             page = self._load_page(spec)
             self.pages[spec.title] = page
             self.stack.addWidget(page)
-            item = QListWidgetItem(spec.title)
-            item.setData(Qt.ItemDataRole.UserRole, spec.icon)
+            item = QListWidgetItem("")
+            item.setToolTip(spec.title)
+            item.setData(Qt.ItemDataRole.UserRole, spec.title)
+            item.setData(Qt.ItemDataRole.UserRole + 1, spec.icon)
             if page.property("placeholder"):
                 item.setToolTip(f"{spec.title} - coming soon")
             self.sidebar.addItem(item)
 
         central = QWidget()
-        layout = QHBoxLayout(central)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        layout.addWidget(self.sidebar)
-        layout.addWidget(self.stack, 1)
+        outer = QHBoxLayout(central)
+        outer.setContentsMargins(20, 20, 20, 20)
+        surface = QWidget()
+        surface.setObjectName("appSurface")
+        surface.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        outer.addWidget(surface)
+        layout = QHBoxLayout(surface)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(16)
+        rail = QWidget()
+        self.rail = rail
+        rail.setObjectName("rail")
+        rail.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        rail.setFixedWidth(210)
+        rail_layout = QVBoxLayout(rail)
+        rail_layout.setContentsMargins(0, 12, 0, 12)
+        logo = QLabel("ecdsa lab")
+        self.rail_logo = logo
+        logo.setAccessibleName("ECDSA Lab")
+        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo.setObjectName("railLogo")
+        rail_layout.addWidget(logo)
+        rail_layout.addWidget(self.sidebar)
+        rail_layout.addStretch(1)
+        settings = QToolButton()
+        settings.setIcon(make_icon("settings", "#BDBDBD"))
+        settings.setAccessibleName("Settings")
+        settings.setToolTip("Settings")
+        settings.clicked.connect(lambda: self.menuBar().actions()[1].menu().popup(settings.mapToGlobal(settings.rect().topRight())))
+        rail_layout.addWidget(settings, alignment=Qt.AlignmentFlag.AlignHCenter)
+        layout.addWidget(rail)
+        center = QVBoxLayout()
+        self._center_layout = center
+        center.setSpacing(12)
+        center.addWidget(self._toolbar)
+        center.addWidget(self.stack, 1)
+        layout.addLayout(center, 1)
+        self.side_panel = QWidget()
+        self.side_panel.setObjectName("sidePanel")
+        self.side_panel.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.side_panel.setFixedWidth(300)
+        panel = QVBoxLayout(self.side_panel)
+        panel.setContentsMargins(20, 24, 20, 20)
+        avatar = QLabel("Session")
+        avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        avatar.setProperty("heading", "hero")
+        panel.addWidget(avatar)
+        name = QLabel("Your activity")
+        name.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        name.setProperty("heading", "section")
+        panel.addWidget(name)
+        self.panel_curve = QLabel()
+        self.panel_curve.setWordWrap(True)
+        self.panel_curve.setProperty("badge", True)
+        panel.addWidget(self.panel_curve)
+        self.panel_counts = QLabel()
+        self.panel_counts.setWordWrap(True)
+        self.panel_counts.setProperty("muted", True)
+        panel.addWidget(self.panel_counts)
+        panel.addSpacing(20)
+        activity = QLabel("Activity · This session")
+        activity.setObjectName("activityCard")
+        activity.setWordWrap(True)
+        panel.addWidget(activity)
+        self.activity_chart = ActivityChart()
+        self.activity_counts = [0, 0, 0]
+        panel.addWidget(self.activity_chart)
+        sign = QPushButton("Sign a message  →")
+        sign.setProperty("primary", True)
+        sign.setCursor(Qt.CursorShape.PointingHandCursor)
+        sign.clicked.connect(lambda: self.show_page("Sign"))
+        panel.addWidget(sign)
+        timeline_title = QLabel("Today's timeline")
+        timeline_title.setProperty("heading", "section")
+        panel.addWidget(timeline_title)
+        self.timeline = QLabel("Your session activity will appear here.")
+        self.timeline.setProperty("muted", True)
+        self.timeline.setWordWrap(True)
+        panel.addWidget(self.timeline)
+        label = QLabel("Continue learning")
+        label.setProperty("heading", "section")
+        panel.addWidget(label)
+        for title, color in (("Learn ECDSA", "peach"), ("Curve Explorer", "lavender"), ("Attack Demo", "pink")):
+            button = QPushButton(title + "  →")
+            button.setProperty("card", color)
+            button.clicked.connect(lambda checked=False, page=title: self.show_page(page))
+            panel.addWidget(button)
+        panel.addStretch()
+        layout.addWidget(self.side_panel)
         self.setCentralWidget(central)
 
         self.sidebar.currentRowChanged.connect(self.stack.setCurrentIndex)
@@ -511,8 +703,8 @@ class MainWindow(QMainWindow):
         action = getattr(self, "mode_action", None)  # menus are built after the toolbar
         if action is not None:
             action.setChecked(expert)
-        for widget in self._expert_only:  # the curve combo is an Expert shortcut
-            self._toolbar_actions[widget].setVisible(expert)
+        for widget in self._hidden_toolbar_widgets:
+            self._toolbar_actions[widget].setVisible(False)
 
     # ---------------------------------------------------- window size
     def _restore_window_size(self) -> None:
@@ -532,6 +724,15 @@ class MainWindow(QMainWindow):
         """Remember the window size for next time."""
         self.state.settings.setValue(SETTING_WINDOW_SIZE, self.size())
         super().closeEvent(event)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        if hasattr(self, "side_panel"):
+            self.side_panel.setVisible(self.width() >= 1280)
+            compact = self.width() < 1100
+            self.rail.setFixedWidth(72 if compact else 210)
+            self.rail_logo.setText("E" if compact else "ecdsa lab")
+            self.sidebar.setCompact(compact)
 
     # -------------------------------------------------------------- menus
     def _build_menus(self) -> None:
@@ -631,11 +832,9 @@ class MainWindow(QMainWindow):
     def _apply_icons(self) -> None:
         """(Re)draw the sidebar icons in the colours of the current theme."""
         colors = theme_colors(current_theme())
-        for row in range(self.sidebar.count()):
-            item = self.sidebar.item(row)
-            item.setIcon(
-                make_icon(item.data(Qt.ItemDataRole.UserRole), colors["sidebar_text"], colors["sidebar_selected_text"])
-            )
+        self.sidebar.refreshIcons(colors)
+        self.help_button.setIcon(make_icon("help", colors["text"]))
+        self.theme_button.setIcon(make_icon("moon", colors["text"]))
 
     # ------------------------------------------------------------- status
     def _build_status_bar(self) -> None:
@@ -650,7 +849,7 @@ class MainWindow(QMainWindow):
         self.busy_bar.setFixedSize(120, 12)
         self.busy_bar.setVisible(False)
         # (permanent widgets stay visible while the status bar shows a message)
-        self.statusBar().addPermanentWidget(self.busy_bar)
+        self._center_layout.insertWidget(1, self.busy_bar, alignment=Qt.AlignmentFlag.AlignRight)
         for label in (self.status_curve, self.status_keys, self.status_signature):
             self.statusBar().addPermanentWidget(label)
         self.statusBar().setSizeGripEnabled(False)
@@ -683,7 +882,7 @@ class MainWindow(QMainWindow):
             self.curve_info.setText("no curves available yet")
             self.curve_button.setText("Curve: none  ▾")
         else:
-            self.curve_button.setText("Curve: " + curve.name + "  ▾")
+            self.curve_button.setText(curve.name + "  v")
             bits = curve.p.bit_length()
             kind = "toy curve" if bits <= 32 else "real-world curve"
             self.curve_info.setText(f"{bits}-bit field · {kind}")
@@ -706,3 +905,15 @@ class MainWindow(QMainWindow):
             keys = "no keys yet"
         self.status_keys.setText(f"Keys: {keys}")
         self.status_signature.setText("Signature: ready" if state.last_sig is not None else "Signature: none yet")
+        self.panel_curve.setText(curve_text)
+        self.panel_counts.setText(f"Keys loaded: {int(state.priv is not None or state.pub is not None)}  ·  "
+                                  f"Signature ready: {int(state.last_sig is not None)}")
+
+    def _record_activity(self, category: int) -> None:
+        from PySide6.QtCore import QTime
+        self.activity_counts[category] += 1
+        self.activity_chart.record(category)
+        keys, signatures, verifies = self.activity_counts
+        self.panel_counts.setText(f"Keys: {keys} · Signatures: {signatures} · Verifications: {verifies}")
+        event = ("Keys updated", "Signature updated", "Verification completed")[category]
+        self.timeline.setText(f"{QTime.currentTime().toString('HH:mm')}  ·  {event}")

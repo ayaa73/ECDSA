@@ -94,6 +94,22 @@ needs_qt = pytest.mark.skipif(not HAS_QT, reason="needs PySide6 and pytest-qt")
 
 
 @needs_qt
+def test_learn_tables_scroll_without_squeezing(qtbot):
+    from ecdsa_edu.gui.learn.wizard import LearnTab
+
+    tab = LearnTab(None)
+    qtbot.addWidget(tab)
+    tab.resize(900, 600)
+    tab.show()
+    qtbot.waitUntil(lambda: tab._page_scrolls[tab.pages[0]].verticalScrollBar().maximum() > 0)
+    page = tab.pages[0]
+    assert page.values_table.height() >= 180
+    assert page.table.height() >= 180
+    page.set_values({"large value": "a" * 300})
+    qtbot.waitUntil(lambda: page.values_table.horizontalScrollBar().maximum() > 0)
+
+
+@needs_qt
 def test_wizard_opens_and_navigates(qtbot):
     from ecdsa_edu.gui.learn.wizard import LearnTab
 
