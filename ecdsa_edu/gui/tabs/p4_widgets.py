@@ -74,15 +74,16 @@ class ResultBanner(QLabel):
         self.show_message("info", "", "")
 
     def show_message(self, kind: str, headline: str, detail: str) -> None:
-        fg, bg, mark = self.STYLES[kind]
+        _, _, mark = self.STYLES[kind]
         self.kind = kind
         self.headline = headline
         if not headline and not detail:
             self.setText("")
-            self.setStyleSheet("")
+            self.setProperty("result", "")
+            self.style().unpolish(self); self.style().polish(self)
             return
-        self.setStyleSheet(f"QLabel {{ color: {fg}; background: {bg}; border: 2px solid {fg}; "
-                           f"border-radius: 8px; padding: 10px; }}")
+        self.setProperty("result", kind)
+        self.style().unpolish(self); self.style().polish(self)
         big = f"<span style='font-size:22pt; font-weight:bold'>{mark} {html.escape(headline)}</span>"
         self.setText(big + (f"<br><span style='font-size:11pt'>{html.escape(detail)}</span>" if detail else ""))
 

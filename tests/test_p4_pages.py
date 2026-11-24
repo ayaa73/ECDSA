@@ -95,6 +95,12 @@ def test_tutorial_story_and_demo(qtbot, state):
     from ecdsa_edu.gui.tutorial.tutorial_tab import TutorialTab
     tab = TutorialTab(state)
     qtbot.addWidget(tab)
+    assert not hasattr(tab, "play_button")
+    assert not hasattr(tab, "timer")
+    assert "Welcome to ECDSA Lab" in tab.welcome_heading.text()
+    assert tab.destination_layout.count() == len(tab.destination_buttons) + 1
+    qtbot.wait(100)
+    assert tab.canvas.frame == 0
 
     for i in range(len(FRAMES) - 1):
         assert tab.canvas.frame == i
@@ -111,6 +117,18 @@ def test_tutorial_story_and_demo(qtbot, state):
     tab.tamper_button.click()
     qtbot.waitUntil(lambda: tab.banner.headline == "INVALID", timeout=WAIT)
     assert state.pub is None  # the practice key never replaces the student's key
+
+
+def test_learning_keys_explain_random_d_and_manual_learning_choice(qtbot, state):
+    from ecdsa_edu.gui.learn.pages_keys import KeysPage
+    from ecdsa_edu.gui.learn.model import LearnState
+
+    page = KeysPage()
+    qtbot.addWidget(page)
+    page.enter(LearnState(state.curve))
+    text = page.text_label.text()
+    assert "selected randomly" in text
+    assert "learning walkthrough" in text
 
 
 def test_tutorial_every_frame_paints(qtbot):

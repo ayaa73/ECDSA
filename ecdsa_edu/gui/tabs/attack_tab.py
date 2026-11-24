@@ -25,6 +25,7 @@ from ecdsa_edu.gui.tabs.p4_widgets import (
     ResultBanner, current_mode, explanation, go_to, heading, make_trace_view, on_mode_changed,
 )
 from ecdsa_edu.gui.widgets.worker import run_in_background
+from ecdsa_edu.gui.widgets.cards import Card, make_page_header
 
 __all__ = ["AttackTab"]
 
@@ -44,7 +45,7 @@ def _value_label() -> QLabel:
     label = QLabel()
     label.setWordWrap(True)
     label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-    label.setStyleSheet("font-family: monospace;")
+    label.setProperty("mono", True)
     return label
 
 
@@ -74,8 +75,8 @@ class AttackTab(QWidget):
             grid.addWidget(QLabel(f"<b>{name}</b>"), row, 0, Qt.AlignmentFlag.AlignTop)
             grid.addWidget(widget, row, 1)
         grid.setColumnStretch(1, 1)
-        left = QGroupBox("1. The mistake")
-        left_layout = QVBoxLayout(left)
+        left = Card("The mistake", "pink", "1")
+        left_layout = left.body
         left_layout.addWidget(explanation("The victim signs two <i>different</i> messages but reuses the secret k."))
         left_layout.addWidget(self.make_button)
         left_layout.addLayout(grid)
@@ -95,8 +96,8 @@ class AttackTab(QWidget):
         self.show_math = QCheckBox("Show the algebra step by step")
         self.trace_view = make_trace_view()
         self.show_math.toggled.connect(self.trace_view.setVisible)
-        right = QGroupBox("2. The attack")
-        right_layout = QVBoxLayout(right)
+        right = Card("The attack", "yellow", "2")
+        right_layout = right.body
         right_layout.addWidget(explanation(
             "The attacker sees only the two messages and the two public signatures. Same r means same k, so:<br>"
             "<span style='font-family:monospace'>k = (e1 − e2) / (s1 − s2) mod n<br>"
@@ -116,8 +117,7 @@ class AttackTab(QWidget):
 
         content = QWidget()
         page = QVBoxLayout(content)
-        page.addWidget(heading("Attack demo: why k must never repeat"))
-        page.addWidget(explanation(STORY))
+        page.addWidget(make_page_header("Why k must never repeat", "See how reusing a nonce can reveal a private key."))
         page.addLayout(columns, 1)
         page.addWidget(explanation(INCIDENT))
         page.addWidget(self.theory_button, alignment=Qt.AlignmentFlag.AlignLeft)

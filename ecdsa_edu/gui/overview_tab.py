@@ -20,7 +20,8 @@ from PySide6.QtCore import (
 from PySide6.QtGui import (
     QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPainterPath, QPalette, QPen,
 )
-from PySide6.QtWidgets import QFrame, QLabel, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (QFrame, QLabel, QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
+                               QHBoxLayout, QGridLayout, QPushButton, QButtonGroup)
 
 __all__ = ["OverviewTab", "NODES", "EDGES", "PAGE_TITLE"]
 
@@ -122,10 +123,10 @@ def _theme(palette: QPalette) -> dict[str, QColor]:
         }
     else:
         raw = {
-            "alice": ("#dce9ff", "#2f63ad"), "bob": ("#dce9ff", "#2f63ad"),
-            "shared": ("#dce9ff", "#2f63ad"), "danger": ("#dce9ff", "#2f63ad"),
-            "text": "#102b56", "muted": "#365f99", "edge": "#426b9f", "accent": "#194f91",
-            "popup": "#eaf2ff", "shadow": "#173e73",
+            "alice": ("#f6d7e8", "#c877a2"), "bob": ("#dceef2", "#68a7b6"),
+            "shared": ("#fff1bf", "#d0a83b"), "danger": ("#f8d1d1", "#c96b72"),
+            "text": "#261b22", "muted": "#725d69", "edge": "#987b8b", "accent": "#bd6795",
+            "popup": "#fffaf0", "shadow": "#74566a",
         }
     theme: dict[str, QColor] = {}
     for role in ("alice", "bob", "shared", "danger"):
@@ -515,17 +516,14 @@ class OverviewTab(QWidget):
         super().__init__(parent)
         self._state = state
 
-        heading = QLabel("ECDSA at a glance")
-        font = QFont("Georgia")
-        font.setWeight(QFont.Weight.DemiBold)
-        font.setPointSize(18)
-        heading.setFont(font)
+        heading = QLabel("Good morning! Ready to\nexplore ECDSA?")
+        heading.setProperty("heading", "hero")
         navigation_enabled = callable(getattr(state, "go_to", None))
         hint_text = ("Hover over a box to see its formulas. Click it to open that page."
                      if navigation_enabled
                      else "Hover over a box to see its formulas. Page navigation is coming soon.")
         hint = QLabel(hint_text)
-        hint.setFont(QFont("Georgia", 10))
+        hint.setProperty("muted", True)
         hint.setWordWrap(True)
 
         self.canvas = _OverviewCanvas()
@@ -536,10 +534,73 @@ class OverviewTab(QWidget):
         self.scroll.setFrameShape(QFrame.Shape.NoFrame)
         self.scroll.setWidget(self.canvas)
 
-        layout = QVBoxLayout(self)
+        # The existing interactive flow remains below the navigation dashboard.
+        outer = QVBoxLayout(self)
+        dashboard_scroll = QScrollArea()
+        dashboard_scroll.setWidgetResizable(True)
+        dashboard_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(16, 12, 16, 16)
         layout.addWidget(heading)
+        chips = QHBoxLayout()
+        group = QButtonGroup(self)
+        self._cards = []
+        for category in ("All", "Keys", "Sign", "Verify", "Curves", "Attacks"):
+            chip = QPushButton(category)
+            chip.setCheckable(True)
+            chip.setProperty("chip", True)
+            chip.setChecked(category == "All")
+            group.addButton(chip)
+            chip.clicked.connect(lambda checked=False, name=category: self._filter_cards(name))
+            chips.addWidget(chip)
+        chips.addStretch()
+        layout.addLayout(chips)
+        section = QLabel("Explore the lab")
+        section.setProperty("muted", True)
+        layout.addWidget(section)
+        self._grid = QGridLayout()
+        self._grid.setSpacing(12)
+        self._category = "All"
+        from ecdsa_edu.gui.main_window import PAGE_SPECS
+        colors = ("yellow", "lilac", "yellow", "pink", "olive", "periwinkle", "peach", "pink", "lilac", "yellow")
+        categories = ("All", "All", "Keys", "Sign", "Verify", "Curves", "All", "Attacks", "All", "All")
+        for spec, color, category in zip(PAGE_SPECS, colors, categories):
+            card = QPushButton(f"{category if category != 'All' else 'Explore'}\n\n{spec.title}\nOpen this part of the lab  →")
+            card.setProperty("card", color)
+            card.setMinimumHeight(130)
+            card.setCursor(Qt.CursorShape.PointingHandCursor)
+            card.setAccessibleName("Open " + spec.title)
+            card.clicked.connect(lambda checked=False, title=spec.title: self._open_page(title))
+            self._cards.append((card, category))
+        self._filter_cards("All")
+        layout.addLayout(self._grid)
+        flow_title = QLabel("ECDSA at a glance")
+        flow_title.setProperty("heading", "section")
+        layout.addWidget(flow_title)
         layout.addWidget(hint)
-        layout.addWidget(self.scroll, 1)
+        self.scroll.setMinimumHeight(450)
+        layout.addWidget(self.scroll)
+        dashboard_scroll.setWidget(content)
+        outer.addWidget(dashboard_scroll)
+
+    def _filter_cards(self, category: str) -> None:
+        """Reflow visible cards after a filter selection."""
+        self._category = category
+        columns = 1 if self.width() < 650 else 2
+        visible = 0
+        for card, card_category in self._cards:
+            self._grid.removeWidget(card)
+            show = category == "All" or category == card_category
+            card.setVisible(show)
+            if show:
+                self._grid.addWidget(card, visible // columns, visible % columns)
+                visible += 1
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        if hasattr(self, "_grid") and hasattr(self, "_category"):
+            self._filter_cards(self._category)
 
     def set_curve(self, curve) -> None:
         """The overview is the same for every curve."""

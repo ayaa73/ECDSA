@@ -24,16 +24,16 @@ from PySide6.QtWidgets import (
 from ecdsa_edu.gui.theory.toc import PAGES_DIR, TheoryPage, discover_pages
 
 PAGE_CSS = """
-body  { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 11pt; color: #222; }
-h1    { font-size: 20pt; color: #1f3a5f; margin-bottom: 6px; }
-h2    { font-size: 14pt; color: #1f3a5f; margin-top: 18px; }
-code, pre { font-family: Consolas, 'Courier New', monospace; background: #f3f5f8; }
-pre   { padding: 8px; }
-.note { background: #fff8e1; border-left: 4px solid #f2b705; padding: 6px 10px; }
-.warn { background: #fdecea; border-left: 4px solid #d93025; padding: 6px 10px; }
+body  { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 12pt; color: #261b22; line-height: 1.45; }
+h1    { font-size: 22pt; color: #30232b; margin-bottom: 8px; }
+h2    { font-size: 16pt; color: #54384a; margin-top: 22px; }
+code, pre { font-family: Consolas, 'Courier New', monospace; background: #f7eaf1; }
+pre   { padding: 10px; }
+.note { background: #fff4d4; border-left: 4px solid #d2a83c; padding: 8px 12px; }
+.warn { background: #fff0f0; border-left: 4px solid #bd5860; padding: 8px 12px; }
 table { border-collapse: collapse; }
-td, th { border: 1px solid #ccd; padding: 4px 8px; }
-th    { background: #e8edf4; }
+td, th { border: 1px solid #e1cbd7; padding: 6px 10px; }
+th    { background: #f5e4ef; }
 """
 
 EMPTY_HTML = """

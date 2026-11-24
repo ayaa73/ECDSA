@@ -26,8 +26,9 @@ from ecdsa_edu.gui.tabs.keys_tab import make_trace_view, set_message
 from ecdsa_edu.gui.widgets.bigint_field import BigIntField
 
 EXPLANATION = (
-    "Alice's <b>private key</b> is just a secret whole number <b>d</b>, picked at random "
-    "from 1 to n - 1. Her <b>public key</b> is the point <b>Q = d · G</b>: the base point G "
+    "In real use, Alice's <b>private key</b> is a secret whole number <b>d</b>, selected randomly "
+    "from 1 to n - 1. In this learning walkthrough, you can choose d yourself to explore how the "
+    "key calculation works. Her <b>public key</b> is the point <b>Q = d · G</b>: the base point G "
     "added to itself d times.<br><br>"
     "Computing Q from d is fast, even for huge numbers. Going back from Q to d is the "
     "<i>discrete logarithm problem</i>, and nobody knows a fast way to do it. That is why "

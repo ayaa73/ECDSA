@@ -2,11 +2,12 @@
 
 Three parts on one scrollable page:
   1. "ECDSA in 60 seconds": a 5-frame illustrated story (Alice signs, Bob
-     verifies), drawn with QPainter so no image files are needed.
+     verifies), drawn with QPainter so no image files are needed. Move through
+     it with Previous and Next; it never advances on its own.
   2. "Try it in 3 clicks": Make keys -> Sign "Hello" -> Verify, using the real
      core functions on toy-17, then "Change one letter" shows INVALID.
      It uses its own throw-away key, so it never replaces the student's key.
-  3. "Where to go next": one button per page of the app.
+  3. A vertical list of destinations for the app's learning pages.
 
 Text lives in tutorial_content.py. No math here: values come from core calls.
 """
@@ -15,10 +16,10 @@ from __future__ import annotations
 import html
 from typing import Any
 
-from PySide6.QtCore import QPointF, QRectF, QSettings, Qt, QTimer
+from PySide6.QtCore import QPointF, QRectF, QSettings, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import (
-    QCheckBox, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout,
+    QCheckBox, QGroupBox, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout,
     QWidget,
 )
 
@@ -35,7 +36,7 @@ __all__ = ["TutorialTab", "StoryCanvas"]
 
 DEMO_CURVE = "toy-17"  # small numbers that fit on screen
 DEMO_MESSAGE = "Hello"
-NAVY, GREEN, RED, GOLD, GREY = "#1f3a5f", "#1e7e34", "#b00020", "#c9a227", "#6d6e6f"
+NAVY, GREEN, RED, GOLD, GREY = "#282027", "#347754", "#b33b47", "#c89c36", "#756873"
 
 
 def settings() -> QSettings:
@@ -50,7 +51,7 @@ class StoryCanvas(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.frame = 0
-        self.setMinimumSize(560, 230)
+        self.setMinimumSize(600, 250)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setAccessibleName("Illustration of the current story step")
 
@@ -73,7 +74,7 @@ class StoryCanvas(QWidget):
 
     def _person(self, p: QPainter, x: float, name: str) -> None:
         p.setPen(QPen(QColor(NAVY), 2))
-        p.setBrush(QColor("#eef4fb"))
+        p.setBrush(QColor("#f8e6f0"))
         p.drawEllipse(QPointF(x, 70), 22, 22)  # head
         path = QPainterPath()
         path.moveTo(x - 34, 140)
@@ -106,8 +107,8 @@ class StoryCanvas(QWidget):
         f = self.frame
 
         if f == 0:  # two keys
-            self._box(p, QRectF(ax + 50, 40, 150, 40), "private key d\n(secret)", RED, "#fdecea", True)
-            self._box(p, QRectF(ax + 50, 100, 150, 40), "public key Q\n(shared)", GREEN, "#e8f5ec", True)
+            self._box(p, QRectF(ax + 50, 40, 150, 40), "private key d\n(secret)", RED, "#fff0f0", True)
+            self._box(p, QRectF(ax + 50, 100, 150, 40), "public key Q\n(shared)", GREEN, "#e8f3e8", True)
             self._arrow(p, QPointF(ax + 205, 120), QPointF(bx - 45, 110), GREEN)
             p.setPen(QColor(GREY))
             p.drawText(QRectF(mid - 60, 125, 200, 20), Qt.AlignmentFlag.AlignCenter, "everyone gets Q")
@@ -119,13 +120,13 @@ class StoryCanvas(QWidget):
             self._box(p, QRectF(mid + 25, 55, 150, 50), "fingerprint e\n3f9a…c21", NAVY, "#eef4fb", True)
         elif f == 2:  # sign
             self._box(p, QRectF(ax + 50, 30, 120, 40), "fingerprint e", NAVY)
-            self._box(p, QRectF(ax + 50, 100, 120, 40), "private key d", RED, "#fdecea")
-            self._box(p, QRectF(ax + 50, 160, 120, 34), "fresh secret k", RED, "#fdecea")
+            self._box(p, QRectF(ax + 50, 100, 120, 40), "private key d", RED, "#fff0f0")
+            self._box(p, QRectF(ax + 50, 160, 120, 34), "fresh secret k", RED, "#fff0f0")
             for y in (50, 120, 177):
                 self._arrow(p, QPointF(ax + 175, y), QPointF(mid + 10, 110))
             seal = QRectF(mid + 15, 75, 130, 70)
             p.setPen(QPen(QColor(GOLD), 3))
-            p.setBrush(QColor("#fff7dc"))
+            p.setBrush(QColor("#fff1bf"))
             p.drawEllipse(seal)
             p.setPen(QColor(NAVY))
             bold = QFont(self.font())
@@ -136,7 +137,7 @@ class StoryCanvas(QWidget):
             self._box(p, QRectF(mid - 110, 40, 120, 50), "message\n\"Hello Bob\"", NAVY)
             seal = QRectF(mid + 20, 40, 100, 50)
             p.setPen(QPen(QColor(GOLD), 3))
-            p.setBrush(QColor("#fff7dc"))
+            p.setBrush(QColor("#fff1bf"))
             p.drawEllipse(seal)
             p.setPen(QColor(NAVY))
             p.drawText(seal, Qt.AlignmentFlag.AlignCenter, "(r, s)")
@@ -146,10 +147,10 @@ class StoryCanvas(QWidget):
                        "sent in the open: no secrets inside")
         else:  # verify
             self._box(p, QRectF(bx - 260, 30, 170, 36), "message + (r, s)", NAVY)
-            self._box(p, QRectF(bx - 260, 80, 170, 36), "Alice's public key Q", GREEN, "#e8f5ec")
+            self._box(p, QRectF(bx - 260, 80, 170, 36), "Alice's public key Q", GREEN, "#e8f3e8")
             self._arrow(p, QPointF(bx - 85, 72), QPointF(bx - 45, 72))
-            self._box(p, QRectF(ax + 50, 130, 150, 44), "✔ VALID\nnothing changed", GREEN, "#e8f5ec", True)
-            self._box(p, QRectF(ax + 215, 130, 150, 44), "✘ INVALID\none letter changed", RED, "#fdecea", True)
+            self._box(p, QRectF(ax + 50, 130, 150, 44), "✔ VALID\nnothing changed", GREEN, "#e8f3e8", True)
+            self._box(p, QRectF(ax + 215, 130, 150, 44), "✘ INVALID\none letter changed", RED, "#fff0f0", True)
         p.end()
 
 
@@ -172,22 +173,16 @@ class TutorialTab(QWidget):
         # ---- part 1: story
         self.canvas = StoryCanvas()
         self.frame_title = QLabel()
-        self.frame_title.setStyleSheet("font-size: 13pt; font-weight: bold;")
+        self.frame_title.setProperty("heading", "section")
         self.frame_text = QLabel()
         self.frame_text.setWordWrap(True)
         self.frame_text.setMinimumHeight(48)
         self.prev_button = QPushButton("◀ Previous")
         self.next_button = QPushButton("Next ▶")
-        self.play_button = QPushButton("Play")
         self.prev_button.clicked.connect(lambda *_: self.show_frame(self.canvas.frame - 1))
         self.next_button.clicked.connect(lambda *_: self.show_frame(self.canvas.frame + 1))
-        self.play_button.clicked.connect(self.toggle_play)
-        self.timer = QTimer(self)
-        self.timer.setInterval(4000)
-        self.timer.timeout.connect(self._advance)
         nav = QHBoxLayout()
         nav.addWidget(self.prev_button)
-        nav.addWidget(self.play_button)
         nav.addWidget(self.next_button)
         nav.addStretch(1)
         story = QGroupBox("ECDSA in 60 seconds")
@@ -227,21 +222,23 @@ class TutorialTab(QWidget):
         try_layout.addWidget(self.sign_card)
         try_layout.addWidget(self.banner)
 
-        # ---- part 3: where to go next
-        go_box = QGroupBox("Where to go next")
-        grid = QGridLayout(go_box)
+        # ---- part 3: app navigation
+        go_box = QGroupBox("Explore the app")
+        destinations = QVBoxLayout(go_box)
+        destinations.setSpacing(10)
+        self.destination_layout = destinations
         self.destination_buttons: dict[str, QPushButton] = {}
-        for i, dest in enumerate(DESTINATIONS):
+        for dest in DESTINATIONS:
             button = QPushButton(f"{dest.label}\n{dest.description}")
-            button.setMinimumHeight(52)
-            button.setStyleSheet("text-align: left; padding: 6px 10px;")
+            button.setMinimumHeight(62)
+            button.setProperty("tutorialChoice", True)
             button.setToolTip(f"Open the {dest.page} page")
             button.clicked.connect(lambda _=False, page=dest.page: self.open_page(page))
-            grid.addWidget(button, i // 2, i % 2)
+            destinations.addWidget(button)
             self.destination_buttons[dest.page] = button
         self.nav_note = QLabel()
         self.nav_note.setWordWrap(True)
-        grid.addWidget(self.nav_note, (len(DESTINATIONS) + 1) // 2, 0, 1, 2)
+        destinations.addWidget(self.nav_note)
 
         # ---- startup checkbox
         self.startup_box = QCheckBox("Show this page when the app starts")
@@ -250,7 +247,16 @@ class TutorialTab(QWidget):
 
         content = QWidget()
         page = QVBoxLayout(content)
-        page.addWidget(heading("Start here: how ECDSA works"))
+        self.welcome_heading = heading("Welcome to ECDSA Lab")
+        page.addWidget(self.welcome_heading)
+        welcome = QGroupBox("Your learning dashboard")
+        welcome_layout = QVBoxLayout(welcome)
+        welcome_layout.addWidget(explanation(
+            "Welcome! This app is a hands-on dashboard for exploring ECDSA. Use the navigation on the left to "
+            "open the keys, signing, verification, curve and theory tools. Start with the guided story below, "
+            "then use the links at the bottom to explore each part at your own pace."))
+        page.addWidget(welcome)
+        page.addWidget(heading("How ECDSA works"))
         page.addWidget(explanation(
             "ECDSA lets Alice <b>sign</b> a message so that anyone can check it really came from her and was not "
             "changed. It protects websites (HTTPS), software updates and cryptocurrencies like Bitcoin."))
@@ -286,23 +292,6 @@ class TutorialTab(QWidget):
         self.frame_text.setText(frame.text)
         self.prev_button.setEnabled(self.canvas.frame > 0)
         self.next_button.setEnabled(self.canvas.frame < len(FRAMES) - 1)
-
-    def toggle_play(self, *_: Any) -> None:
-        if self.timer.isActive():
-            self.timer.stop()
-            self.play_button.setText("Play")
-        else:
-            if self.canvas.frame == len(FRAMES) - 1:
-                self.show_frame(0)
-            self.timer.start()
-            self.play_button.setText("Pause")
-
-    def _advance(self) -> None:
-        if self.canvas.frame >= len(FRAMES) - 1:
-            self.timer.stop()
-            self.play_button.setText("Play again")
-        else:
-            self.show_frame(self.canvas.frame + 1)
 
     # ------------------------------------------------------------ 3-click demo
     def _update_demo_buttons(self, busy: bool = False) -> None:

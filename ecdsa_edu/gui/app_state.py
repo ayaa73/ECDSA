@@ -78,6 +78,7 @@ class AppState(QObject):
     curveChanged = Signal(object)  # carries the new Curve
     keysChanged = Signal()
     signatureChanged = Signal()
+    verificationCompleted = Signal(bool)
     modeChanged = Signal(str)  # "beginner" or "expert"
     pageRequested = Signal(str)  # a page title, see PAGE_TITLES
     # Extra (not in the contract): the list of selectable curves changed.

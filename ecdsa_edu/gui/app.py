@@ -21,7 +21,8 @@ import sys
 import traceback
 from collections.abc import Sequence
 
-from PySide6.QtGui import QColor, QPalette
+from pathlib import Path
+from PySide6.QtGui import QColor, QPalette, QFontDatabase, QFont
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from ecdsa_edu import __version__
@@ -34,16 +35,16 @@ MONO_FONT = '"JetBrains Mono", "Cascadia Mono", "Consolas", "Menlo", "DejaVu San
 # One set of named colours per theme; the stylesheet below is the same for both.
 THEMES: dict[str, dict[str, str]] = {
     "light": {
-        "window": "#f4f5fa", "panel": "#ffffff", "text": "#1c2140", "muted": "#6b7190",
-        "border": "#d5d9e6", "heading": "#1e2761",
-        "accent": "#1e2761", "accent_hover": "#2c3780", "accent_text": "#ffffff",
-        "toolbar": "#ffffff", "toolbar_text": "#1c2140",
-        "sidebar": "#1e2761", "sidebar_text": "#cfd6ef", "sidebar_hover": "#2a357a",
-        "sidebar_selected": "#3a4794", "sidebar_selected_text": "#ffffff",
-        "input": "#ffffff", "input_readonly": "#f3f4f9", "hover": "#eef1fb", "pressed": "#dfe4f6",
-        "disabled": "#eceef5", "disabled_text": "#a3a8bb",
-        "ok": "#1f7a4d", "error": "#c0392b", "info": "#4a5170", "warning": "#8a5a00", "invalid": "#fdf3f2",
-        "status": "#e9ebf4",
+        "window": "#f5e4ef", "panel": "#fffaf0", "text": "#211a20", "muted": "#756873",
+        "border": "#ead5e1", "heading": "#211a20",
+        "accent": "#e9b0d1", "accent_hover": "#dc96c1", "accent_text": "#25151f",
+        "toolbar": "#fffaf0", "toolbar_text": "#211a20",
+        "sidebar": "#111010", "sidebar_text": "#f4eaf0", "sidebar_hover": "#30272d",
+        "sidebar_selected": "#d998bd", "sidebar_selected_text": "#21131b",
+        "input": "#fffdf8", "input_readonly": "#f7edf2", "hover": "#f8e6f0", "pressed": "#efcfe0",
+        "disabled": "#f0e9ed", "disabled_text": "#a49aa1",
+        "ok": "#347754", "error": "#b33b47", "info": "#62545f", "warning": "#855519", "invalid": "#fff0f0",
+        "status": "#f1e1ea",
     },
     "dark": {
         "window": "#14172b", "panel": "#1d2140", "text": "#e6e9f5", "muted": "#9aa3c7",
@@ -59,29 +60,62 @@ THEMES: dict[str, dict[str, str]] = {
     },
 }
 
+# Shared pastel tokens supplement the original public theme keys.
+THEMES["light"].update(dict(window="#BFEBDA", panel="#FFFFFF", text="#141414", muted="#625D59",
+    border="#E5DDD8", heading="#141414", accent="#111111", accent_hover="#333333", accent_text="#FFFFFF",
+    toolbar="#FBF7F4", toolbar_text="#141414", sidebar="#F3ECE7", sidebar_text="#141414",
+    sidebar_hover="#E9E0DB", sidebar_selected="#111111", sidebar_selected_text="#FFFFFF",
+    input="#FFFFFF", input_readonly="#F3ECE7", hover="#EFE7E2", pressed="#E5DAD4",
+    disabled="#EAE4E0", disabled_text="#77716D", ok="#2E9E6A", error="#D9534F",
+    info="#625D59", warning="#B7791F", invalid="#FBE8E8", status="#FBF7F4",
+    surface="#FBF7F4", rail="#F3ECE7", pink="#F4C6C6", peach="#F9DDBB",
+    lavender="#CFC8F7", mint="#BFE8D6", pastel_text="#141414"))
+THEMES["dark"].update(dict(window="#111113", panel="#29292E", text="#F6F3F1", muted="#C5BFBC",
+    border="#45454A", heading="#F6F3F1", accent="#F6F3F1", accent_hover="#D7D2CF", accent_text="#17171A",
+    toolbar="#17171A", toolbar_text="#F6F3F1", sidebar="#202024", sidebar_text="#F6F3F1",
+    sidebar_hover="#37373D", sidebar_selected="#FFFFFF", sidebar_selected_text="#17171A",
+    input="#303036", input_readonly="#242429", hover="#39393F", pressed="#48484F",
+    disabled="#303036", disabled_text="#A5A0A0", ok="#74D5A5", error="#FF9D99",
+    info="#C5BFBC", warning="#F0C17D", invalid="#513133", status="#17171A",
+    surface="#17171A", rail="#202024", pink="#986B70", peach="#A18367",
+    lavender="#817BA6", mint="#70998B", pastel_text="#111111"))
+
+# The dashboard uses saturated, flat colour blocks on a warm cream canvas.
+THEMES["light"].update(dict(window="#F6F0E4", surface="#FBF7EF", panel="#FBF7EF", rail="#111111",
+    sidebar="#111111", sidebar_text="#BDBDBD", sidebar_hover="#1F1F1F", sidebar_selected="#1F1F1F",
+    sidebar_selected_text="#FFFFFF", text="#141414", heading="#141414", muted="#706A5F", border="#E7DFD0",
+    toolbar="#FBF7EF", toolbar_text="#141414", status="#FBF7EF", input="#FFFFFF", input_readonly="#F1EBDD",
+    hover="#EFE7D8", pressed="#E6D9C9", accent="#111111", accent_hover="#333333", accent_text="#FFFFFF",
+    yellow="#F4D35E", pink="#F5A8D0", olive="#A7B26A", periwinkle="#9FB3F2", peach="#F7C59F", lilac="#CDB8F2",
+    lavender="#9FB3F2", mint="#A7B26A", pastel_text="#141414", ok="#57672B", error="#B3261E", warning="#765900"))
+THEMES["dark"].update(dict(window="#121212", surface="#1B1B1B", panel="#252525", rail="#000000", sidebar="#000000",
+    sidebar_text="#BDBDBD", sidebar_selected="#242424", sidebar_selected_text="#FFFFFF", border="#3A3A3A",
+    yellow="#DFC054", pink="#DD98BA", olive="#98A262", periwinkle="#90A2DB", peach="#DEB08E", lilac="#B8A5DB",
+    lavender="#90A2DB", mint="#98A262", pastel_text="#141414"))
+
 _STYLE = """
-QWidget {{ font-size: 10pt; color: {text}; }}
+QWidget {{ font-size: 11pt; color: {text}; }}
 QMainWindow, QDialog, QStackedWidget, QScrollArea, QScrollArea > QWidget > QWidget {{ background: {window}; }}
 QToolTip {{ background: {panel}; color: {text}; border: 1px solid {border}; }}
 
 /* toolbar */
-QToolBar {{ background: {toolbar}; border: none; border-bottom: 1px solid {border}; padding: 8px 12px; spacing: 10px; }}
+QToolBar {{ background: {toolbar}; border: none; border-bottom: 1px solid {border}; padding: 10px 16px; spacing: 12px; }}
 QToolBar QLabel {{ color: {toolbar_text}; background: transparent; }}
-QToolBar QLabel#appTitle {{ color: {heading}; font-size: 14pt; font-weight: 600; padding-right: 12px; }}
+QToolBar QLabel#appTitle {{ color: {heading}; font-size: 16pt; font-weight: 600; padding-right: 12px; }}
 QToolBar QLabel#curveInfo {{ color: {muted}; }}
 
 /* sidebar */
-QListWidget#sidebar {{ background: {sidebar}; border: none; outline: none; padding: 10px 8px; }}
-QListWidget#sidebar::item {{ color: {sidebar_text}; padding: 10px 12px; margin: 2px 0; border-radius: 6px; }}
+QListWidget#sidebar {{ background: {sidebar}; border: none; outline: none; padding: 14px 10px; }}
+QListWidget#sidebar::item {{ color: {sidebar_text}; padding: 13px 14px; margin: 3px 0; border-radius: 8px; }}
 QListWidget#sidebar::item:hover {{ background: {sidebar_hover}; }}
 QListWidget#sidebar::item:selected {{ background: {sidebar_selected}; color: {sidebar_selected_text}; font-weight: 600; }}
 
 /* panels and text */
-QGroupBox {{ background: {panel}; border: 1px solid {border}; border-radius: 6px;
-            margin-top: 14px; padding: 12px 10px 10px 10px; font-weight: 600; }}
+QGroupBox {{ background: {panel}; border: 1px solid {border}; border-radius: 9px;
+            margin-top: 16px; padding: 15px 13px 13px 13px; font-weight: 600; }}
 QGroupBox::title {{ subcontrol-origin: margin; left: 12px; padding: 0 5px; color: {heading}; }}
 QGroupBox QLabel, QGroupBox QCheckBox {{ font-weight: normal; background: transparent; }}
-QLabel[note="true"] {{ color: {muted}; font-size: 9pt; }}
+QLabel[note="true"] {{ color: {muted}; font-size: 10pt; }}
 QLabel[kind="ok"] {{ color: {ok}; }}
 QLabel[kind="error"] {{ color: {error}; }}
 QLabel[kind="info"] {{ color: {info}; }}
@@ -90,7 +124,7 @@ QLabel#comingSoon {{ color: {muted}; font-size: 11pt; }}
 *[mono="true"], BigIntField, HexField {{ font-family: {mono}; }}
 
 /* buttons */
-QPushButton, QToolButton {{ padding: 6px 14px; border: 1px solid {border}; border-radius: 4px;
+QPushButton, QToolButton {{ padding: 8px 16px; border: 1px solid {border}; border-radius: 6px;
                            background: {panel}; color: {text}; font-weight: normal; }}
 QPushButton:hover, QToolButton:hover {{ background: {hover}; }}
 QPushButton:pressed, QToolButton:pressed, QToolButton:checked {{ background: {pressed}; }}
@@ -128,6 +162,74 @@ QStatusBar QLabel {{ color: {muted}; padding: 0 8px; }}
 QStatusBar QLabel#statusCurve {{ font-family: {mono}; }}
 QProgressBar {{ border: 1px solid {border}; border-radius: 5px; background: {input_readonly}; }}
 QProgressBar::chunk {{ background: {accent}; border-radius: 4px; }}
+
+/* Pastel dashboard components. Properties keep page widgets theme-aware. */
+QWidget#appSurface, QStackedWidget, QScrollArea, QScrollArea > QWidget > QWidget {{ background: {surface}; border: none; }}
+QWidget#appSurface {{ border: 1px solid {text}; border-radius: 26px; }}
+QWidget#appSurface > QWidget {{ border: none; }}
+QWidget#sidePanel {{ background: {hover}; border-radius: 24px; }}
+QWidget#sidePanel QLabel {{ background: transparent; }}
+QWidget#sidePanel QLabel#activityCard {{ background: {panel}; border-radius: 20px; padding: 16px; }}
+QWidget#rail {{ background: {rail}; border-radius: 24px; }}
+QWidget#sidebar {{ background: {rail}; }}
+QLabel#railLogo {{ color: white; background: transparent; font-size: 20px; font-weight: 500; padding: 12px 0; }}
+QPushButton[nav="true"] {{ background: transparent; color: {sidebar_text}; text-align: left; border: none; border-radius: 12px; padding: 5px 10px; }}
+QPushButton[nav="true"]:hover {{ background: #1F1F1F; color: white; }}
+QPushButton[nav="true"]:checked {{ background: #292323; color: white; }}
+QToolBar {{ background: {surface}; border: none; }}
+QListWidget#sidebar {{ background: {rail}; border-radius: 24px; padding: 8px; }}
+QListWidget#sidebar::item {{ background: {panel}; border-radius: 22px; padding: 0 11px; margin: 3px 8px; min-height: 44px; }}
+QListWidget#sidebar::item:selected {{ background: {sidebar_selected}; }}
+QGroupBox {{ background: {panel}; border: none; border-radius: 20px; margin-top: 18px; padding: 20px 16px 16px; }}
+QGroupBox::title {{ subcontrol-origin: margin; left: 16px; padding: 4px; }}
+QPushButton, QToolButton, QComboBox {{ border: 2px solid transparent; border-radius: 18px; background: {hover}; padding: 7px 15px; }}
+QToolButton {{ padding: 2px; }}
+QPushButton:focus, QToolButton:focus, QComboBox:focus {{ border: 2px solid {accent}; }}
+QPushButton[primary="true"] {{ border: 2px solid {accent}; }}
+QLineEdit, QPlainTextEdit, QTextEdit {{ border: 2px solid transparent; border-radius: 14px; padding: 7px; }}
+QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus {{ border: 2px solid {accent}; }}
+QWidget[card="pink"] {{ background: {pink}; color: {pastel_text}; border: none; border-radius: 22px; }}
+QWidget[card="peach"] {{ background: {peach}; color: {pastel_text}; border: none; border-radius: 22px; }}
+QWidget[card="lavender"] {{ background: {lavender}; color: {pastel_text}; border: none; border-radius: 22px; }}
+QWidget[card="mint"] {{ background: {mint}; color: {pastel_text}; border: none; border-radius: 22px; }}
+QWidget[card="white"] {{ background: {panel}; border: none; border-radius: 22px; }}
+QWidget[card="yellow"] {{ background: {yellow}; color: {pastel_text}; border-radius: 18px; }}
+QWidget[card="olive"] {{ background: {olive}; color: {pastel_text}; border-radius: 18px; }}
+QWidget[card="periwinkle"] {{ background: {periwinkle}; color: {pastel_text}; border-radius: 18px; }}
+QWidget[card="lilac"] {{ background: {lilac}; color: {pastel_text}; border-radius: 18px; }}
+QFrame[card="pink"] QLabel, QFrame[card="peach"] QLabel, QFrame[card="lavender"] QLabel, QFrame[card="mint"] QLabel {{ color: {pastel_text}; background: transparent; }}
+QFrame[card="yellow"] QLabel, QFrame[card="olive"] QLabel, QFrame[card="periwinkle"] QLabel, QFrame[card="lilac"] QLabel {{ color: {pastel_text}; background: transparent; }}
+QLabel[cardHeader="true"] {{ font-size: 13px; font-weight: 600; }}
+QLabel[step="true"] {{ background: {accent}; color: {accent_text}; border-radius: 16px; font-weight: 600; }}
+QFrame QLabel[step="true"] {{ background: #111111; color: white; }}
+QPushButton[chip="true"]:checked {{ background: {accent}; color: {accent_text}; }}
+QLabel[badge="true"] {{ background: {panel}; color: {text}; border-radius: 12px; padding: 4px 10px; }}
+QLabel[heading="hero"] {{ color: {heading}; font-size: 36px; font-weight: 500; }}
+QLabel[heading="section"] {{ color: {heading}; font-size: 16pt; font-weight: 600; }}
+QLabel[muted="true"] {{ color: {muted}; }}
+QLabel[formula="true"] {{ background: {input_readonly}; border-radius: 14px; padding: 14px; font-size: 20pt; }}
+QPushButton[tutorialChoice="true"] {{ text-align: left; padding: 10px 14px; }}
+QLabel[result="good"] {{ background: {mint}; color: {pastel_text}; border-radius: 24px; padding: 12px; }}
+QLabel[result="bad"] {{ background: {pink}; color: {pastel_text}; border-radius: 24px; padding: 12px; }}
+QLabel[result="info"] {{ background: {hover}; border-radius: 24px; padding: 12px; }}
+QScrollBar:vertical {{ background: transparent; width: 6px; margin: 0; }}
+QScrollBar::handle:vertical {{ background: {border}; border-radius: 3px; min-height: 25px; }}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: transparent; }}
+QScrollBar:horizontal {{ background: transparent; height: 6px; margin: 0; }}
+QScrollBar::handle:horizontal {{ background: #D8CFC0; border-radius: 3px; min-width: 25px; }}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width: 0; }}
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{ background: transparent; }}
+QComboBox::drop-down {{ border: none; width: 32px; }}
+QComboBox::down-arrow {{ image: url(ecdsa_edu/gui/assets/icons/chevron.svg); width: 12px; height: 12px; }}
+QFrame[card="pink"] QComboBox, QFrame[card="peach"] QComboBox, QFrame[card="lavender"] QComboBox, QFrame[card="mint"] QComboBox {{ background: white; color: #141414; }}
+QFrame[card="periwinkle"] QComboBox {{ background: white; color: #141414; }}
+QCheckBox::indicator {{ width: 18px; height: 18px; border: 1px solid {text}; border-radius: 5px; background: {input}; }}
+QCheckBox::indicator:checked {{ background: #111111; border-color: #111111; image: url(ecdsa_edu/gui/assets/icons/check.svg); }}
+QRadioButton::indicator {{ width: 16px; height: 16px; border: 1px solid {text}; border-radius: 8px; background: {input}; }}
+QRadioButton::indicator:checked {{ background: {accent}; border: 4px solid {input}; }}
+QToolTip, QMenu {{ background: {panel}; color: {text}; border: 1px solid {border}; border-radius: 12px; padding: 6px; }}
+QStatusBar {{ background: {status}; }}
 """
 
 
@@ -152,6 +254,10 @@ def apply_theme(app: QApplication, theme: str = "light") -> None:
         raise ValueError(f"unknown theme: {theme!r}")
     c = THEMES[theme]
     app.setStyle("Fusion")
+    font_path = Path(__file__).parent / "assets" / "fonts" / "DMSans-Variable.ttf"
+    font_id = QFontDatabase.addApplicationFont(str(font_path))
+    families = QFontDatabase.applicationFontFamilies(font_id) if font_id >= 0 else []
+    app.setFont(QFont(families[0] if families else "Segoe UI", 10))
     palette = QPalette()
     for role, key in (
         (QPalette.ColorRole.Window, "window"),

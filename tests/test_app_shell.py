@@ -234,7 +234,7 @@ PAGE_ORDER = ["Start here", "Overview", "Keys", "Sign", "Verify", "Curve Explore
 def test_sidebar_lists_every_page_in_order(qtbot, state):
     window = mw.MainWindow(state)
     qtbot.addWidget(window)
-    titles = [window.sidebar.item(i).text() for i in range(window.sidebar.count())]
+    titles = [window.sidebar.item(i).data(256) for i in range(window.sidebar.count())]
     assert titles == PAGE_ORDER
     assert titles == list(window.pages) and window.stack.count() == len(PAGE_ORDER)
     assert all(not window.sidebar.item(i).icon().isNull() for i in range(len(PAGE_ORDER)))
@@ -526,6 +526,8 @@ def test_help_button_shows_the_pages_help(qtbot, state, monkeypatch):
 
 def test_start_here_is_shown_first_when_it_exists(qtbot, state, monkeypatch):
     _install_module(monkeypatch, "fake_pages", GoodTab=FakePage)
+    from ecdsa_edu.gui.tutorial.tutorial_tab import settings
+    settings().setValue(mw.SETTING_SHOW_TUTORIAL, True)
     specs = [
         mw.PageSpec("Start here", "fake_pages", "GoodTab", "P4", "start"),
         mw.PageSpec("Keys", "fake_pages", "GoodTab", "P2", "key"),
