@@ -274,6 +274,7 @@ class TraceViewer(QWidget):
         self._trace: Trace = []
         self._panels: list[_StepPanel] = []
         self._step_index: int | None = None
+        self._page_scroll: QScrollArea | None = None
 
         self.step_through_button = QPushButton("Step through")
         self.step_through_button.setObjectName("tracePrimaryButton")
@@ -335,6 +336,21 @@ class TraceViewer(QWidget):
         self.hex_toggle.toggled.connect(self._set_use_hex)
         self._update_controls()
 
+    def use_page_scrolling(self, page_scroll: QScrollArea) -> None:
+        """Let a page's scrollbar move through the whole trace.
+
+        The Keys page already scrolls as a whole. Keeping another scrollbar
+        around the steps makes even one value table awkward to read.
+        """
+        if self._page_scroll is not None:
+            return
+        self._page_scroll = page_scroll
+        self.scroll.takeWidget()
+        self.layout().removeWidget(self.scroll)
+        self.scroll.hide()
+        self.layout().addWidget(self.content)
+        self.content.setVisible(bool(self._panels))
+
     def set_trace(self, trace: Trace) -> None:
         """Replace the displayed calculation with ``trace`` and show all steps."""
         self._trace = list(trace)
@@ -346,7 +362,10 @@ class TraceViewer(QWidget):
             self._panels.append(panel)
             self.steps_layout.insertWidget(self.steps_layout.count() - 1, panel)
         self.empty_label.setVisible(not self._panels)
-        self.scroll.setVisible(bool(self._panels))
+        if self._page_scroll is None:
+            self.scroll.setVisible(bool(self._panels))
+        else:
+            self.content.setVisible(bool(self._panels))
         self._show_all_panels()
         self._update_controls()
 
@@ -401,7 +420,13 @@ class TraceViewer(QWidget):
             current = index == self._step_index
             panel.setVisible(current)
             panel.set_expanded(current)
-        self.scroll.ensureWidgetVisible(self._panels[self._step_index])
+        if self._page_scroll is None:
+            self.scroll.ensureWidgetVisible(self._panels[self._step_index])
+        else:
+            # The panel changes height when its details open, so scroll after
+            # Qt has measured the new layout.
+            panel = self._panels[self._step_index]
+            QTimer.singleShot(0, self, lambda: self._page_scroll.ensureWidgetVisible(panel))
         self._update_controls()
 
     def _show_all_panels(self) -> None:
@@ -433,7 +458,7 @@ class TraceViewer(QWidget):
 
     def showEvent(self, event) -> None:  # noqa: N802 (Qt naming)
         super().showEvent(event)
-        if self._step_index is None:
+        if self._step_index is None and self._page_scroll is None:
             # Expanded tables finish measuring themselves after the widget is
             # shown. Resetting afterward keeps a new trace at Step 1.
             QTimer.singleShot(0, lambda: self.scroll.verticalScrollBar().setValue(0))

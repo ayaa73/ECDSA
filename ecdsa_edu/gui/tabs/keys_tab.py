@@ -27,7 +27,7 @@ import html
 from collections.abc import Callable
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -42,7 +42,6 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
-    QSplitter,
     QVBoxLayout,
     QWidget,
 )
@@ -62,6 +61,7 @@ from ecdsa_edu.core.trace import Trace
 from ecdsa_edu.core.types import PrivateKey, PublicKey
 from ecdsa_edu.gui.app_state import AppState
 from ecdsa_edu.gui.widgets.bigint_field import BigIntField
+from ecdsa_edu.gui.widgets.key_derivation import MANUAL_KEY_NOTE, KeyDerivation
 from ecdsa_edu.gui.widgets.hex_field import HexField, HexOutputField
 from ecdsa_edu.gui.widgets.worker import run_in_background
 from ecdsa_edu.gui.widgets.cards import Card, make_page_header
@@ -168,7 +168,6 @@ class KeysTab(QWidget):
         header.addWidget(self.hex_check)
 
         # --- 1. private key
-        box_priv = Card("Private key d · keep it secret", "yellow", "1")
         self.d_field = BigIntField(minimum=1)
         self.d_field.setAccessibleName("Private key d")
         self.hide_check = QCheckBox("Hide d")
@@ -188,20 +187,15 @@ class KeysTab(QWidget):
         self.d_note = _note("")
         self.btn_derive = QPushButton("Compute Q from this d")
         self.btn_derive.setToolTip("Build the key pair for the number typed above (Enter)")
-        d_row = QHBoxLayout()
-        d_row.addWidget(self.d_field, 1)
-        d_row.addWidget(self.hide_check)
-        buttons = QHBoxLayout()
+        buttons = QVBoxLayout()
         buttons.addWidget(self.btn_generate)
         buttons.addWidget(self.btn_derive)
-        buttons.addStretch(1)
-        lay = box_priv.body
-        lay.addWidget(self.d_note)
-        lay.addLayout(d_row)
-        lay.addWidget(self.warning)
-        lay.addWidget(self.hidden_note)
-        lay.addWidget(self.d_hint)
-        lay.addLayout(buttons)
+        buttons.addWidget(self.hide_check)
+        self.hide_check.setStyleSheet("color: #141414;")
+        self.key_diagram = KeyDerivation(
+            self.d_field, buttons, self.d_note, self.warning, self.hidden_note, self.d_hint
+        )
+        self.key_diagram.theoryRequested.connect(lambda: self._state.go_to("Theory"))
 
         # --- 2. public key
         box_pub = Card("Public key Q = d · G", "peach", "2")
@@ -261,47 +255,44 @@ class KeysTab(QWidget):
         status_row.addWidget(self.btn_regenerate)
         self._box_import = box_import
 
-        # Top half: two columns of panels (scrolls if the window is small).
-        left = QVBoxLayout()
-        left.addWidget(box_priv)
-        left.addWidget(box_files)
-        left.addWidget(box_import)
-        left.addStretch(1)
-        right = QVBoxLayout()
-        right.addWidget(box_pub)
-        right.addStretch(1)
-        columns = QHBoxLayout()
-        columns.addLayout(left, 1)
-        columns.addLayout(right, 1)
-        top = QWidget()
-        top_lay = QVBoxLayout(top)
-        top_lay.addWidget(make_page_header("Your keys", "Create a private key and share its matching public key."))
-        top_lay.addLayout(header)
-        top_lay.addLayout(status_row)  # right under the header, so notices are never scrolled away
-        top_lay.addLayout(columns)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll.setWidget(top)
-
-        # Bottom half: the math.
+        # Put secondary controls below the shared simulator, using the dashboard cards.
+        details = QWidget()
+        self._details = details
+        details_layout = QVBoxLayout(details)
+        details_layout.setContentsMargins(0, 0, 0, 0)
+        details_layout.addLayout(header)
+        details_layout.addWidget(box_pub)
+        details_layout.addWidget(box_files)
+        details_layout.addWidget(box_import)
         box_trace = Card("How Q = d · G was computed", "white")
         self._box_trace = box_trace
         self.trace_note = _note("")
         self.trace_view = make_trace_view()
-        lay = box_trace.body
-        lay.addWidget(self.trace_note)
-        lay.addWidget(self.trace_view, 1)
+        box_trace.body.addWidget(self.trace_note)
+        box_trace.body.addWidget(self.trace_view, 1)
+        details_layout.addWidget(box_trace)
+        details.hide()
 
-        splitter = QSplitter(Qt.Orientation.Vertical)
-        splitter.addWidget(scroll)
-        splitter.addWidget(box_trace)
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 1)
-        splitter.setSizes([430, 330])
-        splitter.setChildrenCollapsible(False)
+        self.details_button = QPushButton("Show key details")
+        self.details_button.setCheckable(True)
+        self.details_button.toggled.connect(self._toggle_details)
+        top = QWidget()
+        top_lay = QVBoxLayout(top)
+        top_lay.addWidget(make_page_header("Your keys", "Create a private key and share its matching public key."))
+        top_lay.addLayout(status_row)
+        top_lay.addWidget(self.key_diagram)
+        top_lay.addWidget(self.details_button, alignment=Qt.AlignmentFlag.AlignLeft)
+        top_lay.addWidget(details)
+        top_lay.addStretch(1)
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self._scroll.setWidget(top)
+        if hasattr(self.trace_view, "use_page_scrolling"):
+            # The full Keys page scrolls already, so the trace can grow with it.
+            self.trace_view.use_page_scrolling(self._scroll)
         outer = QVBoxLayout(self)
-        outer.addWidget(splitter)
+        outer.addWidget(self._scroll)
 
         # --- wiring
         self.btn_generate.clicked.connect(self.generate)
@@ -317,7 +308,7 @@ class KeysTab(QWidget):
         self.hex_check.toggled.connect(self._set_hex)
         self.hide_check.toggled.connect(self._apply_privacy)
         self.btn_regenerate.clicked.connect(self.generate)
-        self.btn_show_math.clicked.connect(lambda: self._state.set_mode("expert"))
+        self.btn_show_math.clicked.connect(self._open_trace)
         self._state.modeChanged.connect(self.apply_mode)
         self.apply_mode()
 
@@ -333,10 +324,7 @@ class KeysTab(QWidget):
         self.d_field.setReadOnly(not expert)
         self.btn_derive.setVisible(expert)
         if expert:
-            self.d_note.setText(
-                "In real use, d is selected randomly. You can enter a value here in Expert mode "
-                "to explore the math; the Learn ECDSA walkthrough also supports choosing d as a learning feature."
-            )
+            self.d_note.setText(MANUAL_KEY_NOTE)
         else:
             self.d_note.setText("The app picks a random secret number for you, as it should be in real use. "
                                 "(Expert mode, Ctrl+E, lets you type your own.)")
@@ -354,6 +342,15 @@ class KeysTab(QWidget):
         self._box_trace.setVisible(expert)
         self._pub_form.setRowVisible(self.btn_show_math, not expert)
         self._update_controls()
+
+    def _toggle_details(self, visible: bool) -> None:
+        self._details.setVisible(visible)
+        self.details_button.setText("Hide key details" if visible else "Show key details")
+
+    def _open_trace(self) -> None:
+        self._state.set_mode("expert")
+        self.details_button.setChecked(True)
+        QTimer.singleShot(0, self, lambda: self._scroll.ensureWidgetVisible(self._box_trace))
 
     # ------------------------------------------------------- tab contract
     def set_curve(self, curve: Curve) -> None:
@@ -613,6 +610,11 @@ class KeysTab(QWidget):
         self.warning.setVisible(not hidden and bool(self.d_field.text().strip()))
         has_d = bool(self.d_field.text().strip())
         self.hidden_note.setVisible(hidden and has_d)
+        priv, pub = self._keys()
+        d = self.d_field.value()
+        matches_d = d == (priv.d if priv is not None else None)
+        Q = pub.Q if pub is not None and matches_d else None
+        self.key_diagram.update_values(d, self._curve, Q, hidden=hidden, use_hex=self.hex_check.isChecked())
         if hidden and self._trace:
             shown: Trace = []
             note = "The steps are hidden while “Hide d” is on, because they contain the private key."
@@ -628,6 +630,7 @@ class KeysTab(QWidget):
     def _set_hex(self, use_hex: bool) -> None:
         for field in (self.d_field, self.qx_field, self.qy_field):
             field.set_display_hex(use_hex)
+        self._apply_privacy()
 
     def _set_status(self, text: str, kind: str = "info") -> None:
         set_message(self.status, text, kind)

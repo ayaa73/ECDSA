@@ -19,7 +19,7 @@ from typing import Any
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit,
+    QComboBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit,
     QPushButton, QScrollArea, QVBoxLayout, QWidget, QBoxLayout, QSizePolicy,
 )
 
@@ -140,9 +140,12 @@ class VerifyTab(QWidget):
         self.tamper_button.setToolTip("Changes one character of the message, then verifies again")
         self.tamper_button.clicked.connect(self.tamper_and_verify)
         self.banner = ResultBanner()
-        self.show_math = QCheckBox("Show the math")
-        self.show_math.toggled.connect(lambda on: self.trace_view.setVisible(on))
+        self.show_math = QPushButton("Show calculations")
+        self.show_math.setCheckable(True)
+        self.show_math.setEnabled(False)
+        self.show_math.toggled.connect(lambda on: self._toggle_trace(on))
         self.trace_view = make_trace_view()
+        self.trace_view.hide()
 
         # ---- page layout
         content = QWidget()
@@ -175,6 +178,8 @@ class VerifyTab(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(content)
+        if hasattr(self.trace_view, "use_page_scrolling"):
+            self.trace_view.use_page_scrolling(scroll)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(scroll)
@@ -206,6 +211,8 @@ class VerifyTab(QWidget):
         self.key_hex.clear()
         self.sig_text.clear()
         self.trace_view.set_trace([])
+        self.show_math.setChecked(False)
+        self.show_math.setEnabled(False)
         name = getattr(curve, "name", "the new curve")
         self.banner.show_message("info", f"Curve changed to {name}",
                                  "Keys and signatures from the old curve were cleared.")
@@ -226,10 +233,13 @@ class VerifyTab(QWidget):
             self.hash_combo.setCurrentIndex(0)
             if self._file_path is not None:
                 self._clear_file()
-        self.show_math.setChecked(expert)
-        self.trace_view.setVisible(expert)
         self._on_key_source()
         self._on_sig_source()
+
+    def _toggle_trace(self, visible: bool) -> None:
+        """Show the recorded verification steps only when requested."""
+        self.show_math.setText("Hide calculations" if visible else "Show calculations")
+        self.trace_view.setVisible(visible)
 
     # ------------------------------------------------------------ inputs
     def _on_message_edited(self) -> None:
@@ -425,6 +435,7 @@ class VerifyTab(QWidget):
         self.result_card.style().unpolish(self.result_card)
         self.result_card.style().polish(self.result_card)
         self.trace_view.set_trace(trace)
+        self.show_math.setEnabled(bool(trace))
         signal = getattr(self.state, "verificationCompleted", None)
         if signal is not None:
             signal.emit(bool(ok))

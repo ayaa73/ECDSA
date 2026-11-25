@@ -264,11 +264,13 @@ class SignTab(QWidget):
         result_layout.addRow(self.encoding_panel)
         self.result_box.hide()
 
+        self.trace_toggle = QPushButton("Show calculations")
+        self.trace_toggle.setCheckable(True)
+        self.trace_toggle.hide()
         self.trace_box = QGroupBox("How was this calculated?")
         self.trace_box.setObjectName("traceCard")
         trace_layout = QVBoxLayout(self.trace_box)
         self.trace_view = make_trace_view(self)
-        self.trace_view.setMinimumHeight(360)
         trace_layout.addWidget(self.trace_view)
         self.trace_box.hide()
 
@@ -287,6 +289,7 @@ class SignTab(QWidget):
         content_layout.addWidget(self.sign_button)
         content_layout.addWidget(self.status)
         content_layout.addWidget(self.result_box)
+        content_layout.addWidget(self.trace_toggle, alignment=Qt.AlignmentFlag.AlignLeft)
         content_layout.addWidget(self.trace_box)
         content_layout.addStretch(1)
 
@@ -295,6 +298,8 @@ class SignTab(QWidget):
         self.page_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         self.page_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.page_scroll.setWidget(page_content)
+        if hasattr(self.trace_view, "use_page_scrolling"):
+            self.trace_view.use_page_scrolling(self.page_scroll)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.page_scroll)
@@ -303,6 +308,7 @@ class SignTab(QWidget):
         self.choose_file_button.clicked.connect(self.choose_file)
         self.use_text_button.clicked.connect(self.use_typed_message)
         self.sign_button.clicked.connect(self.sign_current_input)
+        self.trace_toggle.toggled.connect(lambda on: self._toggle_trace(on))
         self.manual_radio.toggled.connect(self.manual_row_widget.setVisible)
         self.encoding_group.buttonClicked.connect(self._show_encoding)
         self.message_edit.textChanged.connect(self._input_changed)
@@ -439,7 +445,13 @@ class SignTab(QWidget):
         self._show_encoding()
         self.trace_view.set_trace(self._last_trace)
         self.result_box.show()
-        self.trace_box.show()
+        self.trace_toggle.show()
+        self._toggle_trace(self.trace_toggle.isChecked())
+
+    def _toggle_trace(self, visible: bool) -> None:
+        """Keep the long calculation below the signature until requested."""
+        self.trace_toggle.setText("Hide calculations" if visible else "Show calculations")
+        self.trace_box.setVisible(visible and self._last_signature is not None)
 
     def _show_encoding(self, *_: Any) -> None:
         sig = self._last_signature
@@ -458,6 +470,8 @@ class SignTab(QWidget):
         self.s_output.clear()
         self.encoding_output.clear()
         self.trace_view.set_trace([])
+        self.trace_toggle.setChecked(False)
+        self.trace_toggle.hide()
         self.result_box.hide()
         self.trace_box.hide()
 

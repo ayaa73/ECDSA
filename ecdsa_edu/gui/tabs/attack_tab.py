@@ -16,7 +16,7 @@ from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget,
+    QGridLayout, QGroupBox, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget,
 )
 
 from ecdsa_edu.core.attacks import demo_nonce_reuse, recover_from_nonce_reuse
@@ -93,9 +93,12 @@ class AttackTab(QWidget):
         self.compare = QLabel()
         self.compare.setWordWrap(True)
         self.compare.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.show_math = QCheckBox("Show the algebra step by step")
+        self.show_math = QPushButton("Show calculations")
+        self.show_math.setCheckable(True)
+        self.show_math.setEnabled(False)
         self.trace_view = make_trace_view()
-        self.show_math.toggled.connect(self.trace_view.setVisible)
+        self.trace_view.hide()
+        self.show_math.toggled.connect(lambda on: self._toggle_trace(on))
         right = Card("The attack", "yellow", "2")
         right_layout = right.body
         right_layout.addWidget(explanation(
@@ -124,6 +127,8 @@ class AttackTab(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(content)
+        if hasattr(self.trace_view, "use_page_scrolling"):
+            self.trace_view.use_page_scrolling(scroll)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(scroll)
@@ -149,8 +154,11 @@ class AttackTab(QWidget):
     def _apply_mode(self, mode: str) -> None:
         expert = mode == "expert"
         self.k_label.setVisible(expert)  # beginners see the effect (same r), experts also see k
-        self.show_math.setChecked(expert)
-        self.trace_view.setVisible(expert)
+
+    def _toggle_trace(self, visible: bool) -> None:
+        """Let the student open the attack algebra when ready."""
+        self.show_math.setText("Hide calculations" if visible else "Show calculations")
+        self.trace_view.setVisible(visible)
 
     # ------------------------------------------------------------ step 1
     def _reset(self) -> None:
@@ -158,6 +166,8 @@ class AttackTab(QWidget):
         for label in (self.msg1, self.sig1, self.msg2, self.sig2, self.same_r, self.k_label, self.compare):
             label.setText("")
         self.trace_view.set_trace([])
+        self.show_math.setChecked(False)
+        self.show_math.setEnabled(False)
         self.banner.show_message("info", "", "")
         self.attack_button.setEnabled(False)
 
@@ -209,6 +219,7 @@ class AttackTab(QWidget):
             f"<tr><td><b>Victim's public key</b></td><td style='font-family:monospace'>"
             f"{fmt_point(demo['Q'], curve)}</td></tr></table>")
         self.trace_view.set_trace(trace)
+        self.show_math.setEnabled(bool(trace))
 
     def _failed(self, exc: Exception) -> bool:
         self.make_button.setEnabled(True)

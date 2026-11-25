@@ -245,6 +245,9 @@ class LearnTab(QWidget):
             scroll.setFrameShape(QFrame.Shape.NoFrame)
             scroll.setWidgetResizable(True)
             scroll.setWidget(p)
+            trace_view = getattr(p, "trace_view", None)
+            if callable(getattr(trace_view, "use_page_scrolling", None)):
+                trace_view.use_page_scrolling(scroll)
             self._page_scrolls[p] = scroll
             self.stack.addWidget(scroll)
         self.error_page = ErrorPage()

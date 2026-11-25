@@ -64,7 +64,10 @@ class KeysPage(LearnPage):
         self.hint.setWordWrap(True)
 
         # The list of double-and-add steps.
+        self.trace_button = QPushButton("Show calculations")
+        self.trace_button.setCheckable(True)
         self.trace_view = make_trace_view()
+        self.trace_view.hide()
 
         # P4's base class already made a vertical layout:
         #   0 title, 1 text, 2 formula, 3 values table.
@@ -72,11 +75,18 @@ class KeysPage(LearnPage):
         layout = self.layout()
         layout.insertWidget(2, row)
         layout.insertWidget(3, self.hint)
-        layout.addWidget(self.trace_view, 1)
+        layout.addWidget(self.trace_button)
+        layout.addWidget(self.trace_view)
 
         self.use_button.clicked.connect(self.use_typed_d)
         self.d_field.returnPressed.connect(self.use_typed_d)
         self.random_button.clicked.connect(self.randomize)
+        self.trace_button.toggled.connect(lambda on: self._toggle_trace(on))
+
+    def _toggle_trace(self, visible: bool) -> None:
+        """Open the detailed double-and-add steps only when requested."""
+        self.trace_button.setText("Hide calculations" if visible else "Show calculations")
+        self.trace_view.setVisible(visible)
 
     def enter(self, st) -> None:
         """Called by the wizard when the page is shown."""

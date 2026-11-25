@@ -160,7 +160,19 @@ def test_sign_page_has_one_outer_scroll_area(qtbot):
     tab.show()
 
     assert tab.page_scroll.widgetResizable()
-    assert tab.trace_view.minimumHeight() >= 360
+    assert tab.trace_view.scroll.isHidden()
+    assert tab.trace_view._page_scroll is tab.page_scroll
+    assert not tab.trace_toggle.isVisibleTo(tab)
+
+    tab.sign_button.click()
+    _wait_idle(qtbot, tab)
+    assert tab.trace_toggle.isVisibleTo(tab)
+    assert not tab.trace_box.isVisibleTo(tab)
+    tab.trace_toggle.click()
+    assert tab.trace_box.isVisibleTo(tab)
+    qtbot.waitUntil(
+        lambda: tab.trace_view.height() > tab.page_scroll.viewport().height(), timeout=3000
+    )
 
 
 def test_rapid_theme_toggles_settle_on_the_final_theme(qtbot, qapp):
