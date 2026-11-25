@@ -253,7 +253,7 @@ class _StepPanel(QFrame):
         return "\n".join(lines)
 
     def _refresh_values(self) -> None:
-        variable_font = QFont(QApplication.font())
+        variable_font = QFont("Georgia", 10)
         variable_font.setBold(True)
         value_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
         value_font.setPointSize(max(10, value_font.pointSize()))
@@ -269,6 +269,7 @@ class TraceViewer(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setFont(QFont("Georgia", 10))
         self.setObjectName("traceViewer")
         self._trace: Trace = []
         self._panels: list[_StepPanel] = []

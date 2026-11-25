@@ -7,7 +7,7 @@ large stylesheet for every TraceViewer whenever the theme changes.
 P3_STYLE = """
 
 /* P3 Sign page */
-QWidget#signTab, QWidget#signPage {{ background: {window}; color: {text}; }}
+QWidget#signTab, QWidget#signPage {{ background: {window}; color: {text}; font-family: Georgia; }}
 QLabel#signHeading {{ color: {text}; font-size: 20pt; font-weight: 600; padding: 4px 2px; }}
 QLabel#signIntro {{ color: {muted}; font-size: 11pt; padding-bottom: 4px; }}
 QWidget#signPage QGroupBox {{
@@ -20,9 +20,12 @@ QWidget#signPage QGroupBox#traceCard {{ background: {panel}; }}
 QWidget#signPage QGroupBox#emptyCard {{ background: {peach}; color: {pastel_text}; }}
 QWidget#signPage QGroupBox::title {{
     subcontrol-origin: margin; left: 18px; padding: 0 7px; color: {text}; background: transparent;
+    font-family: Georgia;
 }}
-QWidget#signPage QGroupBox#encodingCard {{ background: {panel}; border-radius: 12px; }}
-QWidget#signPage QGroupBox#encodingCard::title {{ background: {panel}; }}
+QWidget#signPage QGroupBox#encodingCard {{
+    background: {panel}; border-radius: 12px; margin-top: 0; padding: 8px;
+}}
+QLabel#encodingHeading {{ color: {pastel_text}; font-family: Georgia; font-size: 11pt; font-weight: 700; padding: 3px 0 0 8px; }}
 QWidget#signPage QPushButton {{
     border: 1px solid {border}; border-radius: 10px; padding: 7px 16px; background: {input}; color: {text};
 }}
@@ -36,7 +39,8 @@ QWidget#signPage QPlainTextEdit, QWidget#signPage QLineEdit, QWidget#signPage QC
     background: {surface}; color: {text}; border: 1px solid {border}; border-radius: 10px; padding: 6px 9px;
 }}
 QWidget#signPage QPlainTextEdit#signMessageInput {{ background: {input}; color: {text}; }}
-QWidget#signPage QLabel, QWidget#signPage QRadioButton {{ background: transparent; }}
+QWidget#signPage QLabel, QWidget#signPage QRadioButton {{ background: transparent; font-family: Georgia; }}
+QWidget#signPage QPushButton, QWidget#signPage QComboBox {{ font-family: Georgia; }}
 QWidget#signPage QComboBox {{ padding-right: 36px; }}
 QWidget#signPage QComboBox::drop-down {{ width: 36px; border: 0; background: transparent; }}
 QWidget#signPage QComboBox::down-arrow {{ image: none; width: 0; height: 0; }}
@@ -45,7 +49,9 @@ QWidget#signPage QComboBox:focus {{ border: 2px solid {accent}; }}
 QWidget#signPage QRadioButton {{ color: {text}; spacing: 7px; }}
 
 /* P3 TraceViewer */
-QWidget#traceViewer {{ background: transparent; color: {p3_text}; }}
+QWidget#traceViewer {{ background: transparent; color: {p3_text}; font-family: Georgia; }}
+QWidget#traceViewer QLabel, QWidget#traceViewer QPushButton,
+QWidget#traceViewer QToolButton {{ font-family: Georgia; }}
 QScrollArea#traceScroll, QScrollArea#traceScroll > QWidget > QWidget {{ background: transparent; border: 0; }}
 QFrame#traceStepCard {{ background: {p3_card}; border: 1px solid {p3_border}; border-radius: 13px; }}
 QLabel#stepNumberBadge {{
@@ -64,7 +70,7 @@ QLabel#traceFormula {{
 QFrame#traceValues {{ background: {p3_inner}; border: 1px solid {p3_border}; border-radius: 9px; padding: 3px; }}
 QLabel#traceValueHeader {{
     color: {p3_muted}; background: {p3_inner}; border: 0; border-bottom: 1px solid {p3_border};
-    padding: 7px; font-weight: 600;
+    padding: 7px; font-family: Georgia; font-weight: 600;
 }}
 QLabel[variableName="true"] {{
     color: {p3_variable}; background: {p3_inner}; border: 0; border-top: 1px solid {p3_border};

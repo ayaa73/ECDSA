@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QKeySequence, QPainter, QPen
+from PySide6.QtGui import QAction, QFont, QKeySequence, QPainter, QPen
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
@@ -231,9 +231,13 @@ class SignTab(QWidget):
         result_layout.addRow("r", self.r_output)
         result_layout.addRow("s", self.s_output)
 
-        self.encoding_panel = QGroupBox("Signature encoding")
+        encoding_heading = QLabel("Signature encoding")
+        encoding_heading.setObjectName("encodingHeading")
+        self.encoding_panel = QGroupBox()
         self.encoding_panel.setObjectName("encodingCard")
         encoding_layout = QVBoxLayout(self.encoding_panel)
+        encoding_layout.setContentsMargins(14, 9, 14, 9)
+        encoding_layout.setSpacing(5)
         encoding_help = QLabel(
             "Fixed-width hex places padded r followed by padded s. DER is the standard binary "
             "format used by cryptography tools and saved certificates."
@@ -251,12 +255,12 @@ class SignTab(QWidget):
         encoding_choices.addStretch(1)
         self.encoding_output = HexOutputField(lines=2, save_name="signature")
         self.encoding_output.setAccessibleName("Encoded signature")
-        self.encoding_output.setMinimumHeight(92)
+        self.encoding_output.setMinimumHeight(76)
         encoding_layout.addWidget(encoding_help)
         encoding_layout.addLayout(encoding_choices)
         encoding_layout.addWidget(QLabel("Encoded signature"))
         encoding_layout.addWidget(self.encoding_output)
-        self.encoding_panel.setMinimumHeight(190)
+        result_layout.addRow(encoding_heading)
         result_layout.addRow(self.encoding_panel)
         self.result_box.hide()
 
@@ -481,9 +485,14 @@ class SignTab(QWidget):
             self.deterministic_radio.setChecked(True)
 
     def _apply_visual_style(self) -> None:
-        """Use the dashboard font while number fields stay monospace."""
-        # The application loads DM Sans for ordinary labels and buttons.
-        # Number fields keep the monospace font assigned by the shared widgets.
+        """Set the teaching font on text controls without changing numbers."""
+        teaching_font = QFont("Georgia", 10)
+        self.setFont(teaching_font)
+        self.message_edit.setFont(teaching_font)
+        for widget_type in (QLabel, QPushButton, QRadioButton, QComboBox, QGroupBox):
+            for widget in self.findChildren(widget_type):
+                if widget is not self.trace_view and not self.trace_view.isAncestorOf(widget):
+                    widget.setFont(teaching_font)
 
     # ------------------------------------------------------------- tab API
     def set_curve(self, curve) -> None:
