@@ -9,11 +9,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QEvent, Qt, QTimer
-from PySide6.QtGui import QAction, QFont, QKeySequence, QPainter, QPen
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction, QKeySequence, QPainter, QPen
 from PySide6.QtWidgets import (
     QButtonGroup,
-    QApplication,
     QComboBox,
     QFileDialog,
     QFormLayout,
@@ -55,6 +54,13 @@ class _ModernComboBox(QComboBox):
         centre_y = self.height() // 2
         painter.drawLine(centre_x - 4, centre_y - 2, centre_x, centre_y + 2)
         painter.drawLine(centre_x, centre_y + 2, centre_x + 4, centre_y - 2)
+
+    def wheelEvent(self, event) -> None:  # noqa: N802 (Qt naming)
+        """Ignore wheel selection while closed so page scrolling stays safe."""
+        if self.view().isVisible():
+            super().wheelEvent(event)
+        else:
+            event.ignore()
 
 
 def _sign_request(
@@ -123,7 +129,6 @@ class SignTab(QWidget):
         self._job_priv: PrivateKey | None = None
         self._last_signature: Signature | None = None
         self._last_trace: list[TraceStep] = []
-        self._style_refresh_pending = False
 
         heading = QLabel("Sign a message")
         heading.setObjectName("signHeading")
@@ -145,6 +150,7 @@ class SignTab(QWidget):
         no_key_layout.addWidget(self.go_to_keys_button)
 
         self.message_edit = QPlainTextEdit()
+        self.message_edit.setObjectName("signMessageInput")
         self.message_edit.setAccessibleName("Message to sign")
         self.message_edit.setPlaceholderText("Type the message Alice wants to sign")
         self.message_edit.setPlainText("Hello, ECDSA!")
@@ -475,103 +481,9 @@ class SignTab(QWidget):
             self.deterministic_radio.setChecked(True)
 
     def _apply_visual_style(self) -> None:
-        """Give this teaching page the same visual character as Overview."""
-        app = QApplication.instance()
-        dark = app is not None and app.property("theme") == "dark"
-        # setStyleSheet can produce another palette event. Remembering the
-        # current choice keeps that event from styling the page a second time.
-        if getattr(self, "_visual_dark", None) == dark:
-            return
-        self._visual_dark = dark
-        if dark:
-            page = "#14172b"
-            card = "#1c2b43"
-            inner = "#17243a"
-            text = "#edf3fc"
-            muted = "#aabbd3"
-            border = "#6689bc"
-            accent = "#6286b8"
-            accent_hover = "#7699c8"
-            accent_text = "#10182a"
-        else:
-            page = "#f4f7fc"
-            card = "#eef5ff"
-            inner = "#f8fbff"
-            text = "#102b56"
-            muted = "#365f99"
-            border = "#8eacd5"
-            accent = "#194f91"
-            accent_hover = "#2f63ad"
-            accent_text = "#ffffff"
-
-        self.setFont(QFont("Georgia", 10))
-        # Number fields keep the monospace font they already receive from the
-        # shared widgets. The rest of this page follows Overview's Georgia look.
-        self.setStyleSheet(
-            f"""
-            QWidget#signTab, QWidget#signPage {{ background: {page}; color: {text}; }}
-            QLabel#signHeading {{
-                color: {text}; font-family: Georgia; font-size: 20pt;
-                font-weight: 600; padding: 4px 2px;
-            }}
-            QLabel#signIntro {{ color: {muted}; font-family: Georgia; font-size: 11pt; padding-bottom: 4px; }}
-            QWidget#signPage QGroupBox {{
-                background: {card}; color: {text}; border: 1px solid {border};
-                border-radius: 14px; margin-top: 18px; padding: 16px 14px 14px 14px;
-                font-family: Georgia; font-weight: 600;
-            }}
-            QWidget#signPage QGroupBox::title {{
-                subcontrol-origin: margin; left: 18px; padding: 0 7px;
-                color: {text}; background: {page};
-            }}
-            QGroupBox#encodingCard {{ background: {inner}; border-radius: 12px; }}
-            QGroupBox#encodingCard::title {{ background: {card}; }}
-            QWidget#signPage QPushButton {{
-                border: 1px solid {border}; border-radius: 10px; padding: 7px 16px;
-                background: {inner}; color: {text};
-            }}
-            QWidget#signPage QPushButton:hover {{ border-color: {accent}; background: {card}; }}
-            QWidget#signPage QPushButton[primary="true"] {{
-                background: {accent}; color: {accent_text}; border-color: {accent};
-                font-family: Georgia; font-size: 12pt; font-weight: 600;
-            }}
-            QWidget#signPage QPushButton[primary="true"]:hover {{ background: {accent_hover}; }}
-            QWidget#signPage QPlainTextEdit, QWidget#signPage QLineEdit, QWidget#signPage QComboBox {{
-                background: {inner}; color: {text}; border: 1px solid {border};
-                border-radius: 10px; padding: 6px 9px;
-            }}
-            QWidget#signPage QComboBox {{ padding-right: 36px; }}
-            QWidget#signPage QComboBox::drop-down {{
-                width: 36px; border: 0; background: transparent;
-            }}
-            QWidget#signPage QComboBox::down-arrow {{ image: none; width: 0; height: 0; }}
-            QWidget#signPage QPlainTextEdit:focus, QWidget#signPage QLineEdit:focus,
-            QWidget#signPage QComboBox:focus {{ border: 2px solid {accent}; }}
-            QWidget#signPage QRadioButton {{ color: {text}; spacing: 7px; }}
-            QScrollBar:vertical {{ background: {page}; width: 12px; margin: 2px; }}
-            QScrollBar::handle:vertical {{ background: {border}; min-height: 32px; border-radius: 5px; }}
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
-            """
-        )
-
-    def changeEvent(self, event) -> None:  # noqa: N802 (Qt naming)
-        """Refresh the local colours after the app switches theme."""
-        super().changeEvent(event)
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.ApplicationPaletteChange):
-            if hasattr(self, "page_content"):
-                self._queue_visual_refresh()
-
-    def _queue_visual_refresh(self) -> None:
-        """Combine several palette events into one final style update."""
-        if self._style_refresh_pending:
-            return
-        self._style_refresh_pending = True
-        QTimer.singleShot(0, self, self._finish_visual_refresh)
-
-    def _finish_visual_refresh(self) -> None:
-        """Apply the final selected theme after the app finishes toggling."""
-        self._style_refresh_pending = False
-        self._apply_visual_style()
+        """Use the dashboard font while number fields stay monospace."""
+        # The application loads DM Sans for ordinary labels and buttons.
+        # Number fields keep the monospace font assigned by the shared widgets.
 
     # ------------------------------------------------------------- tab API
     def set_curve(self, curve) -> None:

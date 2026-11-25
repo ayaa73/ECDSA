@@ -11,23 +11,21 @@ from __future__ import annotations
 import re
 import sys
 
-from PySide6.QtCore import QEvent, Qt, QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
-    QHeaderView,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QScrollArea,
-    QTableWidget,
-    QTableWidgetItem,
+    QSizePolicy,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
-from shiboken6 import isValid
 
 from ecdsa_edu.core.trace import Trace, TraceStep
 
@@ -93,6 +91,72 @@ def _teaching_text(text: str) -> str:
     return re.sub(r"\bdigest\b", "hash output", text, flags=re.IGNORECASE)
 
 
+class _ValuesGrid(QFrame):
+    """Lightweight two-column value table used inside one trace card.
+
+    A QTableWidget creates a complete item-view model for every step. That is
+    unnecessary for read-only teaching values and makes application-wide theme
+    changes expensive when a trace contains many steps.
+    """
+
+    def __init__(self, row_count: int, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("traceValues")
+        self._cells: list[tuple[QLabel, QLabel]] = []
+
+        grid = QGridLayout(self)
+        grid.setContentsMargins(1, 1, 1, 1)
+        grid.setHorizontalSpacing(0)
+        grid.setVerticalSpacing(0)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 4)
+
+        for column, text in enumerate(("Variable", "Value")):
+            header = QLabel(text)
+            header.setObjectName("traceValueHeader")
+            header.setContentsMargins(9, 7, 9, 7)
+            grid.addWidget(header, 0, column)
+
+        for row in range(row_count):
+            name_label = QLabel()
+            value_label = QLabel()
+            name_label.setProperty("variableName", True)
+            value_label.setProperty("traceValue", True)
+            for label in (name_label, value_label):
+                label.setContentsMargins(9, 6, 9, 6)
+                label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+            value_label.setWordWrap(True)
+            value_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+            name_label.setProperty("alternate", row % 2 == 1)
+            value_label.setProperty("alternate", row % 2 == 1)
+            grid.addWidget(name_label, row + 1, 0)
+            grid.addWidget(value_label, row + 1, 1)
+            self._cells.append((name_label, value_label))
+
+    def set_row(self, row: int, name: str, value: str, name_font: QFont, value_font: QFont) -> None:
+        """Update one displayed variable and value without rebuilding widgets."""
+        name_label, value_label = self._cells[row]
+        name_label.setText(name)
+        value_label.setText(_soft_wrap(value))
+        name_label.setFont(name_font)
+        value_label.setFont(value_font)
+        name_label.setToolTip(name)
+        value_label.setToolTip(value)
+
+    def item(self, row: int, column: int) -> QLabel:
+        """Return a cell label; kept small so focused GUI tests stay readable."""
+        return self._cells[row][column]
+
+    def wordWrap(self) -> bool:  # noqa: N802 (matches the former Qt table API)
+        return True
+
+    def rowHeight(self, row: int) -> int:  # noqa: N802 (matches the former Qt table API)
+        name_label, value_label = self._cells[row]
+        value_width = max(value_label.width(), 180)
+        return max(name_label.sizeHint().height(), value_label.heightForWidth(value_width))
+
+
 class _StepPanel(QFrame):
     """One expandable trace step with its formula and value table."""
 
@@ -151,19 +215,7 @@ class _StepPanel(QFrame):
         self.formula_label.setFont(formula_font)
         details_layout.addWidget(self.formula_label)
 
-        self.values_table = QTableWidget(len(self._rows), 2)
-        self.values_table.setObjectName("traceValues")
-        self.values_table.setHorizontalHeaderLabels(["Variable", "Value"])
-        self.values_table.verticalHeader().setVisible(False)
-        self.values_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        self.values_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        self.values_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.values_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
-        self.values_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.values_table.setWordWrap(True)
-        self.values_table.setTextElideMode(Qt.TextElideMode.ElideNone)
-        self.values_table.setAlternatingRowColors(True)
-        self.values_table.setShowGrid(False)
+        self.values_table = _ValuesGrid(len(self._rows))
         self.values_table.setVisible(bool(self._rows))
         details_layout.addWidget(self.values_table)
 
@@ -201,41 +253,15 @@ class _StepPanel(QFrame):
         return "\n".join(lines)
 
     def _refresh_values(self) -> None:
-        variable_font = QFont("Georgia", 10)
+        variable_font = QFont(QApplication.font())
         variable_font.setBold(True)
         value_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
         value_font.setPointSize(max(10, value_font.pointSize()))
         value_font.setFixedPitch(True)
         for row, (name, value) in enumerate(self.display_rows()):
-            name_item = QTableWidgetItem(name)
-            value_item = QTableWidgetItem(_soft_wrap(value))
             # Variable names read like labels, while calculated values keep a
             # fixed-width font so long numbers remain easy to compare.
-            name_item.setFont(variable_font)
-            value_item.setFont(value_font)
-            name_item.setToolTip(name)
-            value_item.setToolTip(value)
-            self.values_table.setItem(row, 0, name_item)
-            self.values_table.setItem(row, 1, value_item)
-        self._fit_table_height()
-
-    def _fit_table_height(self) -> None:
-        """Let wrapped rows grow, then keep the table just tall enough for them."""
-        # Qt can delete a panel while a zero-delay resize is still waiting in
-        # the event queue. In that case there is simply nothing left to resize.
-        if not isValid(self) or not isValid(self.values_table):
-            return
-        self.values_table.resizeRowsToContents()
-        if self._rows:
-            header_height = self.values_table.horizontalHeader().height()
-            rows_height = sum(self.values_table.rowHeight(row) for row in range(len(self._rows)))
-            self.values_table.setFixedHeight(header_height + rows_height + 4)
-
-    def resizeEvent(self, event) -> None:  # noqa: N802 (Qt naming)
-        super().resizeEvent(event)
-        # The stretched value column receives its final width after this event.
-        # Waiting one event-loop turn makes resizeRowsToContents use that width.
-        QTimer.singleShot(0, self._fit_table_height)
+            self.values_table.set_row(row, name, value, variable_font, value_font)
 
 
 class TraceViewer(QWidget):
@@ -247,7 +273,6 @@ class TraceViewer(QWidget):
         self._trace: Trace = []
         self._panels: list[_StepPanel] = []
         self._step_index: int | None = None
-        self._style_refresh_pending = False
 
         self.step_through_button = QPushButton("Step through")
         self.step_through_button.setObjectName("tracePrimaryButton")
@@ -307,100 +332,7 @@ class TraceViewer(QWidget):
         self.show_all_button.clicked.connect(self.show_all)
         self.copy_button.clicked.connect(self.copy_as_text)
         self.hex_toggle.toggled.connect(self._set_use_hex)
-        self._apply_visual_style()
         self._update_controls()
-
-    def _apply_visual_style(self) -> None:
-        """Use the same calm blue cards as the rest of the teaching app."""
-        app = QApplication.instance()
-        dark = app is not None and app.property("theme") == "dark"
-        if getattr(self, "_visual_dark", None) == dark:
-            return
-        self._visual_dark = dark
-        if dark:
-            page, card, inner = "#14172b", "#1c2b43", "#17243a"
-            text, muted, border = "#edf3fc", "#aabbd3", "#6689bc"
-            accent, accent_soft, row = "#75a7e8", "#243d60", "#20334f"
-        else:
-            page, card, inner = "#f4f7fc", "#ffffff", "#f7faff"
-            text, muted, border = "#102b56", "#4b6790", "#c3d5ee"
-            accent, accent_soft, row = "#245c9f", "#e4efff", "#eef5ff"
-
-        self.setStyleSheet(
-            f"""
-            QWidget#traceViewer {{ background: transparent; color: {text}; font-family: Georgia; }}
-            QScrollArea#traceScroll, QScrollArea#traceScroll > QWidget > QWidget {{
-                background: transparent; border: 0;
-            }}
-            QFrame#traceStepCard {{
-                background: {card}; border: 1px solid {border}; border-radius: 13px;
-            }}
-            QLabel#stepNumberBadge {{
-                background: {accent}; color: white; border: 0; border-radius: 15px;
-                font-family: Georgia; font-size: 11pt; font-weight: 700;
-            }}
-            QLabel#stepTitle {{
-                color: {text}; font-family: Georgia; font-size: 11pt; font-weight: 600;
-            }}
-            QToolButton#stepDetailsButton {{
-                color: {accent}; background: transparent; border: 0; padding: 6px 8px;
-                font-family: Georgia; font-weight: 600;
-            }}
-            QToolButton#stepDetailsButton:hover {{ background: {accent_soft}; border-radius: 8px; }}
-            QLabel#traceFormula {{
-                color: {text}; background: {inner}; border: 1px solid {border};
-                border-radius: 9px; padding: 11px 13px;
-            }}
-            QTableWidget#traceValues {{
-                color: {text}; background: {card}; alternate-background-color: {row};
-                border: 1px solid {border}; border-radius: 9px; padding: 3px;
-                selection-background-color: transparent;
-            }}
-            QTableWidget#traceValues::item {{ border: 0; padding: 5px 7px; }}
-            QHeaderView::section {{
-                color: {muted}; background: {inner}; border: 0;
-                border-bottom: 1px solid {border}; padding: 7px;
-                font-family: Georgia; font-weight: 600;
-            }}
-            QPushButton {{
-                color: {text}; background: {card}; border: 1px solid {border};
-                border-radius: 9px; padding: 7px 13px; font-family: Georgia;
-            }}
-            QPushButton:hover {{ color: {accent}; border-color: {accent}; background: {accent_soft}; }}
-            QPushButton#tracePrimaryButton {{ background: {accent}; color: white; border-color: {accent}; }}
-            QPushButton:disabled {{ color: {muted}; background: {inner}; }}
-            QPushButton#numberFormatToggle {{
-                color: {text}; background: {inner}; border: 1px solid {border};
-                border-radius: 9px; padding: 7px 11px; font-family: Georgia;
-            }}
-            QPushButton#numberFormatToggle:hover {{ border-color: {accent}; background: {accent_soft}; }}
-            QPushButton#numberFormatToggle:checked {{
-                color: white; background: {accent}; border-color: {accent};
-            }}
-            QLabel#traceStepCount {{ color: {muted}; font-family: Georgia; }}
-            QScrollBar:vertical {{ background: transparent; width: 10px; margin: 3px; }}
-            QScrollBar::handle:vertical {{ background: {border}; min-height: 34px; border-radius: 4px; }}
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
-            """
-        )
-
-    def changeEvent(self, event) -> None:  # noqa: N802 (Qt naming)
-        """Refresh the trace colours when the whole app changes theme."""
-        super().changeEvent(event)
-        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.ApplicationPaletteChange):
-            self._queue_visual_refresh()
-
-    def _queue_visual_refresh(self) -> None:
-        """Combine repeated palette events so rapid toggles stay responsive."""
-        if self._style_refresh_pending:
-            return
-        self._style_refresh_pending = True
-        QTimer.singleShot(0, self, self._finish_visual_refresh)
-
-    def _finish_visual_refresh(self) -> None:
-        """Style once using the final theme selected by the application."""
-        self._style_refresh_pending = False
-        self._apply_visual_style()
 
     def set_trace(self, trace: Trace) -> None:
         """Replace the displayed calculation with ``trace`` and show all steps."""

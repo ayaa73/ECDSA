@@ -95,7 +95,7 @@ def test_variable_names_use_teaching_font_and_values_stay_fixed_width(qtbot):
     name_item = viewer._panels[0].values_table.item(0, 0)
     value_item = viewer._panels[0].values_table.item(0, 1)
     assert name_item.font().bold()
-    assert name_item.font().family() == "Georgia"
+    assert name_item.font().family() == QApplication.font().family()
     assert value_item.font().fixedPitch()
     assert viewer.hex_toggle.objectName() == "numberFormatToggle"
 

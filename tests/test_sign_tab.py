@@ -1,7 +1,9 @@
 """Focused GUI tests for P3's practical Sign tab."""
 from __future__ import annotations
 
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QPoint, QPointF, QSettings, Qt
+from PySide6.QtGui import QWheelEvent
+from PySide6.QtWidgets import QApplication
 
 from ecdsa_edu.core.curves_registry import get_curve
 from ecdsa_edu.core.keys import public_from_private
@@ -76,6 +78,36 @@ def test_expert_mode_exposes_nonce_and_encoding_controls(qtbot):
     assert tab.encoding_output.hex_value().startswith("30")
 
 
+def test_hash_choice_does_not_change_when_scrolling_the_page(qtbot):
+    state = _state_with_key()
+    state.set_mode("expert")
+    tab = SignTab(state)
+    qtbot.addWidget(tab)
+    tab.show()
+    combo = tab.hash_combo
+    starting_index = combo.currentIndex()
+    tab.sign_button.click()
+    _wait_idle(qtbot, tab)
+    signature = state.last_sig
+    position = QPointF(8, 8)
+    event = QWheelEvent(
+        position,
+        QPointF(combo.mapToGlobal(QPoint(8, 8))),
+        QPoint(),
+        QPoint(0, -120),
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier,
+        Qt.ScrollPhase.ScrollUpdate,
+        False,
+    )
+
+    QApplication.sendEvent(combo, event)
+
+    assert combo.currentIndex() == starting_index
+    assert state.last_sig == signature
+    assert tab.result_box.isVisibleTo(tab)
+
+
 def test_expert_file_signing_uses_the_file_path(qtbot, tmp_path, monkeypatch):
     state = _state_with_key()
     state.set_mode("expert")
@@ -138,20 +170,18 @@ def test_rapid_theme_toggles_settle_on_the_final_theme(qtbot, qapp):
         tab = SignTab(_state_with_key())
         qtbot.addWidget(tab)
         tab.show()
+        assert tab.styleSheet() == ""
+        assert tab.trace_view.styleSheet() == ""
 
         # These calls happen without a wait between them, just like several
         # quick clicks on the toolbar theme button.
         for theme in ("dark", "light", "dark", "light"):
             app_module.apply_theme(qapp, theme)
 
-        qtbot.waitUntil(
-            lambda: not tab._style_refresh_pending
-            and not tab.trace_view._style_refresh_pending,
-            timeout=2_000,
-        )
+        qtbot.wait(20)
         assert app_module.current_theme(qapp) == "light"
-        assert tab._visual_dark is False
-        assert tab.trace_view._visual_dark is False
+        assert tab.styleSheet() == ""
+        assert tab.trace_view.styleSheet() == ""
     finally:
         qapp.setStyle(saved[2])
         qapp.setPalette(saved[1])

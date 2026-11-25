@@ -26,6 +26,7 @@ from PySide6.QtGui import QColor, QPalette, QFontDatabase, QFont
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from ecdsa_edu import __version__
+from ecdsa_edu.gui.p3_style import P3_STYLE
 
 __all__ = ["main", "apply_theme", "current_theme", "theme_colors", "THEMES", "MONO_FONT"]
 
@@ -92,6 +93,13 @@ THEMES["dark"].update(dict(window="#121212", surface="#1B1B1B", panel="#252525",
     sidebar_text="#BDBDBD", sidebar_selected="#242424", sidebar_selected_text="#FFFFFF", border="#3A3A3A",
     yellow="#DFC054", pink="#DD98BA", olive="#98A262", periwinkle="#90A2DB", peach="#DEB08E", lilac="#B8A5DB",
     lavender="#90A2DB", mint="#98A262", pastel_text="#141414"))
+
+# Sign uses pink and lilac; calculation steps use the periwinkle block.
+for colors in THEMES.values():
+    colors.update(p3_card=colors["periwinkle"], p3_inner=colors["surface"],
+                  p3_row=colors["hover"], p3_text=colors["text"],
+                  p3_muted=colors["muted"], p3_border=colors["border"],
+                  p3_variable=colors["heading"], p3_value=colors["text"])
 
 _STYLE = """
 QWidget {{ font-size: 11pt; color: {text}; }}
@@ -253,7 +261,8 @@ def apply_theme(app: QApplication, theme: str = "light") -> None:
     if theme not in THEMES:
         raise ValueError(f"unknown theme: {theme!r}")
     c = THEMES[theme]
-    app.setStyle("Fusion")
+    if app.style().objectName().lower() != "fusion":
+        app.setStyle("Fusion")
     font_path = Path(__file__).parent / "assets" / "fonts" / "DMSans-Variable.ttf"
     font_id = QFontDatabase.addApplicationFont(str(font_path))
     families = QFontDatabase.applicationFontFamilies(font_id) if font_id >= 0 else []
@@ -278,7 +287,7 @@ def apply_theme(app: QApplication, theme: str = "light") -> None:
     for role in (QPalette.ColorRole.Text, QPalette.ColorRole.ButtonText, QPalette.ColorRole.WindowText):
         palette.setColor(QPalette.ColorGroup.Disabled, role, QColor(c["disabled_text"]))
     app.setPalette(palette)
-    app.setStyleSheet(_STYLE.format(mono=MONO_FONT, **c))
+    app.setStyleSheet((_STYLE + P3_STYLE).format(mono=MONO_FONT, **c))
     app.setProperty("theme", theme)
 
 
