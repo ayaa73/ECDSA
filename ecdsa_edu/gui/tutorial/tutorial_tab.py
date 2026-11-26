@@ -1,13 +1,14 @@
 """Start here page (owner: P4): "How ECDSA works", the first page students see.
 
-Three parts on one scrollable page:
+One scrollable page:
+  0. A welcome, what the app is for, and how to use it (the sidebar, and a
+     suggested order for the pages).
   1. "ECDSA in 60 seconds": a 5-frame illustrated story (Alice signs, Bob
      verifies), drawn with QPainter so no image files are needed. Move through
      it with Previous and Next; it never advances on its own.
   2. "Try it in 3 clicks": Make keys -> Sign "Hello" -> Verify, using the real
      core functions on toy-17, then "Change one letter" shows INVALID.
      It uses its own throw-away key, so it never replaces the student's key.
-  3. A vertical list of destinations for the app's learning pages.
 
 Text lives in tutorial_content.py. No math here: values come from core calls.
 """
@@ -28,8 +29,10 @@ from ecdsa_edu.core.keys import generate_keypair
 from ecdsa_edu.core.sign import sign
 from ecdsa_edu.core.verify import verify
 from ecdsa_edu.gui.tabs.p4_logic import fmt_number, fmt_point, tamper_text
-from ecdsa_edu.gui.tabs.p4_widgets import ResultBanner, explanation, go_to, heading
-from ecdsa_edu.gui.tutorial.tutorial_content import ANALOGY, DESTINATIONS, FRAMES, SETTINGS_KEY
+from ecdsa_edu.gui.tabs.p4_widgets import ResultBanner, explanation, heading
+from ecdsa_edu.gui.tutorial.tutorial_content import (
+    ABOUT, ANALOGY, FRAMES, HOW_TO_USE, SETTINGS_KEY, SUGGESTED_ORDER, WELCOME,
+)
 from ecdsa_edu.gui.widgets.worker import run_in_background
 
 __all__ = ["TutorialTab", "StoryCanvas"]
@@ -156,11 +159,11 @@ class StoryCanvas(QWidget):
 
 # ====================================================================== page
 class TutorialTab(QWidget):
-    """Start here: the big picture of ECDSA, a 3-click demo and links to every page."""
+    """Start here: a welcome, how to use the app, the big picture of ECDSA and a 3-click demo."""
 
-    HELP = ("Start here if ECDSA is new to you. The story shows in five steps how Alice signs a message and how "
-            "Bob checks it. \"Try it in 3 clicks\" runs the real thing with small numbers. The buttons at the bottom "
-            "take you to the page for each task.")
+    HELP = ("Start here if ECDSA is new to you. The top explains what the app is for and suggests an order for "
+            "the pages in the sidebar. The story shows in five steps how Alice signs a message and how Bob checks "
+            "it, and \"Try it in 3 clicks\" runs the real thing with small numbers.")
 
     def __init__(self, state: Any = None) -> None:
         super().__init__()
@@ -222,24 +225,6 @@ class TutorialTab(QWidget):
         try_layout.addWidget(self.sign_card)
         try_layout.addWidget(self.banner)
 
-        # ---- part 3: app navigation
-        go_box = QGroupBox("Explore the app")
-        destinations = QVBoxLayout(go_box)
-        destinations.setSpacing(10)
-        self.destination_layout = destinations
-        self.destination_buttons: dict[str, QPushButton] = {}
-        for dest in DESTINATIONS:
-            button = QPushButton(f"{dest.label}\n{dest.description}")
-            button.setMinimumHeight(62)
-            button.setProperty("tutorialChoice", True)
-            button.setToolTip(f"Open the {dest.page} page")
-            button.clicked.connect(lambda _=False, page=dest.page: self.open_page(page))
-            destinations.addWidget(button)
-            self.destination_buttons[dest.page] = button
-        self.nav_note = QLabel()
-        self.nav_note.setWordWrap(True)
-        destinations.addWidget(self.nav_note)
-
         # ---- startup checkbox
         self.startup_box = QCheckBox("Show this page when the app starts")
         self.startup_box.setChecked(self.show_at_startup())
@@ -249,20 +234,23 @@ class TutorialTab(QWidget):
         page = QVBoxLayout(content)
         self.welcome_heading = heading("Welcome to ECDSA Lab")
         page.addWidget(self.welcome_heading)
-        welcome = QGroupBox("Your learning dashboard")
-        welcome_layout = QVBoxLayout(welcome)
-        welcome_layout.addWidget(explanation(
-            "Welcome! This app is a hands-on dashboard for exploring ECDSA. Use the navigation on the left to "
-            "open the keys, signing, verification, curve and theory tools. Start with the guided story below, "
-            "then use the links at the bottom to explore each part at your own pace."))
-        page.addWidget(welcome)
+        page.addWidget(explanation(html.escape(WELCOME)))
+        about = QGroupBox("What this app is for")
+        about_layout = QVBoxLayout(about)
+        about_layout.addWidget(explanation(html.escape(ABOUT)))
+        page.addWidget(about)
+        guide = QGroupBox("How to use it")
+        guide_layout = QVBoxLayout(guide)
+        self.how_label = explanation(html.escape(HOW_TO_USE))
+        guide_layout.addWidget(self.how_label)
+        steps_html = "".join(f"<li><b>{html.escape(stop.page)}</b>: {html.escape(stop.what)}</li>"
+                             for stop in SUGGESTED_ORDER)
+        self.order_label = explanation(f"Suggested order:<ol style='margin-top:4px'>{steps_html}</ol>")
+        guide_layout.addWidget(self.order_label)
+        page.addWidget(guide)
         page.addWidget(heading("How ECDSA works"))
-        page.addWidget(explanation(
-            "ECDSA lets Alice <b>sign</b> a message so that anyone can check it really came from her and was not "
-            "changed. It protects websites (HTTPS), software updates and cryptocurrencies like Bitcoin."))
         page.addWidget(story)
         page.addWidget(try_box)
-        page.addWidget(go_box)
         page.addWidget(self.startup_box)
         page.addStretch(1)
         scroll = QScrollArea()
@@ -358,10 +346,3 @@ class TutorialTab(QWidget):
         self._update_demo_buttons()
         self.banner.show_message("bad", "Something went wrong", str(exc))
         return True
-
-    # ------------------------------------------------------------ navigation
-    def open_page(self, page: str) -> None:
-        if go_to(self, self.state, page):
-            self.nav_note.setText("")
-        else:
-            self.nav_note.setText(f"The {page} page isn't available yet.")

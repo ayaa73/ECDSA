@@ -13,7 +13,7 @@ from ecdsa_edu.gui.tabs.p4_logic import (
     attack_result, fmt_number, fmt_point, parse_signature_text, signature_formats_available, tamper_text,
     verdict_from_trace,
 )
-from ecdsa_edu.gui.tutorial.tutorial_content import DESTINATIONS, FRAMES
+from ecdsa_edu.gui.tutorial.tutorial_content import FRAMES, SUGGESTED_ORDER
 
 TOY = get_curve("toy-17")
 BIG = get_curve("secp256k1")
@@ -108,5 +108,7 @@ def test_formatting_small_and_big():
 
 def test_tutorial_content():
     assert len(FRAMES) == 5 and all(f.title and f.text for f in FRAMES)
-    pages = {d.page for d in DESTINATIONS}
-    assert {"Learn ECDSA", "Keys", "Sign", "Verify", "Attack Demo", "Theory"} <= pages
+    from ecdsa_edu.gui.main_window import PAGE_SPECS
+    pages = [stop.page for stop in SUGGESTED_ORDER]
+    assert set(pages) <= {spec.title for spec in PAGE_SPECS}  # every suggested stop is a real sidebar page
+    assert len(pages) == len(set(pages))

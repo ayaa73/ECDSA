@@ -98,7 +98,7 @@ def test_tutorial_story_and_demo(qtbot, state):
     assert not hasattr(tab, "play_button")
     assert not hasattr(tab, "timer")
     assert "Welcome to ECDSA Lab" in tab.welcome_heading.text()
-    assert tab.destination_layout.count() == len(tab.destination_buttons) + 1
+    assert "sidebar" in tab.how_label.text()
     qtbot.wait(100)
     assert tab.canvas.frame == 0
 
@@ -142,11 +142,18 @@ def test_tutorial_every_frame_paints(qtbot):
         assert not canvas.grab().isNull()
 
 
-def test_tutorial_destination_uses_go_to(qtbot, state):
+
+def test_tutorial_has_no_navigation_buttons(qtbot, state):
+    from PySide6.QtWidgets import QPushButton
     from ecdsa_edu.gui.tutorial.tutorial_tab import TutorialTab
     requested = []
-    state.go_to = requested.append  # stands in for P2's AppState.go_to until it exists
+    state.pageRequested.connect(requested.append)
     tab = TutorialTab(state)
     qtbot.addWidget(tab)
-    tab.destination_buttons["Verify"].click()
-    assert requested == ["Verify"]
+    for button in tab.findChildren(QPushButton):
+        if button.isEnabled():
+            button.click()
+    qtbot.wait(50)
+    assert requested == []
+    order = tab.order_label.text()
+    assert order.index("Keys") < order.index("Sign") < order.index("Verify")

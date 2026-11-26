@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-__all__ = ["Frame", "FRAMES", "Destination", "DESTINATIONS", "ANALOGY", "SETTINGS_KEY"]
+__all__ = ["Frame", "FRAMES", "ANALOGY", "SETTINGS_KEY", "WELCOME", "ABOUT", "HOW_TO_USE", "Stop", "SUGGESTED_ORDER"]
 
 SETTINGS_KEY = "tutorial/show_at_startup"
 
@@ -42,21 +42,35 @@ ANALOGY = ("Think of it like a wax seal that only Alice can press, but that ever
            "moved onto a different one.")
 
 
+WELCOME = ("We're glad you're here! This app is a friendly, hands-on place to discover how digital "
+           "signatures really work, one small step at a time.")
+
+ABOUT = ("ECDSA (the Elliptic Curve Digital Signature Algorithm) is what lets anyone check that a message "
+         "really came from its author and was not changed. It protects websites, software updates and "
+         "cryptocurrencies such as Bitcoin. Here you can learn how ECDSA works step by step, generate your own "
+         "keys, sign and verify messages and files, watch a real attack such as nonce reuse recover a private "
+         "key, explore elliptic curves visually, and read the history behind it all. Every number is computed "
+         "live by the app, so you can see exactly what happens.")
+
+HOW_TO_USE = ("Use the sidebar on the left to move between pages; it is always there. Every page also has a "
+              "\"?\" button (F1) at the top with a short help text, and the curve button at the top lets you "
+              "switch between tiny teaching curves and real-world curves.")
+
+
 @dataclass(frozen=True)
-class Destination:
-    label: str
-    description: str
-    page: str  # page title for go_to()
+class Stop:
+    page: str  # sidebar title of the page
+    what: str  # what to do there, in one short line
 
 
-DESTINATIONS: tuple[Destination, ...] = (
-    Destination("See the big picture", "A clickable map of how every part of ECDSA fits together.", "Overview"),
-    Destination("Learn step by step", "Walk through one full ECDSA run with small numbers.", "Learn ECDSA"),
-    Destination("Make your own key", "Generate a key pair and save it to a file.", "Keys"),
-    Destination("Sign a message or file", "Create a signature and see every step.", "Sign"),
-    Destination("Check a signature", "Verify a signature, then tamper with the message.", "Verify"),
-    Destination("See how ECDSA breaks", "Recover a private key when k is reused.", "Attack Demo"),
-    Destination("Explore the curves", "See points being added on a real curve.", "Curve Explorer"),
-    Destination("Read the theory", "Short pages on the math and the pitfalls.", "Theory"),
-    Destination("Where ECDSA came from", "A timeline from 1976 to today.", "History"),
+SUGGESTED_ORDER: tuple[Stop, ...] = (
+    Stop("Start here", "this page: the big idea in 60 seconds and a 3-click demo."),
+    Stop("Overview", "one picture of the whole process, from keys to verification."),
+    Stop("Learn ECDSA", "a guided walkthrough of one full run with small numbers, then a quiz."),
+    Stop("Keys", "make your own key pair."),
+    Stop("Sign", "sign a message or a file with your private key."),
+    Stop("Verify", "check a signature, then change one letter and watch it fail."),
+    Stop("Curve Explorer", "see how points are added on a curve."),
+    Stop("Attack Demo", "in Games & Practice: see how reusing k reveals a private key."),
+    Stop("History", "anytime: where ECDSA came from."),
 )
