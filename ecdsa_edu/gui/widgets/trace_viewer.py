@@ -5,6 +5,11 @@ that list to ``TraceViewer`` instead of rebuilding formulas in the GUI. The
 widget supports a full overview and a one-step-at-a-time teaching mode.
 
 Run ``python -m ecdsa_edu.gui.widgets.trace_viewer`` for a fake-trace demo.
+
+Layout rule: the viewer must never make its page wider than the window. Its
+buttons wrap onto a second line (FlowLayout) and long numbers get invisible
+break points, so a 78-digit secp256k1 coordinate wraps instead of stretching
+the page. Clicking a value copies it (without the break points).
 """
 from __future__ import annotations
 
@@ -12,7 +17,7 @@ import re
 import sys
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont, QFontDatabase
+from PySide6.QtGui import QCursor, QFont, QFontDatabase
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -23,11 +28,14 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QToolButton,
+    QToolTip,
     QVBoxLayout,
     QWidget,
 )
 
 from ecdsa_edu.core.trace import Trace, TraceStep
+from ecdsa_edu.gui.widgets.flow_layout import make_flow_container
+from ecdsa_edu.gui.widgets.wrap import soft_wrap as _soft_wrap
 
 __all__ = ["TraceViewer"]
 
@@ -65,11 +73,19 @@ def _format_value(text: str, use_hex: bool) -> str:
     return hex(value) if use_hex else str(value)
 
 
-def _soft_wrap(text: str, width: int = 16) -> str:
-    """Add invisible break points to a long value that has no spaces."""
-    if len(text) <= width * 2 or any(character.isspace() for character in text):
-        return text
-    return "\u200b".join(text[index:index + width] for index in range(0, len(text), width))
+class _CopyValueLabel(QLabel):
+    """A value cell: wraps long numbers, and a click copies the clean value."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.raw = ""
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802 (Qt naming)
+        super().mouseReleaseEvent(event)
+        if event.button() == Qt.MouseButton.LeftButton and self.raw:
+            QApplication.clipboard().setText(self.raw)
+            QToolTip.showText(QCursor.pos(), "Copied", self)
 
 
 def _safe_values(step: TraceStep) -> list[tuple[str, str]]:
@@ -119,15 +135,19 @@ class _ValuesGrid(QFrame):
 
         for row in range(row_count):
             name_label = QLabel()
-            value_label = QLabel()
+            value_label = _CopyValueLabel()
             name_label.setProperty("variableName", True)
             value_label.setProperty("traceValue", True)
             for label in (name_label, value_label):
                 label.setContentsMargins(9, 6, 9, 6)
-                label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
                 label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+            name_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            name_label.setWordWrap(True)
             value_label.setWordWrap(True)
-            value_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+            # Ignored: the cell takes the width it is given and wraps, instead of
+            # asking for the width of its longest number.
+            value_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+            value_label.setMinimumWidth(80)
             name_label.setProperty("alternate", row % 2 == 1)
             value_label.setProperty("alternate", row % 2 == 1)
             grid.addWidget(name_label, row + 1, 0)
@@ -137,12 +157,13 @@ class _ValuesGrid(QFrame):
     def set_row(self, row: int, name: str, value: str, name_font: QFont, value_font: QFont) -> None:
         """Update one displayed variable and value without rebuilding widgets."""
         name_label, value_label = self._cells[row]
-        name_label.setText(name)
+        name_label.setText(_soft_wrap(name))
         value_label.setText(_soft_wrap(value))
+        value_label.raw = value
         name_label.setFont(name_font)
         value_label.setFont(value_font)
         name_label.setToolTip(name)
-        value_label.setToolTip(value)
+        value_label.setToolTip(f"{value}\n(click to copy)")
 
     def item(self, row: int, column: int) -> QLabel:
         """Return a cell label; kept small so focused GUI tests stay readable."""
@@ -176,9 +197,10 @@ class _StepPanel(QFrame):
         self.number_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.number_badge.setFixedSize(30, 30)
 
-        self.title_label = QLabel(self.display_title)
+        self.title_label = QLabel(_soft_wrap(self.display_title))
         self.title_label.setObjectName("stepTitle")
         self.title_label.setWordWrap(True)
+        self.title_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
 
         self.toggle = QToolButton()
         self.toggle.setText("Hide details")
@@ -202,9 +224,10 @@ class _StepPanel(QFrame):
         details_layout.setContentsMargins(40, 6, 4, 4)
         details_layout.setSpacing(10)
 
-        self.formula_label = QLabel(self.display_formula or "No formula was recorded for this step.")
+        self.formula_label = QLabel(_soft_wrap(self.display_formula) or "No formula was recorded for this step.")
         self.formula_label.setObjectName("traceFormula")
         self.formula_label.setWordWrap(True)
+        self.formula_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.formula_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.formula_label.setToolTip(
             f"Formula used in this step: {self.display_formula}"
@@ -300,17 +323,13 @@ class TraceViewer(QWidget):
         self.copy_button.setToolTip("Copy the complete trace as plain text")
         self.hex_toggle.setToolTip("Display integer values in hexadecimal")
 
-        controls = QHBoxLayout()
-        controls.addWidget(self.step_through_button)
-        controls.addWidget(self.previous_button)
-        controls.addWidget(self.next_button)
-        controls.addWidget(self.show_all_button)
-        controls.addWidget(self.copy_button)
-        controls.addStretch(1)
-        controls.addWidget(self.hex_toggle)
-        controls.addWidget(self.step_label)
-        controls.addWidget(self.previous_page_button)
-        controls.addWidget(self.next_page_button)
+        # The buttons wrap onto more lines in a narrow column instead of forcing
+        # the page wider (one row of them needed about 1050 px).
+        self.controls = make_flow_container(
+            self.step_through_button, self.previous_button, self.next_button, self.show_all_button,
+            self.copy_button, self.hex_toggle, self.step_label, self.previous_page_button,
+            self.next_page_button,
+        )
 
         self.empty_label = QLabel("No calculation steps yet.")
         self.empty_label.setWordWrap(True)
@@ -331,7 +350,7 @@ class TraceViewer(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addLayout(controls)
+        layout.addWidget(self.controls)
         layout.addWidget(self.empty_label)
         layout.addWidget(self.scroll, 1)
 

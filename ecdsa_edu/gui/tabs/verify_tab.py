@@ -35,9 +35,12 @@ from ecdsa_edu.gui.tabs.p4_widgets import (
 from ecdsa_edu.gui.app_state import DEFAULT_HASH
 from ecdsa_edu.gui.widgets.file_limits import FILE_LIMIT_TEXT, file_size_problem, format_size
 from ecdsa_edu.gui.widgets.worker import run_in_background
+from ecdsa_edu.gui.widgets.wrap import soft_wrap
 from ecdsa_edu.gui.widgets.cards import Card, make_page_header
 
 __all__ = ["VerifyTab"]
+
+WIDE_LAYOUT_WIDTH = 980  # from this page width on, inputs and result sit side by side
 
 # Item data for the source combos.
 CURRENT, PASTE, FILE = "current", "paste", "file"
@@ -92,6 +95,7 @@ class VerifyTab(QWidget):
         self.key_hex.setPlaceholderText("02… or 03… (compressed) or 04… (uncompressed)")
         self.key_status = QLabel()
         self.key_status.setWordWrap(True)
+        self.key_status.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.key_go = QPushButton("Make a key →")
         self.key_go.setProperty("primary", True)
         self.key_go.clicked.connect(lambda *_: go_to(self, self.state, "Keys"))
@@ -115,6 +119,7 @@ class VerifyTab(QWidget):
         self.sig_text.setPlaceholderText("r, s   for example: 7, 17   (or the hex / DER from the Sign page)")
         self.sig_status = QLabel()
         self.sig_status.setWordWrap(True)
+        self.sig_status.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.sig_go = QPushButton("Sign something on the Sign page")
         self.sig_go.clicked.connect(lambda *_: go_to(self, self.state, "Sign"))
         sig_box = Card("Signature (r, s)", "periwinkle", "3")
@@ -184,13 +189,21 @@ class VerifyTab(QWidget):
         self.result_card.body.addWidget(self.banner)
         self.result_card.body.addWidget(self.tamper_button)
         self.result_card.body.addWidget(self.show_math)
-        self.result_card.body.addWidget(self.trace_view, 1)
         self.result_card.body.addStretch()
         self.columns.addWidget(self.result_card, 2)
-        page.addLayout(self.columns, 1)
+        page.addLayout(self.columns)
+        # The steps get the full page width below the inputs: a trace inside the
+        # narrow Result column used to force the page sideways.
+        self.trace_card = Card("How the signature was checked", "white")
+        self.trace_card.body.addWidget(self.trace_view)
+        self.trace_view.show()
+        self.trace_card.hide()
+        page.addWidget(self.trace_card)
+        page.addStretch(1)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(content)
+        self.page_scroll = scroll
         if hasattr(self.trace_view, "use_page_scrolling"):
             self.trace_view.use_page_scrolling(scroll)
         outer = QVBoxLayout(self)
@@ -210,7 +223,8 @@ class VerifyTab(QWidget):
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
         if hasattr(self, "columns"):
-            wide = self.window().width() >= 1100
+            # Decide on the page's own width: the window also holds the sidebar.
+            wide = self.width() >= WIDE_LAYOUT_WIDTH
             direction = QBoxLayout.Direction.LeftToRight if wide else QBoxLayout.Direction.TopToBottom
             self.columns.setDirection(direction)
             self.inputs.setDirection(direction)
@@ -231,10 +245,16 @@ class VerifyTab(QWidget):
         self._refresh_key_status()
         self._on_new_signature()
 
+    def _set_key_status(self, text: str) -> None:
+        self.key_status.setText(soft_wrap(text))  # long hex keys wrap inside the card
+
+    def _set_sig_status(self, text: str) -> None:
+        self.sig_status.setText(soft_wrap(text))
+
     def _toggle_trace(self, visible: bool) -> None:
         """Show the recorded verification steps only when requested."""
         self.show_math.setText("Hide calculations" if visible else "Show calculations")
-        self.trace_view.setVisible(visible)
+        self.trace_card.setVisible(visible)
 
     # ------------------------------------------------------------ inputs
     def _on_message_edited(self) -> None:
@@ -309,16 +329,16 @@ class VerifyTab(QWidget):
         self.key_go.setVisible(False)
         if source == CURRENT:
             if pub is None:
-                self.key_status.setText("You don't have a key yet.")
+                self._set_key_status("You don't have a key yet.")
                 self.key_go.setVisible(True)
             else:
-                self.key_status.setText(f"Using your public key Q = {fmt_point(pub.Q, curve)}")
+                self._set_key_status(f"Using your public key Q = {fmt_point(pub.Q, curve)}")
         elif source == FILE:
-            self.key_status.setText(
+            self._set_key_status(
                 f"Loaded key Q = {fmt_point(self._loaded_pub.Q, curve)} on {self._loaded_pub.curve.name}"
                 if self._loaded_pub else "No key file loaded.")
         else:
-            self.key_status.setText("Paste the public key exactly as the Keys page shows it.")
+            self._set_key_status("Paste the public key exactly as the Keys page shows it.")
 
     def _sig_source_chosen(self, *_: Any) -> None:
         if self.sig_source.currentData() == FILE:
@@ -332,16 +352,16 @@ class VerifyTab(QWidget):
         sig = getattr(self.state, "last_sig", None)
         if source == CURRENT:
             if sig is None:
-                self.sig_status.setText("You haven't signed anything yet.")
+                self._set_sig_status("You haven't signed anything yet.")
                 self.sig_go.setVisible(True)
             else:
                 curve = getattr(self.state, "curve", None)
-                self.sig_status.setText(f"Using your last signature: r = {fmt_number(sig.r, curve)}, "
+                self._set_sig_status(f"Using your last signature: r = {fmt_number(sig.r, curve)}, "
                                         f"s = {fmt_number(sig.s, curve)}")
         elif source == FILE:
-            self.sig_status.setText("Signature loaded from file." if self._loaded_sig_text else "")
+            self._set_sig_status("Signature loaded from file." if self._loaded_sig_text else "")
         else:
-            self.sig_status.setText("Type r, s (two numbers), or paste the hex or DER from the Sign page.")
+            self._set_sig_status("Type r, s (two numbers), or paste the hex or DER from the Sign page.")
 
     def _load_sig_file(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Load a signature")
