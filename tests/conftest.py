@@ -14,7 +14,7 @@ def _isolated_settings(tmp_path):
     window size of one test (or of your own use of the app) never leaks into another."""
     QSettings.setDefaultFormat(QSettings.Format.IniFormat)
     QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, str(tmp_path / "settings"))
-    # QSettings("ECDSA Lab", "ECDSA Lab") (used by the Start here page) uses the native format.
+    # Nothing should use the native format (the registry on Windows), but isolate it too.
     QSettings.setPath(QSettings.Format.NativeFormat, QSettings.Scope.UserScope, str(tmp_path / "native"))
     yield
 

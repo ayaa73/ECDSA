@@ -43,8 +43,13 @@ NAVY, GREEN, RED, GOLD, GREY = "#282027", "#347754", "#b33b47", "#c89c36", "#756
 
 
 def settings() -> QSettings:
-    """App-wide settings (same names P2 uses for the rest of the app)."""
-    return QSettings("ECDSA Lab", "ECDSA Lab")
+    """The app's own settings file (the same store as the rest of the app).
+
+    QSettings("ECDSA Lab", "ECDSA Lab") would use the Windows registry instead,
+    a second place the main window and the tests could not see.
+    """
+    from ecdsa_edu.gui.app_state import make_settings
+    return make_settings()
 
 
 # ====================================================================== story
