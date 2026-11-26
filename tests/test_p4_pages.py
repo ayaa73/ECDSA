@@ -28,7 +28,7 @@ def signed_state(state):
     from ecdsa_edu.core.sign import sign
     priv, pub = generate_keypair(state.curve)
     state.set_keys(priv, pub)
-    state.set_signature(sign(priv, b"Hello Bob"), b"Hello Bob")
+    state.set_signature(sign(priv, b"Hello Bob", "sha512"), b"Hello Bob", "sha512")  # as the Sign page does
     return state
 
 

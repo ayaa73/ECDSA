@@ -4,7 +4,7 @@ One ``AppState`` object is created at start-up and handed to every page. Pages
 read the current curve / keys / last signature from it and listen to its
 signals, so they never need to know about each other.
 
-Contract attributes:  .curve  .priv  .pub  .last_sig  .last_msg
+Contract attributes:  .curve  .priv  .pub  .last_sig  .last_msg  .last_hash
 Contract signals:     curveChanged(Curve)  keysChanged()  signatureChanged()
                       pageRequested(str)
 
@@ -12,7 +12,7 @@ How to change the state:
 
     state.set_curve(curve)            # or: state.curve = curve
     state.set_keys(priv, pub)         # sets both, emits keysChanged once
-    state.set_signature(sig, msg)     # sets both, emits signatureChanged once
+    state.set_signature(sig, msg, "sha512")  # also the hash it used; one signatureChanged
     state.go_to("Keys")               # ask the main window to show another page
 
 Plain assignment to .priv / .pub / .last_sig / .last_msg also works, but then
@@ -36,9 +36,10 @@ from ecdsa_edu.core.types import PrivateKey, PublicKey, Signature
 if TYPE_CHECKING:
     from ecdsa_edu.core.curve import Curve
 
-__all__ = ["AppState", "DEFAULT_CURVE", "PAGE_TITLES"]
+__all__ = ["AppState", "DEFAULT_CURVE", "DEFAULT_HASH", "PAGE_TITLES"]
 
 DEFAULT_CURVE = "toy-17"  # small numbers first: best for teaching
+DEFAULT_HASH = "sha512"  # used by Sign and preselected by Verify
 
 # The page titles go_to() understands (the sidebar entries in main_window.py).
 PAGE_TITLES = (
@@ -102,6 +103,7 @@ class AppState(QObject):
         self.pub: PublicKey | None = None
         self.last_sig: Signature | None = None
         self.last_msg: bytes | None = None
+        self.last_hash: str = DEFAULT_HASH  # the hash the last signature was made with
         # In words, what the last curve change cleared ("keys and signature"),
         # so the main window can tell the user. Empty when nothing was cleared.
         self.cleared_by_last_curve_change = ""
@@ -187,7 +189,8 @@ class AppState(QObject):
         self.set_keys(None, None)
 
     # -------------------------------------------------------- signature
-    def set_signature(self, sig: Signature | None, msg: bytes | None) -> None:
-        """Remember the most recent signature and the message it signs."""
+    def set_signature(self, sig: Signature | None, msg: bytes | None, hash_name: str | None = None) -> None:
+        """Remember the most recent signature, the message it signs and the hash it used."""
         self.last_sig, self.last_msg = sig, msg
+        self.last_hash = hash_name or DEFAULT_HASH
         self.signatureChanged.emit()

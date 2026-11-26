@@ -138,3 +138,25 @@ def test_sign_file_and_trace(tmp_path):
 def test_low_s_normalization_is_explicit():
     assert normalize_low_s(Signature(7, 17), 19) == Signature(7, 2)
     assert normalize_low_s(Signature(7, 2), 19) == Signature(7, 2)
+
+
+@pytest.mark.parametrize("curve_name", ["toy-17", "toy-97", "secp256k1", "P-256"])
+def test_sha512_sign_then_verify_on_every_builtin_curve(curve_name, tmp_path):
+    """SHA-512 is the app's default hash. Its 512-bit digest is cut to n's bit
+    length (5 bits on toy-17, 7 on toy-97, 256 on the real curves)."""
+    curve = get_curve(curve_name)
+    priv = PrivateKey(min(12345, curve.n - 1), curve)
+    pub = public_from_private(priv)
+    trace: list = []
+    hash_message(b"Hello, ECDSA!", curve, "sha512", trace)
+    cut = next(step for step in trace if "removed_bits" in step.values)
+    assert int(cut.values["removed_bits"]) == 512 - curve.n.bit_length()
+
+    sig = sign(priv, b"Hello, ECDSA!", "sha512")
+    assert verify(pub, b"Hello, ECDSA!", sig, "sha512")
+    assert not verify(pub, b"Hello, ECDSA?", sig, "sha512")  # tampered message
+
+    path = tmp_path / "data.bin"
+    path.write_bytes(bytes(range(256)) * 100)
+    file_sig = sign_file(priv, path, "sha512")
+    assert verify_file(pub, path, file_sig, "sha512")

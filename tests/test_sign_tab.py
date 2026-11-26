@@ -68,6 +68,8 @@ def test_advanced_options_expose_nonce_and_encoding_controls(qtbot):
     tab.manual_radio.click()
     tab.manual_k_field.setText("10")
     tab.message_edit.setPlainText("hello")
+    # the hand-checked toy-17 example (d = 7, k = 10) uses SHA-256, not the default SHA-512
+    tab.hash_combo.setCurrentIndex(tab.hash_combo.findData("sha256"))
     tab.sign_button.click()
     _wait_idle(qtbot, tab)
     assert (state.last_sig.r, state.last_sig.s) == (7, 13)

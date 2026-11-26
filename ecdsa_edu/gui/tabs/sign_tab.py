@@ -31,9 +31,11 @@ from ecdsa_edu.core.sig_encoding import sig_to_der, sig_to_hex
 from ecdsa_edu.core.sign import sign, sign_file
 from ecdsa_edu.core.trace import TraceStep
 from ecdsa_edu.core.types import PrivateKey, Signature
+from ecdsa_edu.gui.app_state import DEFAULT_HASH
 from ecdsa_edu.gui.tabs.keys_tab import set_message
 from ecdsa_edu.gui.tabs.p4_widgets import go_to, make_trace_view
 from ecdsa_edu.gui.widgets.bigint_field import BigIntField
+from ecdsa_edu.gui.widgets.file_limits import FILE_LIMIT_TEXT, file_size_problem, format_size
 from ecdsa_edu.gui.widgets.hex_field import HexOutputField
 from ecdsa_edu.gui.widgets.worker import run_in_background
 
@@ -128,6 +130,7 @@ class SignTab(QWidget):
         self._file_path: str | None = None
         self._busy = False
         self._job_priv: PrivateKey | None = None
+        self._job_hash = DEFAULT_HASH
         self._last_signature: Signature | None = None
         self._last_trace: list[TraceStep] = []
 
@@ -160,22 +163,26 @@ class SignTab(QWidget):
         self.file_label = QLabel("Using the typed message")
         self.file_label.setWordWrap(True)
         self.choose_file_button = QPushButton("Choose file…")
+        self.file_limit_label = QLabel(FILE_LIMIT_TEXT)
+        self.file_limit_label.setProperty("muted", True)
         self.use_text_button = QPushButton("Use typed message")
         self.use_text_button.setEnabled(False)
         file_row = QHBoxLayout()
         file_row.addWidget(self.choose_file_button)
+        file_row.addWidget(self.file_limit_label)
         file_row.addWidget(self.use_text_button)
         file_row.addWidget(self.file_label, 1)
 
         self.hash_combo = _ModernComboBox()
         self.hash_combo.setObjectName("modernCombo")
         for label, name in (
-            ("SHA-256 (recommended)", "sha256"),
+            ("SHA-512 (recommended)", "sha512"),
             ("SHA-384", "sha384"),
-            ("SHA-512", "sha512"),
+            ("SHA-256", "sha256"),
             ("SHA-1 (insecure; comparison only)", "sha1"),
         ):
             self.hash_combo.addItem(label, name)
+        self.hash_combo.setCurrentIndex(self.hash_combo.findData(DEFAULT_HASH))
 
         self.deterministic_radio = QRadioButton("Deterministic (RFC 6979)")
         self.random_radio = QRadioButton("Random")
@@ -333,8 +340,12 @@ class SignTab(QWidget):
         path, _ = QFileDialog.getOpenFileName(self, "Choose a file to sign", "", "All files (*)")
         if not path:
             return
+        problem = file_size_problem(path)
+        if problem:  # keep whatever was selected before
+            set_message(self.status, f"{Path(path).name}: {problem}", "error")
+            return
         self._file_path = path
-        self.file_label.setText(f"File: {Path(path).name}")
+        self.file_label.setText(f"File: {Path(path).name} ({format_size(Path(path).stat().st_size)})")
         self.file_label.setToolTip(path)
         self.message_edit.setEnabled(False)
         self.use_text_button.setEnabled(True)
@@ -390,9 +401,10 @@ class SignTab(QWidget):
             return
 
         message = self.message_edit.toPlainText().encode("utf-8")
-        hash_name = str(self.hash_combo.currentData() or "sha256")
+        hash_name = str(self.hash_combo.currentData() or DEFAULT_HASH)
         self._busy = True
         self._job_priv = priv
+        self._job_hash = hash_name
         self.sign_button.setEnabled(False)
         set_message(self.status, "Signing…", "info")
         run_in_background(
@@ -418,12 +430,12 @@ class SignTab(QWidget):
 
         self._last_signature = sig
         self._last_trace = _hide_private_values(trace)
-        self.state.set_signature(sig, remembered_message)
+        self.state.set_signature(sig, remembered_message, self._job_hash)
         self._show_result()
         target = f"file {Path(self._file_path).name}" if self._file_path else "message"
-        hash_name = str(self.hash_combo.currentData() or "sha256").upper().replace("SHA", "SHA-")
+        hash_name = self._job_hash.upper().replace("SHA", "SHA-")
         note = f"Signature created for the {target} with {hash_name}."
-        if self.hash_combo.currentData() == "sha1":
+        if self._job_hash == "sha1":
             note += " SHA-1 is insecure and is included only for comparison."
         set_message(self.status, note, "ok")
 

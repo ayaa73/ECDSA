@@ -13,6 +13,7 @@ No math here: everything comes from core.verify / core.key_io and the trace.
 """
 from __future__ import annotations
 
+import html
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +32,8 @@ from ecdsa_edu.gui.tabs.p4_logic import fmt_number, fmt_point, parse_signature_t
 from ecdsa_edu.gui.tabs.p4_widgets import (
     ResultBanner, explanation, go_to, heading, make_trace_view,
 )
+from ecdsa_edu.gui.app_state import DEFAULT_HASH
+from ecdsa_edu.gui.widgets.file_limits import FILE_LIMIT_TEXT, file_size_problem, format_size
 from ecdsa_edu.gui.widgets.worker import run_in_background
 from ecdsa_edu.gui.widgets.cards import Card, make_page_header
 
@@ -64,11 +67,14 @@ class VerifyTab(QWidget):
         self.msg_edit.textChanged.connect(self._on_message_edited)
         self.file_button = QPushButton("Use a file instead…")
         self.file_button.clicked.connect(self._choose_file)
+        self.file_limit_label = QLabel(FILE_LIMIT_TEXT)
+        self.file_limit_label.setProperty("muted", True)
         self.file_label = QLabel()
+        self.file_label.setWordWrap(True)
         self.file_clear = QPushButton("Back to text")
         self.file_clear.clicked.connect(self._clear_file)
         file_row = QHBoxLayout()
-        for w in (self.file_button, self.file_label, self.file_clear):
+        for w in (self.file_button, self.file_limit_label, self.file_label, self.file_clear):
             file_row.addWidget(w)
         file_row.addStretch(1)
         msg_box = Card("The message", "periwinkle", "1")
@@ -121,8 +127,15 @@ class VerifyTab(QWidget):
         # ---- options
         self.hash_combo = QComboBox()
         for name in HASHES:
-            self.hash_combo.addItem(name.upper() + ("  (insecure, for comparison only)" if name == "sha1" else ""),
-                                    name)
+            label = name.upper().replace("SHA", "SHA-")
+            if name == DEFAULT_HASH:
+                label += " (recommended)"
+            elif name == "sha1":
+                label += " (insecure; comparison only)"
+            self.hash_combo.addItem(label, name)
+        self.hash_combo.setCurrentIndex(self.hash_combo.findData(DEFAULT_HASH))
+        self.hash_combo.setToolTip("Must be the same hash that was used to sign. Your last signature's hash is "
+                                   "chosen for you.")
         self.options_box = QGroupBox("Options")
         opt = QFormLayout(self.options_box)
         opt.addRow("Hash used when signing:", self.hash_combo)
@@ -234,12 +247,19 @@ class VerifyTab(QWidget):
         self.msg_edit.blockSignals(False)
 
     def _choose_file(self, *_: Any) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "Choose the file that was signed")
-        if path:
-            self._file_path = Path(path)
-            self.file_label.setText(f"File: <b>{self._file_path.name}</b>")
-            self.msg_edit.setEnabled(False)
-            self.file_clear.setVisible(True)
+        path, _ = QFileDialog.getOpenFileName(self, "Choose the file that was signed", "", "All files (*)")
+        if not path:
+            return
+        problem = file_size_problem(path)
+        if problem:  # keep whatever was selected before
+            self.banner.show_message("bad", "File too large" if "limit" in problem else "Could not use the file",
+                                     f"{Path(path).name}: {problem}")
+            return
+        self._file_path = Path(path)
+        self.file_label.setText(f"File: <b>{html.escape(self._file_path.name)}</b> "
+                                f"({format_size(self._file_path.stat().st_size)})")
+        self.msg_edit.setEnabled(False)
+        self.file_clear.setVisible(True)
 
     def _clear_file(self, *_: Any) -> None:
         self._file_path = None
@@ -253,6 +273,11 @@ class VerifyTab(QWidget):
         if last_msg is not None and (self._autofilled or not self.msg_edit.toPlainText()):
             self._set_message(last_msg.decode("utf-8", errors="replace"))
             self._autofilled = True
+        if getattr(self.state, "last_sig", None) is not None:
+            # Verify with the hash the signature was made with.
+            index = self.hash_combo.findData(getattr(self.state, "last_hash", DEFAULT_HASH))
+            if index >= 0:
+                self.hash_combo.setCurrentIndex(index)
         self._on_sig_source()
 
     def _key_source_chosen(self, *_: Any) -> None:
@@ -374,7 +399,7 @@ class VerifyTab(QWidget):
 
         message: Any = self._file_path if self._file_path is not None else \
             self.msg_edit.toPlainText().encode("utf-8")
-        return pub, message, sig, self.hash_combo.currentData() or "sha256"
+        return pub, message, sig, self.hash_combo.currentData() or DEFAULT_HASH
 
     def run_verify(self, *_: Any) -> None:
         if self._busy:
