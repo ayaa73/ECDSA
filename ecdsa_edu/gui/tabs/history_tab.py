@@ -13,7 +13,7 @@ from __future__ import annotations
 import html
 from typing import Any
 
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QKeySequence, QPainter, QPen, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox, QGroupBox, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
@@ -59,30 +59,43 @@ class TimelineStrip(QWidget):
                 self.clicked.emit(i)
                 return
 
+    def changeEvent(self, event: QEvent) -> None:  # noqa: N802
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.ApplicationPaletteChange):
+            self.update()
+        super().changeEvent(event)
+
     def paintEvent(self, event: Any) -> None:  # noqa: N802
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        palette = self.palette()
+        foreground = palette.windowText().color()
+        background = palette.window().color()
+        track = QColor(foreground)
+        track.setAlphaF(0.5)
         y = 55.0
         if self.items:
-            p.setPen(QPen(QColor("#9aa7b8"), 3))
+            p.setPen(QPen(track, 2))
             p.drawLine(QPointF(self._x(0) - 20, y), QPointF(self._x(len(self.items) - 1) + 20, y))
         small = QFont(self.font())
-        small.setPointSizeF(max(8.0, small.pointSizeF() - 1))
+        small.setPointSizeF(max(9.0, small.pointSizeF() - 1))
         bold = QFont(self.font())
         bold.setBold(True)
         for i, m in enumerate(self.items):
             x = self._x(i)
             cat = CATEGORIES[m.category]
-            radius = 11
-            p.setPen(QPen(QColor("#141414"), 3 if i == self.selected else 2))
+            center = QPointF(x, y)
+            if i == self.selected:
+                p.setPen(QPen(foreground, 2))
+                p.setBrush(background)
+                p.drawEllipse(center, 15, 15)
+            p.setPen(QPen(background, 2))
             p.setBrush(QColor(cat.color))
-            p.drawEllipse(QPointF(x, y), radius, radius)
-            p.setPen(QColor("#1f2a44"))
+            p.drawEllipse(center, 11, 11)
+            p.setPen(foreground)
             p.setFont(bold)
             p.drawText(QRectF(x - 40, 15, 80, 20), Qt.AlignmentFlag.AlignCenter, str(m.year))
             p.setFont(small)
-            p.setPen(QColor("#141414"))
-            p.drawText(QRectF(x - SPACING / 2, 72, SPACING, 40),
+            p.drawText(QRectF(x - SPACING / 2, 76, SPACING, 40),
                        Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap,
                        cat.label)
         p.end()
