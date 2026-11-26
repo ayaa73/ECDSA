@@ -179,6 +179,8 @@ class NoncePage(LearnPage):
 
     def _show(self) -> None:
         st = self.st
+        rfc = st["k_source"] == "rfc6979"
+        self.rfc_button.setEnabled(not rfc)
         try:
             _sign_with_k(st)
         except ValueError:
@@ -192,8 +194,6 @@ class NoncePage(LearnPage):
             self.k_box.blockSignals(True)
             self.k_box.setValue(st.k)
             self.k_box.blockSignals(False)
-        rfc = st["k_source"] == "rfc6979"
-        self.rfc_button.setEnabled(not rfc)
         self.k_note.setText("" if rfc else
                             "<i>You chose this k yourself. Real signing uses the RFC 6979 k: press "
                             "\"Back to the RFC 6979 k\".</i>")
