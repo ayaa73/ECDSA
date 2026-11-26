@@ -263,13 +263,13 @@ class ActivityChart(QWidget):
     def paintEvent(self, event):  # noqa: N802
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        palette = ("#F4C6C6", "#CFC8F7", "#BFE8D6")
+        palette = ("#BF6A90", "#8C2F5E", "#5F1E45") if current_theme() == "light" else ("#986B70", "#817BA6", "#70998B")
         for index, value in enumerate(self.values):
             x = 10 + index * 24
             height = 25 + value * 18
             rect = QRectF(x, self.height() - height - 10, 16, height)
             painter.setBrush(QColor(palette[value]))
-            painter.setPen(QPen(QColor("#141414"), 2) if index == len(self.values)-1 else Qt.PenStyle.NoPen)
+            painter.setPen(QPen(QColor(theme_colors(current_theme())["text"]), 2) if index == len(self.values)-1 else Qt.PenStyle.NoPen)
             painter.drawRoundedRect(rect, 8, 8)
 
 

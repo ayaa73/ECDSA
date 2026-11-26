@@ -81,14 +81,14 @@ THEMES["dark"].update(dict(window="#111113", panel="#29292E", text="#F6F3F1", mu
     surface="#17171A", rail="#202024", pink="#986B70", peach="#A18367",
     lavender="#817BA6", mint="#70998B", pastel_text="#111111"))
 
-# The dashboard uses saturated, flat colour blocks on a warm cream canvas.
-THEMES["light"].update(dict(window="#F6F0E4", surface="#FBF7EF", panel="#FBF7EF", rail="#111111",
-    sidebar="#111111", sidebar_text="#BDBDBD", sidebar_hover="#1F1F1F", sidebar_selected="#1F1F1F",
-    sidebar_selected_text="#FFFFFF", text="#141414", heading="#141414", muted="#706A5F", border="#E7DFD0",
-    toolbar="#FBF7EF", toolbar_text="#141414", status="#FBF7EF", input="#FFFFFF", input_readonly="#F1EBDD",
-    hover="#EFE7D8", pressed="#E6D9C9", accent="#111111", accent_hover="#333333", accent_text="#FFFFFF",
-    yellow="#F4D35E", pink="#F5A8D0", olive="#A7B26A", periwinkle="#9FB3F2", peach="#F7C59F", lilac="#CDB8F2",
-    lavender="#9FB3F2", mint="#A7B26A", pastel_text="#141414", ok="#57672B", error="#B3261E", warning="#765900"))
+# Bordeaux-to-Plum: quiet surfaces, one dark anchor, and restrained accents.
+THEMES["light"].update(dict(window="#F5E4EC", surface="#FCF9FB", panel="#FFFFFF", rail="#3A1230",
+    sidebar="#3A1230", sidebar_text="#F5E4EC", sidebar_hover="#5F1E45", sidebar_selected="#5F1E45",
+    sidebar_selected_text="#FFFFFF", text="#3A1230", heading="#3A1230", muted="#715F6B", border="#E8D8E1",
+    toolbar="#FCF9FB", toolbar_text="#3A1230", status="#FCF9FB", input="#FFFFFF", input_readonly="#F8F1F5",
+    hover="#F5E4EC", pressed="#EED5E1", accent="#5F1E45", accent_hover="#8C2F5E", accent_text="#FFFFFF",
+    yellow="#F5E4EC", pink="#F1DCE7", olive="#F4E8EE", periwinkle="#EBD4E0", peach="#F8EDF2", lilac="#EEDBE6",
+    lavender="#EBD4E0", mint="#F2E8EE", pastel_text="#3A1230", ok="#446B58", error="#A53E55", warning="#8C2F5E"))
 THEMES["dark"].update(dict(window="#121212", surface="#1B1B1B", panel="#252525", rail="#000000", sidebar="#000000",
     sidebar_text="#BDBDBD", sidebar_selected="#242424", sidebar_selected_text="#FFFFFF", border="#3A3A3A",
     yellow="#DFC054", pink="#DD98BA", olive="#98A262", periwinkle="#90A2DB", peach="#DEB08E", lilac="#B8A5DB",
@@ -173,20 +173,20 @@ QProgressBar::chunk {{ background: {accent}; border-radius: 4px; }}
 
 /* Pastel dashboard components. Properties keep page widgets theme-aware. */
 QWidget#appSurface, QStackedWidget, QScrollArea, QScrollArea > QWidget > QWidget {{ background: {surface}; border: none; }}
-QWidget#appSurface {{ border: 1px solid {text}; border-radius: 26px; }}
+QWidget#appSurface {{ border: 1px solid {border}; border-radius: 26px; }}
 QWidget#appSurface > QWidget {{ border: none; }}
 QWidget#sidePanel {{ background: {hover}; border-radius: 24px; }}
 QWidget#sidePanel QLabel {{ background: transparent; }}
 QWidget#sidePanel QLabel#activityCard {{ background: {panel}; border-radius: 20px; padding: 16px; }}
 QWidget#rail {{ background: {rail}; border-radius: 24px; }}
 QWidget#sidebar {{ background: {rail}; }}
-QLabel#railLogo {{ color: white; background: transparent; font-size: 20px; font-weight: 500; padding: 12px 0; }}
+QLabel#railLogo {{ color: {sidebar_text}; background: transparent; font-size: 20px; font-weight: 500; padding: 12px 0; }}
 QPushButton[nav="true"] {{ background: transparent; color: {sidebar_text}; text-align: left; border: none; border-radius: 12px; padding: 5px 10px; }}
-QPushButton[nav="true"]:hover {{ background: #1F1F1F; color: white; }}
-QPushButton[nav="true"]:checked {{ background: #292323; color: white; }}
+QPushButton[nav="true"]:hover {{ background: {sidebar_hover}; color: {sidebar_selected_text}; }}
+QPushButton[nav="true"]:checked {{ background: {sidebar_selected}; color: {sidebar_selected_text}; }}
 QToolBar {{ background: {surface}; border: none; }}
 QListWidget#sidebar {{ background: {rail}; border-radius: 24px; padding: 8px; }}
-QListWidget#sidebar::item {{ background: {panel}; border-radius: 22px; padding: 0 11px; margin: 3px 8px; min-height: 44px; }}
+QListWidget#sidebar::item {{ background: transparent; border-radius: 12px; padding: 0 11px; margin: 3px 8px; min-height: 44px; }}
 QListWidget#sidebar::item:selected {{ background: {sidebar_selected}; }}
 QGroupBox {{ background: {panel}; border: none; border-radius: 20px; margin-top: 18px; padding: 20px 16px 16px; }}
 QGroupBox::title {{ subcontrol-origin: margin; left: 16px; padding: 4px; }}
@@ -209,7 +209,7 @@ QFrame[card="pink"] QLabel, QFrame[card="peach"] QLabel, QFrame[card="lavender"]
 QFrame[card="yellow"] QLabel, QFrame[card="olive"] QLabel, QFrame[card="periwinkle"] QLabel, QFrame[card="lilac"] QLabel {{ color: {pastel_text}; background: transparent; }}
 QLabel[cardHeader="true"] {{ font-size: 13px; font-weight: 600; }}
 QLabel[step="true"] {{ background: {accent}; color: {accent_text}; border-radius: 16px; font-weight: 600; }}
-QFrame QLabel[step="true"] {{ background: #111111; color: white; }}
+QFrame QLabel[step="true"] {{ background: {accent}; color: {accent_text}; }}
 QPushButton[chip="true"]:checked {{ background: {accent}; color: {accent_text}; }}
 QLabel[badge="true"] {{ background: {panel}; color: {text}; border-radius: 12px; padding: 4px 10px; }}
 QLabel[heading="hero"] {{ color: {heading}; font-size: 36px; font-weight: 500; }}
@@ -233,7 +233,7 @@ QComboBox::down-arrow {{ image: url(ecdsa_edu/gui/assets/icons/chevron.svg); wid
 QFrame[card="pink"] QComboBox, QFrame[card="peach"] QComboBox, QFrame[card="lavender"] QComboBox, QFrame[card="mint"] QComboBox {{ background: white; color: #141414; }}
 QFrame[card="periwinkle"] QComboBox {{ background: white; color: #141414; }}
 QCheckBox::indicator {{ width: 18px; height: 18px; border: 1px solid {text}; border-radius: 5px; background: {input}; }}
-QCheckBox::indicator:checked {{ background: #111111; border-color: #111111; image: url(ecdsa_edu/gui/assets/icons/check.svg); }}
+QCheckBox::indicator:checked {{ background: {accent}; border-color: {accent}; image: url(ecdsa_edu/gui/assets/icons/check.svg); }}
 QRadioButton::indicator {{ width: 16px; height: 16px; border: 1px solid {text}; border-radius: 8px; background: {input}; }}
 QRadioButton::indicator:checked {{ background: {accent}; border: 4px solid {input}; }}
 QToolTip, QMenu {{ background: {panel}; color: {text}; border: 1px solid {border}; border-radius: 12px; padding: 6px; }}

@@ -46,14 +46,14 @@ class _KeyPicture(QWidget):
 
             painter.save()
             painter.translate(0, 6)
-            painter.fillPath(key, QColor("#d7c4a1"))
+            painter.fillPath(key, QColor("#BF6A90"))
             painter.restore()
-            brass = QLinearGradient(26, 3, 120, 111)
-            brass.setColorAt(0, QColor("#f9dd9d"))
-            brass.setColorAt(0.5, QColor("#ddb46e"))
-            brass.setColorAt(1, QColor("#b5833f"))
-            painter.setPen(QPen(QColor("#a77a3f"), 1.25))
-            painter.setBrush(brass)
+            plum = QLinearGradient(26, 3, 120, 111)
+            plum.setColorAt(0, QColor("#BF6A90"))
+            plum.setColorAt(0.5, QColor("#8C2F5E"))
+            plum.setColorAt(1, QColor("#5F1E45"))
+            painter.setPen(QPen(QColor("#3A1230"), 1.25))
+            painter.setBrush(plum)
             painter.drawPath(key)
 
 
@@ -88,8 +88,8 @@ class _BasePointPicture(QWidget):
     def paintEvent(self, event) -> None:
         with QPainter(self) as painter:
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            painter.setPen(QPen(QColor("#ccd7ef"), 1))
-            painter.setBrush(QColor("#eef3ff"))
+            painter.setPen(QPen(QColor("#BF6A90"), 1))
+            painter.setBrush(QColor("#F5E4EC"))
             painter.drawRoundedRect(QRectF(0.5, 0.5, 88, 70), 8, 8)
             for x in (17, 35, 53, 71):
                 painter.drawLine(x, 9, x, 62)
@@ -99,14 +99,14 @@ class _BasePointPicture(QWidget):
                 return
             end = self._curve.p - 1
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QColor("#9caed4"))
+            painter.setBrush(QColor("#BF6A90"))
             for x, y in self._points:
                 painter.drawEllipse(QPointF(10 + 69 * x / end, 61 - 51 * y / end), 1.7, 1.7)
             x, y = self._curve.G
             center = QPointF(10 + 69 * x / end, 61 - 51 * y / end) if self._points else QPointF(44, 34)
-            painter.setBrush(QColor("#c4d2fa"))
+            painter.setBrush(QColor("#BF6A90"))
             painter.drawEllipse(center, 7, 7)
-            painter.setBrush(QColor("#3854a0"))
+            painter.setBrush(QColor("#5F1E45"))
             painter.drawEllipse(center, 3.6, 3.6)
 
 
@@ -120,10 +120,10 @@ class _PublicKeyPicture(QWidget):
     def paintEvent(self, event) -> None:
         with QPainter(self) as painter:
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            pen = QPen(QColor("#324d86"), 1.5)
+            pen = QPen(QColor("#5F1E45"), 1.5)
             pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             painter.setPen(pen)
-            painter.setBrush(QColor("#e0e9ff"))
+            painter.setBrush(QColor("#F5E4EC"))
             horn = QPainterPath(QPointF(11, 16))
             horn.lineTo(31, 8)
             horn.lineTo(31, 29)
@@ -148,7 +148,7 @@ class _InputArrows(QWidget):
     def paintEvent(self, event) -> None:
         with QPainter(self) as painter:
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            pen = QPen(QColor("#324d86"), 1.65)
+            pen = QPen(QColor("#5F1E45"), 1.65)
             pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             painter.setPen(pen)
             x, y = self.width() - 4, self.height() / 2

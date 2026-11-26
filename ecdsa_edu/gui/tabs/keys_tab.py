@@ -191,7 +191,6 @@ class KeysTab(QWidget):
         buttons.addWidget(self.btn_generate)
         buttons.addWidget(self.btn_derive)
         buttons.addWidget(self.hide_check)
-        self.hide_check.setStyleSheet("color: #141414;")
         self.key_diagram = KeyDerivation(
             self.d_field, buttons, self.d_note, self.warning, self.hidden_note, self.d_hint
         )
