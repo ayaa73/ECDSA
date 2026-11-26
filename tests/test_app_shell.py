@@ -433,7 +433,7 @@ def test_go_to_asks_for_a_page(qtbot, state):
         state.go_to("Kitchen")
 
 
-def test_curve_and_mode_are_remembered(qapp, monkeypatch):
+def test_curve_resets_to_toy_and_mode_is_remembered(qapp, monkeypatch):
     monkeypatch.setattr(app_state_module, "_builtin_curves", lambda: dict(BUILTIN))
     first = AppState()
     first.set_curve(K1)
@@ -441,7 +441,7 @@ def test_curve_and_mode_are_remembered(qapp, monkeypatch):
     first.settings.sync()  # write to disk now, as happens when the app closes
 
     second = AppState()  # like starting the app again
-    assert second.curve == K1 and second.mode == "expert"
+    assert second.curve == TOY and second.mode == "expert"
 
 
 def test_bad_or_missing_settings_fall_back_to_defaults(qapp, monkeypatch):

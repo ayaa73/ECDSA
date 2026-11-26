@@ -481,7 +481,10 @@ def test_hex_toggle_and_real_curve(qtbot, tab, state):
     wait_idle(qtbot, tab)
     assert tab.trace_view._panels == []  # details are collapsed; defer the large trace UI
     tab.details_button.click()
-    assert len(tab.trace_view._panels) > 200
+    assert len(tab.trace_view._trace) > 200
+    assert len(tab.trace_view._panels) <= tab.trace_view.PAGE_SIZE
+    tab.trace_view.next_page_button.click()
+    assert tab.trace_view._panels[0].number == tab.trace_view.PAGE_SIZE + 1
     assert tab.d_field.text() == hex(state.priv.d)
     assert len(tab.compressed_field.hex_value()) == 66
     tab.hex_check.setChecked(False)

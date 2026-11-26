@@ -19,7 +19,7 @@ How to change the state:
 Plain assignment to .priv / .pub / .last_sig / .last_msg also works, but then
 the caller must emit the matching signal itself.
 
-Remembered between runs (QSettings): the last built-in curve and the mode.
+Remembered between runs (QSettings): the mode. The curve starts at toy-17.
 The main window also keeps the window size and the "show Start here at
 startup" choice in the same settings object, ``state.settings``.
 
@@ -97,9 +97,9 @@ class AppState(QObject):
         self._builtin: dict[str, Curve] = _builtin_curves()
         self.custom_curves: dict[str, Curve] = {}
 
-        # Starting curve: the one given, else the one used last time, else toy-17.
+        # Start each run with the teaching curve unless one was explicitly supplied.
         if curve is None:
-            curve = self._remembered_curve()
+            curve = self._builtin.get(DEFAULT_CURVE) or next(iter(self._builtin.values()), None)
         self._curve: Curve | None = curve
         if curve is not None and curve.name not in self._builtin:
             self.custom_curves[curve.name] = curve
@@ -118,17 +118,6 @@ class AppState(QObject):
         # In words, what the last curve change cleared ("keys and signature"),
         # so the main window can tell the user. Empty when nothing was cleared.
         self.cleared_by_last_curve_change = ""
-
-    def _remembered_curve(self) -> Curve | None:
-        """The built-in curve saved last time, or toy-17, or None if there are no curves."""
-        if not self._builtin:
-            return None
-        saved_name = self.settings.value(SETTING_CURVE, DEFAULT_CURVE)
-        if saved_name in self._builtin:
-            return self._builtin[saved_name]
-        if DEFAULT_CURVE in self._builtin:
-            return self._builtin[DEFAULT_CURVE]
-        return next(iter(self._builtin.values()))  # the first curve in the registry
 
     # ------------------------------------------------------------ curve
     @property
@@ -162,10 +151,6 @@ class AppState(QObject):
         self._curve = curve
         self.priv = self.pub = None
         self.last_sig = self.last_msg = None
-
-        # Remember built-in curves for next time (custom curves are not saved).
-        if curve.name in self._builtin:
-            self.settings.setValue(SETTING_CURVE, curve.name)
 
         self.curveChanged.emit(curve)
         if had_keys:

@@ -267,6 +267,8 @@ class _StepPanel(QFrame):
 class TraceViewer(QWidget):
     """Expandable and step-by-step display for a list of ``TraceStep`` objects."""
 
+    PAGE_SIZE = 24
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setFont(QFont("Georgia", 10))
@@ -275,6 +277,7 @@ class TraceViewer(QWidget):
         self._panels: list[_StepPanel] = []
         self._step_index: int | None = None
         self._page_scroll: QScrollArea | None = None
+        self._page = 0
 
         self.step_through_button = QPushButton("Step through")
         self.step_through_button.setObjectName("tracePrimaryButton")
@@ -287,6 +290,8 @@ class TraceViewer(QWidget):
         self.hex_toggle.setCheckable(True)
         self.step_label = QLabel("No steps")
         self.step_label.setObjectName("traceStepCount")
+        self.previous_page_button = QPushButton("Earlier steps")
+        self.next_page_button = QPushButton("Later steps")
 
         self.step_through_button.setToolTip("Show one calculation step at a time")
         self.previous_button.setToolTip("Go to the previous calculation step")
@@ -304,6 +309,8 @@ class TraceViewer(QWidget):
         controls.addStretch(1)
         controls.addWidget(self.hex_toggle)
         controls.addWidget(self.step_label)
+        controls.addWidget(self.previous_page_button)
+        controls.addWidget(self.next_page_button)
 
         self.empty_label = QLabel("No calculation steps yet.")
         self.empty_label.setWordWrap(True)
@@ -334,6 +341,8 @@ class TraceViewer(QWidget):
         self.show_all_button.clicked.connect(self.show_all)
         self.copy_button.clicked.connect(self.copy_as_text)
         self.hex_toggle.toggled.connect(self._set_use_hex)
+        self.previous_page_button.clicked.connect(lambda: self._set_page(self._page - 1))
+        self.next_page_button.clicked.connect(lambda: self._set_page(self._page + 1))
         self._update_controls()
 
     def use_page_scrolling(self, page_scroll: QScrollArea) -> None:
@@ -355,8 +364,20 @@ class TraceViewer(QWidget):
         """Replace the displayed calculation with ``trace`` and show all steps."""
         self._trace = list(trace)
         self._step_index = None
+        self._page = 0
+        self._render_page()
+
+    def _set_page(self, page: int) -> None:
+        if page < 0 or page * self.PAGE_SIZE >= len(self._trace):
+            return
+        self._page = page
+        self._step_index = None
+        self._render_page()
+
+    def _render_page(self) -> None:
         self._clear_panels()
-        for number, step in enumerate(self._trace, start=1):
+        start = self._page * self.PAGE_SIZE
+        for number, step in enumerate(self._trace[start:start + self.PAGE_SIZE], start=start + 1):
             panel = _StepPanel(number, step, self.content)
             panel.set_use_hex(self.hex_toggle.isChecked())
             self._panels.append(panel)
@@ -396,7 +417,14 @@ class TraceViewer(QWidget):
 
     def as_text(self) -> str:
         """Return the complete trace as readable plain text."""
-        return "\n\n".join(panel.plain_text() for panel in self._panels)
+        chunks = []
+        for number, step in enumerate(self._trace, start=1):
+            lines = [f"Step {number}: {_teaching_text(step.title)}",
+                     f"Formula: {_teaching_text(step.formula) or '(none)'}"]
+            lines.extend(f"{name}: {_format_value(value, self.hex_toggle.isChecked())}"
+                         for name, value in _safe_values(step))
+            chunks.append("\n".join(lines))
+        return "\n\n".join(chunks)
 
     def copy_as_text(self) -> None:
         """Copy the complete trace and briefly confirm the action."""
@@ -440,7 +468,7 @@ class TraceViewer(QWidget):
             panel.set_use_hex(use_hex)
 
     def _update_controls(self) -> None:
-        has_steps = bool(self._panels)
+        has_steps = bool(self._trace)
         in_step_mode = self._step_index is not None
         self.step_through_button.setEnabled(has_steps)
         self.show_all_button.setEnabled(has_steps and in_step_mode)
@@ -449,12 +477,18 @@ class TraceViewer(QWidget):
         self.next_button.setEnabled(
             in_step_mode and self._step_index is not None and self._step_index < len(self._panels) - 1
         )
+        self.previous_page_button.setVisible(len(self._trace) > self.PAGE_SIZE)
+        self.next_page_button.setVisible(len(self._trace) > self.PAGE_SIZE)
+        self.previous_page_button.setEnabled(self._page > 0)
+        self.next_page_button.setEnabled((self._page + 1) * self.PAGE_SIZE < len(self._trace))
         if not has_steps:
             self.step_label.setText("No steps")
         elif in_step_mode:
             self.step_label.setText(f"Step {self._step_index + 1} of {len(self._panels)}")
         else:
-            self.step_label.setText(f"{len(self._panels)} steps")
+            self.step_label.setText(f"{len(self._trace)} steps" if len(self._trace) <= self.PAGE_SIZE else
+                                    f"Steps {self._page * self.PAGE_SIZE + 1}–"
+                                    f"{min((self._page + 1) * self.PAGE_SIZE, len(self._trace))} of {len(self._trace)}")
 
     def showEvent(self, event) -> None:  # noqa: N802 (Qt naming)
         super().showEvent(event)
