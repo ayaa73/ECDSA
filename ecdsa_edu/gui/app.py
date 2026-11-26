@@ -81,23 +81,23 @@ THEMES["dark"].update(dict(window="#111113", panel="#29292E", text="#F6F3F1", mu
     surface="#17171A", rail="#202024", pink="#986B70", peach="#A18367",
     lavender="#817BA6", mint="#70998B", pastel_text="#111111"))
 
-# Bordeaux-to-Plum: quiet surfaces, one dark anchor, and restrained accents.
-THEMES["light"].update(dict(window="#F5E4EC", surface="#FCF9FB", panel="#FFFFFF", rail="#3A1230",
-    sidebar="#3A1230", sidebar_text="#F5E4EC", sidebar_hover="#5F1E45", sidebar_selected="#5F1E45",
-    sidebar_selected_text="#FFFFFF", text="#3A1230", heading="#3A1230", muted="#715F6B", border="#E8D8E1",
-    toolbar="#FCF9FB", toolbar_text="#3A1230", status="#FCF9FB", input="#FFFFFF", input_readonly="#F8F1F5",
-    hover="#F5E4EC", pressed="#EED5E1", accent="#5F1E45", accent_hover="#8C2F5E", accent_text="#FFFFFF",
-    yellow="#F5E4EC", pink="#F1DCE7", olive="#F4E8EE", periwinkle="#EBD4E0", peach="#F8EDF2", lilac="#EEDBE6",
-    lavender="#EBD4E0", mint="#F2E8EE", pastel_text="#3A1230", ok="#446B58", error="#A53E55", warning="#8C2F5E"))
-THEMES["dark"].update(dict(window="#160F16", surface="#211721", panel="#2B1E2A", rail="#3A1230",
-    sidebar="#3A1230", sidebar_text="#F5E4EC", sidebar_hover="#5F1E45", sidebar_selected="#8C2F5E",
-    sidebar_selected_text="#FFFFFF", text="#F5E4EC", heading="#F9EDF3", muted="#C5ABB9", border="#493244",
-    toolbar="#211721", toolbar_text="#F5E4EC", status="#211721", input="#342633", input_readonly="#2A202A",
-    hover="#3A2938", pressed="#50344A", accent="#BF6A90", accent_hover="#D18BAC", accent_text="#210F1C",
-    disabled="#302730", disabled_text="#A28E9B", ok="#9BC5AB", error="#F0A1AA", info="#C5ABB9",
-    warning="#E2B7C9", invalid="#50303C", yellow="#493043", pink="#4A2E42", olive="#3E303C",
-    periwinkle="#51334B", peach="#44303E", lilac="#483046", lavender="#51334B", mint="#3D303B",
-    pastel_text="#F5E4EC"))
+# Wine-to-Rosewood: quiet surfaces, one dark anchor, and restrained accents.
+THEMES["light"].update(dict(window="#F8E6E9", surface="#FDF9FA", panel="#FFFFFF", rail="#4A1220",
+    sidebar="#4A1220", sidebar_text="#F8E6E9", sidebar_hover="#7A1F35", sidebar_selected="#7A1F35",
+    sidebar_selected_text="#FFFFFF", text="#4A1220", heading="#4A1220", muted="#765F65", border="#EBD8DD",
+    toolbar="#FDF9FA", toolbar_text="#4A1220", status="#FDF9FA", input="#FFFFFF", input_readonly="#FAF1F3",
+    hover="#F8E6E9", pressed="#F2D9DE", accent="#7A1F35", accent_hover="#A63A50", accent_text="#FFFFFF",
+    yellow="#F8E6E9", pink="#F4DFE3", olive="#F6E9EB", periwinkle="#EFD7DD", peach="#FAEFF1", lilac="#F1DEE2",
+    lavender="#EFD7DD", mint="#F5EAEC", pastel_text="#4A1220", ok="#446B58", error="#A63A50", warning="#A63A50"))
+THEMES["dark"].update(dict(window="#1A1013", surface="#24171B", panel="#302025", rail="#4A1220",
+    sidebar="#4A1220", sidebar_text="#F8E6E9", sidebar_hover="#7A1F35", sidebar_selected="#A63A50",
+    sidebar_selected_text="#FFFFFF", text="#F8E6E9", heading="#FFF0F2", muted="#CCAFB6", border="#51343D",
+    toolbar="#24171B", toolbar_text="#F8E6E9", status="#24171B", input="#3A292E", input_readonly="#302329",
+    hover="#432D34", pressed="#5B3842", accent="#D17A88", accent_hover="#E49AA5", accent_text="#2A1018",
+    disabled="#352A2E", disabled_text="#AA9399", ok="#9BC5AB", error="#F0A1AA", info="#CCAFB6",
+    warning="#E8BAC2", invalid="#5B303B", yellow="#51333C", pink="#55333D", olive="#48353B",
+    periwinkle="#5A3742", peach="#4C343B", lilac="#54343F", lavender="#5A3742", mint="#47353A",
+    pastel_text="#F8E6E9"))
 
 # Sign uses pink and lilac; calculation steps use the periwinkle block.
 for colors in THEMES.values():

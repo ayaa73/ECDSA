@@ -263,7 +263,7 @@ class ActivityChart(QWidget):
     def paintEvent(self, event):  # noqa: N802
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        palette = ("#BF6A90", "#8C2F5E", "#5F1E45") if current_theme() == "light" else ("#986B70", "#817BA6", "#70998B")
+        palette = ("#D17A88", "#A63A50", "#7A1F35")
         for index, value in enumerate(self.values):
             x = 10 + index * 24
             height = 25 + value * 18

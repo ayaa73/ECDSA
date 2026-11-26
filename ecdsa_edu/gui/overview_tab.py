@@ -123,10 +123,10 @@ def _theme(palette: QPalette) -> dict[str, QColor]:
         }
     else:
         raw = {
-            "alice": ("#F5E4EC", "#BF6A90"), "bob": ("#F5E4EC", "#8C2F5E"),
-            "shared": ("#F5E4EC", "#5F1E45"), "danger": ("#F5E4EC", "#8C2F5E"),
-            "text": "#3A1230", "muted": "#715F6B", "edge": "#BF6A90", "accent": "#8C2F5E",
-            "popup": "#FCF9FB", "shadow": "#5F1E45",
+            "alice": ("#F8E6E9", "#D17A88"), "bob": ("#F8E6E9", "#A63A50"),
+            "shared": ("#F8E6E9", "#7A1F35"), "danger": ("#F8E6E9", "#A63A50"),
+            "text": "#4A1220", "muted": "#765F65", "edge": "#D17A88", "accent": "#A63A50",
+            "popup": "#FDF9FA", "shadow": "#7A1F35",
         }
     theme: dict[str, QColor] = {}
     for role in ("alice", "bob", "shared", "danger"):
