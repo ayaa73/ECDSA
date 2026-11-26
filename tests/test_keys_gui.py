@@ -357,7 +357,8 @@ def test_worker_passes_a_trace_list_through(qtbot, toy, error_boxes):
 def test_keys_tab_starts_empty(tab, state):
     assert tab.d_field.text() == "" and tab.qx_field.text() == ""
     assert tab.btn_generate.isEnabled() and not tab.btn_derive.isEnabled()
-    assert not tab.btn_save_priv.isEnabled() and not tab.btn_save_pub.isEnabled()
+    assert tab.btn_derive.isHidden() and tab.btn_copy_priv.isHidden() and tab.copy_note.isHidden()
+    assert not tab.btn_save_pub.isEnabled()
     assert "18" in tab.d_hint.text()  # shows the allowed range 1..n-1
 
 
@@ -370,11 +371,17 @@ def test_generate_fills_state_and_view(qtbot, tab, state, toy):
     assert (tab.qx_field.value(), tab.qy_field.value()) == state.pub.Q
     assert tab.compressed_field.hex_value()[:2] in ("02", "03")
     assert tab.uncompressed_field.hex_value().startswith("04")
-    assert tab.btn_save_priv.isEnabled() and tab.btn_save_pub.isEnabled()
+    assert tab.btn_save_pub.isEnabled()
+    # a generated pair already has its Q: no "Compute Q" button, but Copy and the note
+    assert tab.btn_derive.isHidden()
+    assert not tab.btn_copy_priv.isHidden() and not tab.copy_note.isHidden()
+    assert "password manager" in tab.copy_note.text()
 
 
 def test_generate_on_toy17_show_save_and_load_again(qtbot, tab, state, toy, tmp_path, monkeypatch):
-    """The whole story: generate, see the values, Q is on the curve, save, load -> same key."""
+    """The whole story: generate, see the values, Q is on the curve, save the public key,
+    load -> same key. (The private key file is written with the core helper: the page
+    itself never saves a private key.)"""
     assert state.curve == toy
     with qtbot.waitSignal(state.keysChanged, timeout=10_000):  # Sign and Verify listen to this
         tab.btn_generate.click()
@@ -389,10 +396,9 @@ def test_generate_on_toy17_show_save_and_load_again(qtbot, tab, state, toy, tmp_
     # Q is on the curve
     assert is_on_curve(toy, pub.Q)
 
-    # save both keys, wipe, load them back
+    # save the public key with the page, the private key with the core helper; wipe, load back
     priv_path, pub_path = str(tmp_path / "priv.json"), str(tmp_path / "pub.json")
-    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (priv_path, ""))
-    tab.btn_save_priv.click()
+    save_private_key(priv_path, priv)
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (pub_path, ""))
     tab.btn_save_pub.click()
     state.clear_keys()
@@ -444,7 +450,9 @@ def test_no_warning_for_a_public_key_only(qtbot, tab, state, toy):
 
 
 def test_derive_from_typed_d(qtbot, tab, state):
-    tab.d_field.setText("7")
+    assert tab.btn_derive.isHidden()
+    tab.d_field.setText("7")  # the user types their own d: now the button is needed
+    assert not tab.btn_derive.isHidden()
     assert tab.btn_derive.isEnabled() and "Compute Q" in tab.d_hint.text()
     with qtbot.waitSignal(state.keysChanged, timeout=10_000):
         tab.btn_derive.click()
@@ -453,6 +461,15 @@ def test_derive_from_typed_d(qtbot, tab, state):
     assert tab.qx_field.text() == "0" and tab.qy_field.text() == "6"
     assert tab.compressed_field.hex_value() == "0200"
     assert tab.uncompressed_field.hex_value() == "040006"
+    assert tab.btn_derive.isHidden()  # Q now matches d
+
+
+def test_derive_button_reappears_when_the_user_edits_a_generated_d(qtbot, tab, state):
+    tab.generate()
+    wait_idle(qtbot, tab)
+    assert tab.btn_derive.isHidden()
+    tab.d_field.setText("5" if state.priv.d != 5 else "6")
+    assert not tab.btn_derive.isHidden() and tab.btn_derive.isEnabled()
 
 
 def test_trace_is_shown_after_computation(qtbot, tab, state, monkeypatch):
@@ -469,8 +486,10 @@ def test_invalid_d_is_explained_and_blocked(qtbot, tab, state, text):
     tab.d_field.setText(text)
     assert not tab.btn_derive.isEnabled()
     assert "Not a valid private key" in tab.d_hint.text()
+    assert "from 1 to 18" in tab.d_hint.text()  # says what is allowed
     tab.derive()  # e.g. Enter pressed: must do nothing harmful
     assert state.priv is None and not tab._busy
+    assert "from 1 to 18" in tab.status.text()
 
 
 def test_hex_toggle_and_real_curve(qtbot, tab, state):
@@ -497,7 +516,7 @@ def test_curve_change_clears_the_tab(qtbot, tab, state):
     wait_idle(qtbot, tab)
     state.set_curve(get_curve("toy-97"))
     assert tab.d_field.text() == "" and tab.qx_field.text() == "" and tab.compressed_field.hex_value() == ""
-    assert not tab.btn_save_priv.isEnabled()
+    assert not tab.btn_save_pub.isEnabled() and tab.btn_copy_priv.isHidden()
     assert state.priv is None and state.pub is None
     assert tab.status.property("kind") == "warning"  # ...with a notice
     assert "toy-97" in tab.status.text() and "toy-17" in tab.status.text() and "cleared" in tab.status.text()
@@ -534,9 +553,8 @@ def test_save_error_is_shown_in_a_message_box(qtbot, tab, state, tmp_path, monke
     wait_idle(qtbot, tab)
     bad_path = str(tmp_path / "no_such_folder" / "priv.json")
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (bad_path, ""))
-    tab.save_private_key_dialog()
     tab.save_public_key_dialog()
-    assert [title for title, _ in boxes] == ["Could not save the private key", "Could not save the public key"]
+    assert [title for title, _ in boxes] == ["Could not save the public key"]
 
 
 def test_keys_set_elsewhere_show_up(qtbot, tab, state, toy):
@@ -544,24 +562,47 @@ def test_keys_set_elsewhere_show_up(qtbot, tab, state, toy):
     assert tab.d_field.value() == 2 and tab.compressed_field.hex_value() == "0306"
 
 
-@pytest.mark.parametrize("text", ["0200", "04 00 06", "0x0200"])
-def test_import_public_key_hex(qtbot, tab, state, text):
-    tab.import_field.set_hex(text)
-    assert tab.btn_import.isEnabled()
-    with qtbot.waitSignal(state.keysChanged, timeout=10_000):
-        tab.btn_import.click()
+def test_private_key_can_only_be_copied_never_saved(qtbot, tab, state, qapp):
+    assert not hasattr(tab, "btn_save_priv") and not hasattr(tab, "save_private_key_dialog")
+    assert not hasattr(tab, "import_field")  # someone else's public key now goes on the Verify page
+    tab.d_field.setText("7")
+    tab.derive()
     wait_idle(qtbot, tab)
-    assert state.priv is None and state.pub.Q == (0, 6)
-    assert tab.d_field.text() == "" and "Public key only" in tab.d_hint.text()
-    assert tab.btn_save_pub.isEnabled() and not tab.btn_save_priv.isEnabled()
+    assert tab.private_key_uncopied
+    tab.btn_copy_priv.click()
+    assert qapp.clipboard().text() == "7"
+    assert tab.btn_copy_priv.text() == "\u2713 Copied"
+    assert not tab.private_key_uncopied
+    qtbot.waitUntil(lambda: tab.btn_copy_priv.text() == "Copy key", timeout=3000)
 
 
-@pytest.mark.parametrize("text", ["040007", "0201", "0500"])
-def test_import_rejects_points_that_are_not_on_the_curve(qtbot, tab, state, text):
-    tab.import_field.set_hex(text)
-    tab.import_public_hex()
+def test_leaving_without_copying_asks_first(qtbot, tab, state, monkeypatch):
+    asked = []
+    answer = [False]  # False = "Go back"
+    monkeypatch.setattr(tab, "_ask_to_leave", lambda: asked.append(1) or answer[0])
+    assert tab.confirm_leave()  # nothing generated yet
+    tab.generate()
     wait_idle(qtbot, tab)
-    assert state.pub is None and tab.status.property("kind") == "error"
+    assert not tab.confirm_leave() and len(asked) == 1  # "Go back"
+    answer[0] = True
+    assert tab.confirm_leave() and len(asked) == 2      # "Continue anyway"
+    assert tab.confirm_leave() and len(asked) == 2      # not asked again for the same key...
+    assert tab.confirm_leave(closing=True) and len(asked) == 3  # ...except when the app closes
+
+    tab.generate()  # a new key: the reminder starts over
+    wait_idle(qtbot, tab)
+    assert tab.confirm_leave() and len(asked) == 4
+    tab.copy_private_key()
+    assert tab.confirm_leave(closing=True) and len(asked) == 4  # copied: never asked again
+
+
+def test_loaded_private_key_needs_no_copy_reminder(qtbot, tab, state, tmp_path, monkeypatch):
+    path = tmp_path / "k.json"
+    save_private_key(path, PrivateKey(7, state.curve))
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a, **k: (str(path), ""))
+    tab.load_private_key_dialog()
+    wait_idle(qtbot, tab)
+    assert state.priv.d == 7 and not tab.private_key_uncopied
 
 
 def test_copy_buttons(qtbot, tab, state, qapp):
@@ -580,8 +621,7 @@ def test_save_and_load_through_the_dialogs(qtbot, tab, state, tmp_path, monkeypa
     tab.derive()
     wait_idle(qtbot, tab)
 
-    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (priv_path, ""))
-    tab.save_private_key_dialog()
+    save_private_key(priv_path, state.priv)  # the page only loads private key files
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (pub_path, ""))
     tab.save_public_key_dialog()
     assert load_private_key(priv_path).d == 7 and load_public_key(pub_path).Q == (0, 6)
@@ -603,7 +643,7 @@ def test_cancelled_dialogs_change_nothing(qtbot, tab, state, monkeypatch):
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: ("", ""))
     tab.load_private_key_dialog()
     tab.load_public_key_dialog()
-    tab.save_private_key_dialog()  # nothing to save: just a status message
+    tab.save_public_key_dialog()  # nothing to save: just a status message
     assert state.priv is None and not tab._busy
 
 
@@ -857,8 +897,39 @@ def test_status_bar_busy_indicator(qtbot, window):
 def test_file_menu_has_key_actions(window):
     file_menu = window.menuBar().actions()[0].menu()
     texts = [a.text().replace("&", "") for a in file_menu.actions() if not a.isSeparator()]
-    assert texts == ["Load private key…", "Load public key…", "Save private key…", "Save public key…",
-                     "Custom curve…", "Quit"]
+    assert texts == ["Load private key…", "Load public key…", "Save public key…", "Custom curve…", "Quit"]
+    shortcuts = [a.shortcut().toString() for a in file_menu.actions()]
+    assert "Ctrl+S" not in shortcuts  # nothing saves a private key
+
+
+def test_switching_page_with_an_uncopied_key_can_go_back(qtbot, window, state, monkeypatch):
+    keys = window.pages["Keys"]
+    window.show_page("Keys")
+    keys.generate()
+    wait_idle(qtbot, keys)
+    answers = [False, True]
+    monkeypatch.setattr(keys, "_ask_to_leave", lambda: answers.pop(0))
+    sign_row = list(window.pages).index("Sign")
+    window.sidebar._buttons[sign_row].click()  # "Go back"
+    assert window.current_page_title() == "Keys"
+    assert not window.sidebar._buttons[sign_row].isChecked()
+    window.sidebar._buttons[sign_row].click()  # "Continue anyway"
+    assert window.current_page_title() == "Sign"
+    keys.copy_private_key()  # so closing the window at teardown asks nothing
+
+
+def test_closing_the_app_with_an_uncopied_key_can_be_cancelled(qtbot, window, state, monkeypatch):
+    keys = window.pages["Keys"]
+    keys.generate()
+    wait_idle(qtbot, keys)
+    window.show_page("Verify")
+    monkeypatch.setattr(keys, "_ask_to_leave", lambda: False)
+    window.show()
+    window.close()
+    assert window.isVisible() and window.current_page_title() == "Keys"
+    keys.copy_private_key()
+    window.close()
+    assert not window.isVisible()
 
 
 def test_custom_curve_entry_opens_the_real_dialog(qtbot, window, state, monkeypatch):

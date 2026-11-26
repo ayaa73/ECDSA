@@ -166,14 +166,23 @@ class _InputArrows(QWidget):
 class KeyDerivation(QWidget):
     """Organize the lesson as a simulator, derivation diagram, and takeaways."""
 
-    def __init__(self, field: BigIntField, actions: QLayout, *feedback: QLabel) -> None:
+    def __init__(self, field: BigIntField, actions: QLayout, *feedback: QLabel,
+                 beside: QWidget | None = None, below: QWidget | None = None) -> None:
+        """``beside`` sits to the right of the d field (e.g. a Copy button) and
+        ``below`` directly under it (e.g. a note about keeping d safe)."""
         super().__init__()
         simulator = Card("Simulate key generation", "yellow", "d")
         entry = simulator.body
         entry_label = _label("Private key d", style="font-weight: 600;")
         entry_label.setBuddy(field)
         entry.addWidget(entry_label)
-        entry.addWidget(field)
+        field_row = QHBoxLayout()
+        field_row.addWidget(field, 1)
+        if beside is not None:
+            field_row.addWidget(beside)
+        entry.addLayout(field_row)
+        if below is not None:
+            entry.addWidget(below)
         entry.addLayout(actions)
         for label in feedback:
             entry.addWidget(label)

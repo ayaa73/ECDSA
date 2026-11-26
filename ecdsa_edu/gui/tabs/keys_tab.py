@@ -4,9 +4,12 @@ Lets a student
   1. pick a private key d (typed, or random with Ctrl+G),
   2. see the public key Q = d * G as coordinates and in both hex encodings,
   3. watch below how Q was computed, step by step,
-  4. save / load key files and import somebody else's public key.
+  4. copy the private key (it is never written to a file), save / load the
+     public key, and load a private key file.
 
 While the private key is on screen a warning is shown; "Hide d" masks it.
+A new private key made here must be copied before leaving the page: the
+main window asks confirm_leave() and the user may go back to copy it.
 
 The resulting keys are stored in the shared AppState (state.priv, state.pub),
 which emits keysChanged so the Sign and Verify pages pick them up.
@@ -21,7 +24,7 @@ import html
 from collections.abc import Callable
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -38,31 +41,29 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QVBoxLayout,
     QWidget,
+    QApplication,
 )
 from shiboken6 import isValid
 
 from ecdsa_edu.core.curve import Curve
-from ecdsa_edu.core.key_io import (
-    load_private_key,
-    load_public_key,
-    point_from_hex,
-    point_to_hex,
-    save_private_key,
-    save_public_key,
-)
-from ecdsa_edu.core.keys import generate_keypair, public_from_private, validate_public_point
+from ecdsa_edu.core.key_io import load_private_key, load_public_key, point_to_hex, save_public_key
+from ecdsa_edu.core.keys import generate_keypair, public_from_private
 from ecdsa_edu.core.trace import Trace
 from ecdsa_edu.core.types import PrivateKey, PublicKey
 from ecdsa_edu.gui.app_state import AppState
-from ecdsa_edu.gui.widgets.bigint_field import BigIntField
+from ecdsa_edu.gui.widgets.bigint_field import BigIntField, format_bigint
 from ecdsa_edu.gui.widgets.key_derivation import MANUAL_KEY_NOTE, KeyDerivation
-from ecdsa_edu.gui.widgets.hex_field import HexField, HexOutputField
+from ecdsa_edu.gui.widgets.hex_field import HexOutputField
 from ecdsa_edu.gui.widgets.worker import run_in_background
 from ecdsa_edu.gui.widgets.cards import Card, make_page_header
 
 __all__ = ["KeysTab", "make_trace_view", "set_message"]
 
 _KEY_FILTER = "Key files (*.json);;All files (*)"
+
+PRIVATE_KEY_NOTE = ("Don't forget to copy your key and save it in a safe place (for example, a password "
+                    "manager). We don't save it for you, and it will be lost when you leave.")
+LEAVE_WARNING = "You haven't copied your private key. It will be lost if you continue."
 
 
 def set_message(label: QLabel, text: str, kind: str = "info", *, rich: bool = False) -> None:
@@ -107,12 +108,6 @@ def make_trace_view() -> QWidget:
 # --------------------------------------------------------------------------
 # Background jobs: plain functions that only call core code
 # --------------------------------------------------------------------------
-def _decode_public(curve: Curve, text: str) -> PublicKey:
-    Q = point_from_hex(curve, text)
-    validate_public_point(curve, Q)
-    return PublicKey(Q, curve)
-
-
 def _load_private_with_public(path: str, trace: Trace) -> tuple[PrivateKey, PublicKey]:
     priv = load_private_key(path)
     return priv, public_from_private(priv, trace)
@@ -132,8 +127,10 @@ class KeysTab(QWidget):
         "a learning feature, so you can follow a worked example.\n\n"
         "Keep d secret: anyone who has it can sign as you. Q is safe to share; others use it to "
         "check your signatures.\n\n"
-        "You can save both keys as small files, load them later, or paste somebody else's "
-        "public key to verify their signatures.\n\n"
+        "Your private key is never saved to a file: press “Copy key” and keep it somewhere safe, "
+        "such as a password manager. If you leave the page without copying a new key, the app "
+        "reminds you. The public key can be saved as a small file and loaded again later; to "
+        "check somebody else's signatures, give their public key on the Verify page.\n\n"
         "You can also type your own d, see the public key in both encodings and follow every "
         "step of the math under “Show key details”."
     )
@@ -146,6 +143,9 @@ class KeysTab(QWidget):
         self._busy = False
         self._trace: Trace = []  # steps of the last computation
         self._shown_trace: Trace | None = None  # what the trace view currently displays
+        # A private key made on this page that the user has not copied yet (None: nothing to lose).
+        self._uncopied: PrivateKey | None = None
+        self._leave_confirmed_for: PrivateKey | None = None  # "Continue anyway" was chosen for it
         self._build_ui()
         state.keysChanged.connect(self.refresh)
         self.set_curve(state.curve)
@@ -180,13 +180,20 @@ class KeysTab(QWidget):
         self.btn_generate.setToolTip("Pick a random private key and compute its public key (Ctrl+G)")
         self.d_note = _note("")
         self.btn_derive = QPushButton("Compute Q from this d")
-        self.btn_derive.setToolTip("Build the key pair for the number typed above (Enter)")
+        self.btn_derive.setToolTip("Build the key pair for the number you typed or pasted above (Enter)")
+        self.btn_copy_priv = QPushButton("Copy key")
+        self.btn_copy_priv.setAccessibleName("Copy the private key")
+        self.btn_copy_priv.setToolTip("Copy the private key d to the clipboard")
+        self.copy_note = QLabel(PRIVATE_KEY_NOTE)
+        self.copy_note.setWordWrap(True)
+        self.copy_note.setProperty("kind", "warning")
         buttons = QVBoxLayout()
         buttons.addWidget(self.btn_generate)
         buttons.addWidget(self.btn_derive)
         buttons.addWidget(self.hide_check)
         self.key_diagram = KeyDerivation(
-            self.d_field, buttons, self.d_note, self.warning, self.hidden_note, self.d_hint
+            self.d_field, buttons, self.d_note, self.warning, self.hidden_note, self.d_hint,
+            beside=self.btn_copy_priv, below=self.copy_note,
         )
 
         # --- 2. public key
@@ -208,30 +215,16 @@ class KeysTab(QWidget):
 
         # --- key files
         box_files = Card("Key files", "lavender")
-        self.btn_save_priv = QPushButton("Save private key…")
         self.btn_save_pub = QPushButton("Save public key…")
-        self.btn_load_priv = QPushButton("Load private key…")
         self.btn_load_pub = QPushButton("Load public key…")
+        self.btn_load_priv = QPushButton("Load private key…")
         grid = QGridLayout()
         box_files.body.addLayout(grid)
-        grid.addWidget(self.btn_save_priv, 0, 0)
-        grid.addWidget(self.btn_save_pub, 0, 1)
+        grid.addWidget(self.btn_save_pub, 0, 0)
+        grid.addWidget(self.btn_load_pub, 0, 1)
         grid.addWidget(self.btn_load_priv, 1, 0)
-        grid.addWidget(self.btn_load_pub, 1, 1)
-        grid.addWidget(_note("Small JSON files. Private-key files are not encrypted."), 2, 0, 1, 2)
-
-        # --- import
-        box_import = Card("Use someone else's public key", "pink")
-        self.import_field = HexField(lines=2)
-        self.import_field.setAccessibleName("Public key hex to import")
-        self.btn_import = QPushButton("Use this public key")
-        row = QHBoxLayout()
-        row.addWidget(self.btn_import)
-        row.addStretch(1)
-        lay = box_import.body
-        lay.addWidget(_note("Paste a compressed or uncompressed public key (hex) to verify that person's signatures."))
-        lay.addWidget(self.import_field)
-        lay.addLayout(row)
+        grid.addWidget(_note("The public key is saved as a small JSON file. The private key is never "
+                             "saved by the app: copy it instead."), 2, 0, 1, 2)
 
         self.status = QLabel()
         self.status.setWordWrap(True)
@@ -241,7 +234,6 @@ class KeysTab(QWidget):
         status_row = QHBoxLayout()
         status_row.addWidget(self.status, 1)
         status_row.addWidget(self.btn_regenerate)
-        self._box_import = box_import
 
         # Put secondary controls below the shared simulator, using the dashboard cards.
         details = QWidget()
@@ -251,7 +243,6 @@ class KeysTab(QWidget):
         details_layout.addLayout(header)
         details_layout.addWidget(box_pub)
         details_layout.addWidget(box_files)
-        details_layout.addWidget(box_import)
         box_trace = Card("How Q = d · G was computed", "white")
         self._box_trace = box_trace
         self.trace_note = _note("")
@@ -287,9 +278,7 @@ class KeysTab(QWidget):
         self.btn_derive.clicked.connect(self.derive)
         self.d_field.returnPressed.connect(self.derive)
         self.d_field.textChanged.connect(self._update_controls)
-        self.import_field.valueChanged.connect(self._update_controls)
-        self.btn_import.clicked.connect(self.import_public_hex)
-        self.btn_save_priv.clicked.connect(self.save_private_key_dialog)
+        self.btn_copy_priv.clicked.connect(self.copy_private_key)
         self.btn_save_pub.clicked.connect(self.save_public_key_dialog)
         self.btn_load_priv.clicked.connect(self.load_private_key_dialog)
         self.btn_load_pub.clicked.connect(self.load_public_key_dialog)
@@ -329,7 +318,6 @@ class KeysTab(QWidget):
         )
         self.d_field.set_range(1, curve.n - 1)
         self.d_field.set_value(None)
-        self.import_field.set_hex("")
         self._show_trace([])
         use_hex = curve.p.bit_length() > 32  # decimal reads best on toy curves
         if self.hex_check.isChecked() == use_hex:
@@ -373,51 +361,69 @@ class KeysTab(QWidget):
         self._run(
             "Generating a key pair…",
             generate_keypair, self._curve, trace,
-            on_result=lambda keys: self._adopt(keys[0], keys[1], trace, "New key pair generated."),
+            on_result=lambda keys: self._adopt(keys[0], keys[1], trace, "New key pair generated.",
+                                               must_copy=True),
         )
 
     def derive(self) -> None:
         """Compute the public key for the d typed by the user."""
         d = self.d_field.value()
         if d is None:
-            self._set_status(self.d_field.error() or "Type a private key d first.", "error")
+            self._set_status(self._d_problem() or "Type or paste a private key d first.", "error")
             return
         priv = PrivateKey(d, self._curve)
         trace: Trace = []
         self._run(
             "Computing Q = d · G…",
             public_from_private, priv, trace,
-            on_result=lambda pub: self._adopt(priv, pub, trace, "Public key computed from your d."),
+            on_result=lambda pub: self._adopt(priv, pub, trace, "Public key computed from your d.",
+                                              must_copy=True),
         )
 
-    def import_public_hex(self) -> None:
-        """Use the pasted hex string as the active public key (no private key)."""
-        text = self.import_field.hex_value()
-        if not text:
-            self._set_status(self.import_field.error() or "Paste a public key in hex first.", "error")
-            return
-        self._run(
-            "Checking the public key…",
-            _decode_public, self._curve, text,
-            on_result=lambda pub: self._adopt(None, pub, [], "Public key imported (no private key)."),
-        )
-
-    def save_private_key_dialog(self) -> None:
+    def copy_private_key(self) -> None:
+        """Copy d to the clipboard (in the base shown on screen) and briefly confirm."""
         priv, _ = self._keys()
         if priv is None:
-            self._set_status("There is no private key to save.", "error")
             return
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Save private key", f"{self._curve.name}_private.json", _KEY_FILTER
-        )
-        if not path:
-            return
-        try:
-            save_private_key(path, priv)
-        except (OSError, ValueError) as exc:
-            self._alert("Could not save the private key", str(exc))
-        else:
-            self._set_status(f"Private key saved to {path}. The file is not encrypted - keep it safe.", "ok")
+        QApplication.clipboard().setText(format_bigint(priv.d, self.hex_check.isChecked()))
+        if self._uncopied == priv:
+            self._uncopied = None
+        self.btn_copy_priv.setText("\u2713 Copied")
+        QTimer.singleShot(1500, self, lambda: self.btn_copy_priv.setText("Copy key"))
+
+    @property
+    def private_key_uncopied(self) -> bool:
+        """True while a private key made on this page has not been copied yet."""
+        priv, _ = self._keys()
+        return priv is not None and self._uncopied == priv
+
+    def confirm_leave(self, closing: bool = False) -> bool:
+        """Called by the main window before another page is shown (or the app closes).
+
+        Returns False if the user wants to go back and copy the private key.
+        "Continue anyway" is asked once per key when switching pages, but always
+        when the app closes, because that is when the key is really gone.
+        """
+        priv, _ = self._keys()
+        if not self.private_key_uncopied:
+            return True
+        if not closing and self._leave_confirmed_for == priv:
+            return True
+        if not self._ask_to_leave():
+            return False
+        self._leave_confirmed_for = priv
+        return True
+
+    def _ask_to_leave(self) -> bool:
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle("Copy your private key")
+        box.setText(LEAVE_WARNING)
+        go_back = box.addButton("Go back", QMessageBox.ButtonRole.RejectRole)
+        box.addButton("Continue anyway", QMessageBox.ButtonRole.DestructiveRole)
+        box.setDefaultButton(go_back)
+        box.exec()
+        return box.clickedButton() is not go_back
 
     def save_public_key_dialog(self) -> None:
         _, pub = self._keys()
@@ -510,8 +516,13 @@ class KeysTab(QWidget):
 
         run_in_background(fn, *args, on_done=finished, on_error=failed)
 
-    def _adopt(self, priv: PrivateKey | None, pub: PublicKey, trace: Trace, message: str) -> None:
-        """Make (priv, pub) the application's active keys and show how they were computed."""
+    def _adopt(self, priv: PrivateKey | None, pub: PublicKey, trace: Trace, message: str,
+               must_copy: bool = False) -> None:
+        """Make (priv, pub) the application's active keys and show how they were computed.
+
+        ``must_copy``: the private key was made here, so it only exists in memory and
+        the user is reminded to copy it before leaving.
+        """
         curve = pub.curve
         if curve != self._state.curve:  # a key file may bring its own (custom) curve
             self._state.register_curve(curve)
@@ -519,6 +530,8 @@ class KeysTab(QWidget):
         if curve != self._curve:
             self.set_curve(curve)
         self.btn_regenerate.setVisible(False)
+        self._uncopied = priv if must_copy else None  # a new key: copying starts over
+        self._leave_confirmed_for = None
         self._state.set_keys(priv, pub)  # -> keysChanged -> refresh()
         self._show_trace(trace)
         self._set_status(message, "ok")
@@ -530,16 +543,20 @@ class KeysTab(QWidget):
         self.btn_generate.setEnabled(idle)
         self.btn_regenerate.setEnabled(idle)
         self.btn_derive.setEnabled(idle and self.d_field.is_valid())
-        self.btn_import.setEnabled(idle and self.import_field.is_valid())
         self.btn_load_priv.setEnabled(idle)
         self.btn_load_pub.setEnabled(idle)
-        self.btn_save_priv.setEnabled(priv is not None)
         self.btn_save_pub.setEnabled(pub is not None)
+        self.btn_copy_priv.setVisible(priv is not None)
+        self.copy_note.setVisible(priv is not None)
 
         n = self._curve.n
         typed = self.d_field.value()
+        # "Compute Q" is only needed when the user types or pastes their own d: a
+        # generated key pair already has its Q.
+        own_d = bool(self.d_field.text().strip()) and (priv is None or typed != priv.d)
+        self.btn_derive.setVisible(own_d)
         if self.d_field.error():
-            hint, kind = f"Not a valid private key: {self.d_field.error()}.", "error"
+            hint, kind = f"Not a valid private key: {self._d_problem()}", "error"
         elif typed is not None and (priv is None or priv.d != typed):
             hint, kind = "Press “Compute Q from this d” (or Enter) to build the key pair for this number.", "info"
         elif priv is None and pub is not None:
@@ -550,6 +567,15 @@ class KeysTab(QWidget):
             hint, kind = f"Allowed values: 1 ≤ d ≤ n − 1 (about 2^{n.bit_length()} possibilities).", "info"
         set_message(self.d_hint, hint, kind)
         self._apply_privacy()
+
+    def _d_problem(self) -> str:
+        """A friendly sentence for an invalid d ('' if the field is fine)."""
+        error = self.d_field.error()
+        if not error:
+            return ""
+        n = self._curve.n
+        upper = str(n - 1) if n.bit_length() <= 64 else "n − 1"
+        return f"{error}. d must be a whole number from 1 to {upper}."
 
     def _show_trace(self, trace: Trace) -> None:
         """Remember the steps of the last computation and display them (unless d is hidden)."""

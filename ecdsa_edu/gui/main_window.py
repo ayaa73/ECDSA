@@ -218,6 +218,8 @@ class NavigationRail(QWidget):
         self._compact = False
         self._section: str | None = None
         self.dividers: list[QWidget] = []
+        # Asked before switching rows; returning False keeps the current page.
+        self.guard = None
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(8, 0, 8, 0)
         self._layout.setSpacing(3)
@@ -271,6 +273,10 @@ class NavigationRail(QWidget):
 
     def setCurrentRow(self, row):
         if not 0 <= row < len(self._items) or row == self._row:
+            return
+        if self.guard is not None and self._row >= 0 and not self.guard(row):
+            for index, button in enumerate(self._buttons):  # undo the click's check mark
+                button.setChecked(index == self._row)
             return
         self._row = row
         for index, button in enumerate(self._buttons):
@@ -647,6 +653,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
         self.sidebar.currentRowChanged.connect(self.stack.setCurrentIndex)
+        self.sidebar.guard = lambda _row: self._may_leave_current_page()
         self.show_page(self._start_page_title())
 
     def _tutorial_settings(self):
@@ -768,8 +775,20 @@ class MainWindow(QMainWindow):
             height = min(height, available.height())
         self.resize(width, height)
 
+    def _may_leave_current_page(self) -> bool:
+        """Ask the page on screen whether it may be left (e.g. Keys: an uncopied private key)."""
+        page = self.pages.get(self.current_page_title())
+        confirm = getattr(page, "confirm_leave", None)
+        return confirm() if callable(confirm) else True
+
     def closeEvent(self, event) -> None:  # noqa: N802 (Qt naming)
-        """Remember the window size for next time."""
+        """Remember the window size for next time; never lose an uncopied private key silently."""
+        for page in self.pages.values():
+            confirm = getattr(page, "confirm_leave", None)
+            if callable(confirm) and not confirm(closing=True):
+                self.show_page("Keys")
+                event.ignore()
+                return
         self.state.settings.setValue(SETTING_WINDOW_SIZE, self.size())
         super().closeEvent(event)
 
@@ -816,7 +835,6 @@ class MainWindow(QMainWindow):
         for text, method, shortcut in (
             ("&Load private key…", "load_private_key_dialog", QKeySequence.StandardKey.Open),
             ("Load &public key…", "load_public_key_dialog", None),
-            ("&Save private key…", "save_private_key_dialog", QKeySequence.StandardKey.Save),
             ("Save p&ublic key…", "save_public_key_dialog", None),
         ):
             handler = getattr(keys_page, method, None)
@@ -867,7 +885,8 @@ class MainWindow(QMainWindow):
 
     def _run_keys_action(self, handler) -> None:
         self.show_page("Keys")
-        handler()
+        if self.current_page_title() == "Keys":  # the user may have chosen to stay on another page
+            handler()
 
     def _about(self) -> None:
         QMessageBox.about(
