@@ -42,8 +42,8 @@ DEFAULT_CURVE = "toy-17"  # small numbers first: best for teaching
 
 # The page titles go_to() understands (the sidebar entries in main_window.py).
 PAGE_TITLES = (
-    "Start here", "Overview", "Keys", "Sign", "Verify", "Curve Explorer",
-    "Learn ECDSA", "Attack Demo", "History",
+    "History", "Start here", "Overview", "Keys", "Sign", "Verify", "Curve Explorer",
+    "Learn ECDSA", "Attack Demo",
 )
 
 # Names of the remembered settings.

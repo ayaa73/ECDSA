@@ -227,8 +227,8 @@ def test_themes_define_the_same_colours():
 
 
 # =========================================================== MainWindow
-PAGE_ORDER = ["Start here", "Overview", "Keys", "Sign", "Verify", "Curve Explorer", "Learn ECDSA",
-              "Attack Demo", "History"]
+PAGE_ORDER = ["History", "Start here", "Overview", "Keys", "Sign", "Verify", "Curve Explorer", "Learn ECDSA",
+              "Attack Demo"]
 
 
 def test_sidebar_lists_every_page_in_order(qtbot, state):
@@ -239,6 +239,47 @@ def test_sidebar_lists_every_page_in_order(qtbot, state):
     assert titles == list(window.pages) and window.stack.count() == len(PAGE_ORDER)
     assert all(not window.sidebar.item(i).icon().isNull() for i in range(len(PAGE_ORDER)))
     assert titles == list(app_state_module.PAGE_TITLES)  # go_to() knows every page
+
+
+def test_history_is_first_and_games_sit_below_a_divider(qtbot, state):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QPushButton
+    window = mw.MainWindow(state)
+    qtbot.addWidget(window)
+    assert mw.PAGE_SPECS[0].title == "History"
+    games = [spec.title for spec in mw.PAGE_SPECS if spec.section == mw.GAMES_SECTION]
+    assert games == ["Attack Demo"]
+    # every game comes after every learning page, so there is exactly one divider
+    sections = [spec.section for spec in mw.PAGE_SPECS]
+    assert sections == sorted(sections, key=lambda s: s == mw.GAMES_SECTION)
+    rail = window.sidebar
+    assert len(rail.dividers) == 1
+    divider = rail.dividers[0]
+    assert divider.label.text() == "Games & Practice"
+    assert divider.findChildren(QPushButton) == [] and divider.focusPolicy() == Qt.FocusPolicy.NoFocus
+    # the divider sits between Learn ECDSA and Attack Demo in the layout...
+    order = [rail._layout.itemAt(i).widget() for i in range(rail._layout.count())]
+    learn, attack = rail._buttons[PAGE_ORDER.index("Learn ECDSA")], rail._buttons[PAGE_ORDER.index("Attack Demo")]
+    assert order.index(learn) < order.index(divider) < order.index(attack)
+    # ...but rows still count pages only, so row navigation and the stack stay aligned
+    assert rail.count() == len(PAGE_ORDER) == window.stack.count()
+    for title in PAGE_ORDER:
+        window.show_page(title)
+        assert window.current_page_title() == title
+        assert window.stack.currentWidget() is window.pages[title]
+        assert rail._buttons[PAGE_ORDER.index(title)].isChecked()
+    attack.click()
+    assert window.current_page_title() == "Attack Demo"
+
+
+def test_start_page_is_still_start_here_with_history_first(qtbot, state):
+    window = mw.MainWindow(state)
+    qtbot.addWidget(window)
+    assert window.current_page_title() == "Start here"
+    window.tutorial_action.setChecked(False)
+    again = mw.MainWindow(AppState(settings=state.settings))
+    qtbot.addWidget(again)
+    assert again.current_page_title() == "Keys"
 
 
 def test_sidebar_switches_the_stack(qtbot, state):

@@ -187,6 +187,9 @@ QPushButton#sessionHandle {{ background: {hover}; border: 1px solid {border}; bo
 QPushButton#sessionHandle:checked, QPushButton#sessionHandle:hover {{ background: {accent}; color: {accent_text}; border-color: {accent}; }}
 QWidget#rail {{ background: {rail}; border-radius: 24px; }}
 QWidget#sidebar {{ background: {rail}; }}
+QWidget#navDivider {{ background: transparent; }}
+QFrame#navDividerLine {{ background: {sidebar_text}; border: none; max-height: 1px; }}
+QLabel#navDividerLabel {{ color: {sidebar_text}; background: transparent; font-size: 11px; font-weight: 600; }}
 QLabel#railLogo {{ color: {sidebar_text}; background: transparent; font-size: 20px; font-weight: 500; padding: 12px 0; }}
 QPushButton[nav="true"] {{ background: transparent; color: {sidebar_text}; text-align: left; border: none; border-radius: 12px; padding: 5px 10px; }}
 QPushButton[nav="true"]:hover {{ background: {sidebar_hover}; color: {sidebar_selected_text}; }}

@@ -30,6 +30,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QFrame,
     QGraphicsDropShadowEffect,
     QHBoxLayout,
     QLabel,
@@ -57,19 +58,32 @@ from ecdsa_edu.gui.app_state import AppState
 __all__ = ["MainWindow", "PAGE_SPECS", "PageSpec", "make_icon"]
 
 
+LEARN_SECTION = "learn"
+GAMES_SECTION = "games"
+# Label of the divider drawn above the first page of each later section.
+SECTION_LABELS = {GAMES_SECTION: "Games & Practice"}
+
+
 @dataclass(frozen=True)
 class PageSpec:
-    """One sidebar entry: ``module.class_name`` is built as ``cls(state)``."""
+    """One sidebar entry: ``module.class_name`` is built as ``cls(state)``.
+
+    ``section`` groups the sidebar: the learning pages first, then, below a
+    "Games & Practice" divider, the games. New games just use GAMES_SECTION.
+    """
 
     title: str
     module: str
     class_name: str
     owner: str
     icon: str
+    section: str = LEARN_SECTION
 
 
 # The single place to edit if a teammate names a module or class differently.
+# Keep each section's pages together: the divider goes where the section changes.
 PAGE_SPECS: list[PageSpec] = [
+    PageSpec("History", "ecdsa_edu.gui.tabs.history_tab", "HistoryTab", "P4", "clock"),
     PageSpec("Start here", "ecdsa_edu.gui.tutorial.tutorial_tab", "TutorialTab", "P4", "home"),
     PageSpec("Overview", "ecdsa_edu.gui.overview_tab", "OverviewTab", "GUI", "overview"),
     PageSpec("Keys", "ecdsa_edu.gui.tabs.keys_tab", "KeysTab", "P2", "key"),
@@ -77,8 +91,7 @@ PAGE_SPECS: list[PageSpec] = [
     PageSpec("Verify", "ecdsa_edu.gui.tabs.verify_tab", "VerifyTab", "P4", "check"),
     PageSpec("Curve Explorer", "ecdsa_edu.gui.tabs.curve_explorer_tab", "CurveExplorerTab", "P1", "curve"),
     PageSpec("Learn ECDSA", "ecdsa_edu.gui.learn.wizard", "LearnWizard", "P4", "learn"),
-    PageSpec("Attack Demo", "ecdsa_edu.gui.tabs.attack_tab", "AttackTab", "P4", "warning"),
-    PageSpec("History", "ecdsa_edu.gui.tabs.history_tab", "HistoryTab", "P4", "clock"),
+    PageSpec("Attack Demo", "ecdsa_edu.gui.tabs.attack_tab", "AttackTab", "P4", "warning", GAMES_SECTION),
 ]
 
 START_PAGE = "Start here"  # shown first, unless the user turned that off
@@ -187,7 +200,11 @@ def make_icon(name: str, color: str, selected_color: str | None = None) -> QIcon
 # The window
 # --------------------------------------------------------------------------
 class NavigationRail(QWidget):
-    """Button-based navigation with the small list API used by the shell."""
+    """Button-based navigation with the small list API used by the shell.
+
+    Row numbers count pages only: section dividers are separate, non-clickable
+    widgets in the layout, so setCurrentRow(i) and the page stack stay aligned.
+    """
     currentRowChanged = Signal(int)
 
     def __init__(self):
@@ -199,11 +216,17 @@ class NavigationRail(QWidget):
         self._buttons = []
         self._row = -1
         self._compact = False
+        self._section: str | None = None
+        self.dividers: list[QWidget] = []
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(8, 0, 8, 0)
         self._layout.setSpacing(3)
 
     def addItem(self, item):
+        section = item.data(Qt.ItemDataRole.UserRole + 2) or LEARN_SECTION
+        if self._section is not None and section != self._section:
+            self._add_divider(SECTION_LABELS.get(section, section.title()))
+        self._section = section
         row = len(self._items)
         self._items.append(item)
         button = QPushButton(item.data(Qt.ItemDataRole.UserRole))
@@ -216,6 +239,26 @@ class NavigationRail(QWidget):
         button.clicked.connect(lambda checked=False, i=row: self.setCurrentRow(i))
         self._layout.addWidget(button)
         self._buttons.append(button)
+
+    def _add_divider(self, text: str) -> None:
+        """A thin line with a small label; not a page, so it is never selectable."""
+        divider = QWidget()
+        divider.setObjectName("navDivider")
+        divider.setAccessibleName(f"Section: {text}")
+        divider.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        layout = QVBoxLayout(divider)
+        layout.setContentsMargins(6, 10, 6, 4)
+        layout.setSpacing(4)
+        line = QFrame()
+        line.setObjectName("navDividerLine")
+        line.setFixedHeight(1)
+        label = QLabel(text)
+        label.setObjectName("navDividerLabel")
+        divider.label = label
+        layout.addWidget(line)
+        layout.addWidget(label)
+        self._layout.addWidget(divider)
+        self.dividers.append(divider)
 
     def count(self):
         return len(self._items)
@@ -239,6 +282,8 @@ class NavigationRail(QWidget):
         self._compact = compact
         for item, button in zip(self._items, self._buttons):
             button.setText("" if compact else item.data(Qt.ItemDataRole.UserRole))
+        for divider in self.dividers:
+            divider.label.setVisible(not compact)  # the line alone still separates the sections
 
     def refreshIcons(self, colors):
         for item, button in zip(self._items, self._buttons):
@@ -493,6 +538,7 @@ class MainWindow(QMainWindow):
             item.setToolTip(spec.title)
             item.setData(Qt.ItemDataRole.UserRole, spec.title)
             item.setData(Qt.ItemDataRole.UserRole + 1, spec.icon)
+            item.setData(Qt.ItemDataRole.UserRole + 2, spec.section)
             if page.property("placeholder"):
                 item.setToolTip(f"{spec.title} - coming soon")
             self.sidebar.addItem(item)
