@@ -327,6 +327,7 @@ class SignTab(QWidget):
 
         self.save_action = QAction("Save signature", self)
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
+        self.save_action.setEnabled(self.encoding_output.save_button.isEnabled())
         self.save_action.triggered.connect(self.encoding_output.save_dialog)
         self.addAction(self.save_action)
 
@@ -468,11 +469,13 @@ class SignTab(QWidget):
         sig = self._last_signature
         if sig is None or self._curve is None:
             self.encoding_output.clear()
+            self.save_action.setEnabled(False)
             return
         if self.der_encoding_radio.isChecked():
             self.encoding_output.set_bytes(sig_to_der(sig))
         else:
             self.encoding_output.set_hex(sig_to_hex(sig, self._curve))
+        self.save_action.setEnabled(self.encoding_output.save_button.isEnabled())
 
     def _clear_result(self) -> None:
         self._last_signature = None
@@ -480,6 +483,7 @@ class SignTab(QWidget):
         self.r_output.clear()
         self.s_output.clear()
         self.encoding_output.clear()
+        self.save_action.setEnabled(False)
         self.trace_view.set_trace([])
         self.trace_toggle.setChecked(False)
         self.trace_toggle.hide()

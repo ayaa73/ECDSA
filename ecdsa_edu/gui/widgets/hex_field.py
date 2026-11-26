@@ -117,14 +117,15 @@ class HexOutputField(QWidget):
         self.text_field = HexField(read_only=True, lines=lines)
         self.copy_button = QPushButton("Copy")
         self.copy_button.setToolTip("Copy the hex string to the clipboard")
-        self.save_button = QPushButton("Save…", self)
-        self.save_button.setToolTip("Save as a text file (hex) or as raw bytes")
-        self.save_button.setVisible(show_save)
+        self.save_button = QPushButton("Save…", self) if show_save else None
 
         buttons = QVBoxLayout()
         buttons.setContentsMargins(0, 0, 0, 0)
         buttons.addWidget(self.copy_button)
-        buttons.addWidget(self.save_button)
+        if self.save_button is not None:
+            self.save_button.setToolTip("Save as a text file (hex) or as raw bytes")
+            self.save_button.clicked.connect(self.save_dialog)
+            buttons.addWidget(self.save_button)
         buttons.addStretch(1)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -132,7 +133,6 @@ class HexOutputField(QWidget):
         layout.addLayout(buttons)
 
         self.copy_button.clicked.connect(self.copy)
-        self.save_button.clicked.connect(self.save_dialog)
         self.text_field.valueChanged.connect(self._update_buttons)
         self._update_buttons()
 
@@ -190,4 +190,5 @@ class HexOutputField(QWidget):
     def _update_buttons(self) -> None:
         has_value = bool(self.hex_value())
         self.copy_button.setEnabled(has_value)
-        self.save_button.setEnabled(has_value)
+        if self.save_button is not None:
+            self.save_button.setEnabled(has_value)
