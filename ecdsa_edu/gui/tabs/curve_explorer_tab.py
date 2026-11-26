@@ -128,7 +128,9 @@ class CurveExplorerTab(QWidget):
             widget.valueChanged.connect(self._reset_real)
         self.real_mode=QComboBox();self.real_mode.addItems(['P + Q (chord)','2P (tangent)'])
         self.real_mode.currentIndexChanged.connect(self._reset_real);row.addWidget(self.real_mode)
-        clear=QPushButton('Clear points');clear.clicked.connect(self._reset_real);row.addWidget(clear)
+        self.clear_points_button = QPushButton('Clear points')
+        self.clear_points_button.clicked.connect(self._reset_real)
+        row.addWidget(self.clear_points_button)
         row.addStretch(1)
         zoom_row=QHBoxLayout(); v.addLayout(zoom_row)
         self.zoom_in_button=QPushButton('+'); self.zoom_out_button=QPushButton('\u2212')
@@ -137,8 +139,9 @@ class CurveExplorerTab(QWidget):
         self.zoom_in_button.clicked.connect(lambda: self.zoom_real(1 / ZOOM_STEP))
         self.zoom_out_button.clicked.connect(lambda: self.zoom_real(ZOOM_STEP))
         reset=QPushButton('Reset view'); reset.clicked.connect(self.reset_real_view)
-        fit=QPushButton('Fit all points');fit.clicked.connect(self._fit_all_real)
-        for widget in (QLabel('View:'), self.zoom_in_button, self.zoom_out_button, reset, fit):
+        self.fit_points_button = QPushButton('Fit all points')
+        self.fit_points_button.clicked.connect(self._fit_all_real)
+        for widget in (QLabel('View:'), self.zoom_in_button, self.zoom_out_button, reset, self.fit_points_button):
             zoom_row.addWidget(widget)
         hint=QLabel('Ctrl + wheel to zoom · drag to move'); hint.setProperty('muted', True); zoom_row.addWidget(hint)
         zoom_row.addStretch(1)
@@ -277,7 +280,10 @@ class CurveExplorerTab(QWidget):
         singular = abs(4*a**3 + 27*b*b) < 1e-8
         is_double = self.real_mode.currentIndex() == 1
         result = self._construction(a)
-        if self.real_fit_all and result is not None and result[0] is not None:
+        has_finite_result = result is not None and result[0] is not None
+        self.clear_points_button.setEnabled(bool(self.real_points))
+        self.fit_points_button.setEnabled(has_finite_result)
+        if self.real_fit_all and has_finite_result:
             # Grow the view so P, Q, the third intersection and the result all show.
             _, x3, y3 = result
             xs = [x for x, _ in self.real_points] + [x3]
