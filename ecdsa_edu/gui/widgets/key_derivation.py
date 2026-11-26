@@ -6,6 +6,7 @@ from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QLayout, QPushButton, QVBoxLayout, QWidget
 
 from ecdsa_edu.core.curve import Curve, enumerate_points
+from ecdsa_edu.gui.app import current_theme
 from ecdsa_edu.gui.widgets.bigint_field import BigIntField, format_bigint
 from ecdsa_edu.gui.widgets.cards import Card
 
@@ -120,7 +121,7 @@ class _PublicKeyPicture(QWidget):
     def paintEvent(self, event) -> None:
         with QPainter(self) as painter:
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            pen = QPen(QColor("#5F1E45"), 1.5)
+            pen = QPen(QColor("#BF6A90" if current_theme() == "dark" else "#5F1E45"), 1.5)
             pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             painter.setPen(pen)
             painter.setBrush(QColor("#F5E4EC"))
@@ -148,7 +149,7 @@ class _InputArrows(QWidget):
     def paintEvent(self, event) -> None:
         with QPainter(self) as painter:
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            pen = QPen(QColor("#5F1E45"), 1.65)
+            pen = QPen(QColor("#BF6A90" if current_theme() == "dark" else "#5F1E45"), 1.65)
             pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             painter.setPen(pen)
             x, y = self.width() - 4, self.height() / 2
