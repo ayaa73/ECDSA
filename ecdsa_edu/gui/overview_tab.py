@@ -116,10 +116,10 @@ def _theme(palette: QPalette) -> dict[str, QColor]:
     dark = palette.window().color().lightness() < 128
     if dark:
         raw = {
-            "alice": ("#1c2b43", "#6689bc"), "bob": ("#1c2b43", "#6689bc"),
-            "shared": ("#1c2b43", "#6689bc"), "danger": ("#1c2b43", "#6689bc"),
-            "text": "#edf3fc", "muted": "#aabbd3", "edge": "#667b9d", "accent": "#6286b8",
-            "popup": "#17243a", "shadow": "#000000",
+            "alice": ("#493039", "#D17A88"), "bob": ("#402B32", "#A63A50"),
+            "shared": ("#452C35", "#D17A88"), "danger": ("#552D38", "#D17A88"),
+            "text": "#F8E6E9", "muted": "#CCAFB6", "edge": "#D17A88", "accent": "#E49AA5",
+            "popup": "#302025", "shadow": "#1A1013",
         }
     else:
         raw = {
