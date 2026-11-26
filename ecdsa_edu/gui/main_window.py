@@ -346,6 +346,14 @@ class MainWindow(QMainWindow):
         self.help_button.setFixedSize(36, 36)
         self.theme_button.setToolTip("Switch between the light and the dark theme  (Ctrl+D)")
 
+        self.session_button = QToolButton()
+        self.session_button.setText("Session")
+        self.session_button.setCheckable(True)
+        self.session_button.setChecked(True)
+        self.session_button.setAccessibleName("Show session panel")
+        self.session_button.setToolTip("Show or hide the Session panel in wide windows")
+        self.session_button.toggled.connect(self._update_side_panel_visibility)
+
         # The single visible way to choose a curve opens the card picker.
         # The old combo remains hidden as a fallback if the picker is unavailable.
         self.curve_button = QPushButton()
@@ -355,7 +363,7 @@ class MainWindow(QMainWindow):
         self.curve_button.setShortcut(QKeySequence("Ctrl+K"))
 
         widgets = [spacer, self.curve_info, self.curve_button, label, self.curve_combo,
-                   self.mode_button, self.help_button, self.theme_button]
+                   self.mode_button, self.session_button, self.help_button, self.theme_button]
         self._toolbar_actions = {}
         for widget in widgets:
             # Widgets inside a toolbar are shown and hidden through their action.
@@ -728,11 +736,15 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
         if hasattr(self, "side_panel"):
-            self.side_panel.setVisible(self.width() >= 1280)
+            self._update_side_panel_visibility()
             compact = self.width() < 1100
             self.rail.setFixedWidth(72 if compact else 210)
             self.rail_logo.setText("E" if compact else "ecdsa lab")
             self.sidebar.setCompact(compact)
+
+    def _update_side_panel_visibility(self, _checked: bool = False) -> None:
+        if hasattr(self, "side_panel"):
+            self.side_panel.setVisible(self.width() >= 1280 and self.session_button.isChecked())
 
     # -------------------------------------------------------------- menus
     def _build_menus(self) -> None:
