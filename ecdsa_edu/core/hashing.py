@@ -73,8 +73,9 @@ def _finish_hash(hasher, curve: "Curve", trace: "Trace | None", source: str) -> 
     )
     add_step(
         trace,
-        "Convert the digest to the integer e",
-        "e = leftmost min(hash_bits, bit_length(n)) bits of digest",
+        "Turn the hash output into e",
+        f"Take the first {len(digest) * 8 - removed_bits} bits of the hash output and read them as e.",
+        n=curve.n,
         digest_bits=len(digest) * 8,
         order_bits=curve.n.bit_length(),
         removed_bits=removed_bits,

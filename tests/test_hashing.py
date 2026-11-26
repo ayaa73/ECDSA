@@ -42,8 +42,10 @@ def test_hash_trace_explains_digest_and_truncation():
     hash_message(b"hello", get_curve("toy-17"), trace=trace)
     assert [step.title for step in trace] == [
         "Hash the message",
-        "Convert the digest to the integer e",
+        "Turn the hash output into e",
     ]
+    assert trace[-1].formula == "Take the first 5 bits of the hash output and read them as e."
+    assert trace[-1].values["n"] == "19"
     assert trace[-1].values["order_bits"] == "5"
     assert trace[-1].values["removed_bits"] == "251"
 
