@@ -24,10 +24,11 @@ def state():
 
 @pytest.fixture
 def signed_state(state):
-    from ecdsa_edu.core.keys import generate_keypair
+    from ecdsa_edu.core.keys import PrivateKey, public_from_private
     from ecdsa_edu.core.sign import sign
-    priv, pub = generate_keypair(state.curve)
-    state.set_keys(priv, pub)
+    # Some toy-curve keys also verify the changed message.
+    priv = PrivateKey(2, state.curve)
+    state.set_keys(priv, public_from_private(priv))
     state.set_signature(sign(priv, b"Hello Bob", "sha512"), b"Hello Bob", "sha512")  # as the Sign page does
     return state
 
