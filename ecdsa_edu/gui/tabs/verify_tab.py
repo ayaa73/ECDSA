@@ -1,6 +1,7 @@
 """Verify tab (owner: P4): check a signature and see exactly why it passes or fails.
 
-Students pick a message, a public key and a signature, press Verify and get a
+Students pick a message, the signer's identity (a public key or an X.509
+certificate) and a signature, press Verify and get a
 big VALID / INVALID banner with the reason in plain words, plus the steps from
 core.verify's trace. "Change one letter" tampers with the message and checks
 again, so they can watch the signature break.
@@ -20,13 +21,15 @@ from typing import Any
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
-    QComboBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit,
-    QPushButton, QScrollArea, QVBoxLayout, QWidget, QBoxLayout, QSizePolicy,
+    QButtonGroup, QComboBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
+    QPlainTextEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget, QBoxLayout, QSizePolicy,
 )
 
 from ecdsa_edu.core.hashing import HASHES
 from ecdsa_edu.core.key_io import load_public_key, point_from_hex
+from ecdsa_edu.core.keys import validate_public_point
 from ecdsa_edu.core.types import PublicKey
+from ecdsa_edu.core.x509 import CERTIFICATE_EXTENSIONS, CertificateInfo, certificate_supported, load_certificate
 from ecdsa_edu.core.verify import verify, verify_file
 from ecdsa_edu.gui.tabs.p4_logic import fmt_number, fmt_point, parse_signature_text, tamper_text, verdict_from_trace
 from ecdsa_edu.gui.tabs.p4_widgets import (
@@ -44,20 +47,29 @@ WIDE_LAYOUT_WIDTH = 980  # from this page width on, inputs and result sit side b
 
 # Item data for the source combos.
 CURRENT, PASTE, FILE = "current", "paste", "file"
+# How the signer's identity is given.
+PUBLIC_KEY_MODE, CERTIFICATE_MODE = "public key", "certificate"
+CERT_FILTER = "Certificates (*.pem *.crt *.cer *.der);;All files (*)"
+CERT_ONLY_REAL_CURVES = ("Certificates name their curve with a standard identifier, which only secp256k1 and "
+                         "P-256 have. Choose one of those curves at the top to use a certificate.")
 
 
 class VerifyTab(QWidget):
     """Check a signature: message + public key + signature -> VALID / INVALID."""
 
-    HELP = ("Check whether a signature is genuine. Bob only needs the message, Alice's public key and the "
-            "signature. Press Verify: a green VALID means this exact message was signed with the matching private "
-            "key. Then press \"Change one letter\" to see that even a tiny change makes the signature INVALID.")
+    HELP = ("Check whether a signature is genuine. Bob only needs the message, the signer's identity and the "
+            "signature. The identity is either a public key (yours, someone else's pasted in hex, or a key file) "
+            "or an X.509 certificate (.pem, .crt, .cer, .der; secp256k1 and P-256 only), which also shows who "
+            "the key belongs to. Press Verify: a green VALID means this exact message was signed with the "
+            "matching private key. Then press \"Change one letter\" to see that even a tiny change makes the "
+            "signature INVALID.")
 
     def __init__(self, state: Any) -> None:
         super().__init__()
         self.state = state
         self._file_path: Path | None = None
         self._loaded_pub: PublicKey | None = None
+        self._certificate: CertificateInfo | None = None
         self._loaded_sig_text: str | None = None
         self._autofilled = True  # message box still holds the last signed message
         self._busy = False
@@ -85,10 +97,27 @@ class VerifyTab(QWidget):
         msg_layout.addWidget(self.msg_edit)
         msg_layout.addLayout(file_row)
 
-        # ---- public key
+        # ---- signer's identity: a public key or a certificate
+        self.public_key_button = QPushButton("Public key")
+        self.certificate_button = QPushButton("Certificate")
+        self.identity_group = QButtonGroup(self)
+        for button, tip in ((self.public_key_button, "Use the signer's public key (yours, pasted, or from a file)"),
+                            (self.certificate_button, "Load the signer's X.509 certificate and use the key inside")):
+            button.setCheckable(True)
+            button.setProperty("chip", True)
+            button.setToolTip(tip)
+            self.identity_group.addButton(button)
+        self.public_key_button.setChecked(True)
+        self.identity_group.buttonClicked.connect(lambda *_: self._on_identity_mode())
+        mode_row = QHBoxLayout()
+        mode_row.addWidget(QLabel("Use:"))
+        mode_row.addWidget(self.public_key_button)
+        mode_row.addWidget(self.certificate_button)
+        mode_row.addStretch(1)
+
         self.key_source = QComboBox()
         self.key_source.addItem("My current public key (from the Keys page)", CURRENT)
-        self.key_source.addItem("Paste a public key (hex)", PASTE)
+        self.key_source.addItem("Someone else's public key (paste hex)", PASTE)
         self.key_source.addItem("Load a public key file…", FILE)
         self.key_source.activated.connect(self._key_source_chosen)
         self.key_hex = QLineEdit()
@@ -99,12 +128,41 @@ class VerifyTab(QWidget):
         self.key_go = QPushButton("Make a key →")
         self.key_go.setProperty("primary", True)
         self.key_go.clicked.connect(lambda *_: go_to(self, self.state, "Keys"))
-        key_box = Card("Public key", "periwinkle", "2")
+        self.key_panel = QWidget()
+        key_panel_layout = QVBoxLayout(self.key_panel)
+        key_panel_layout.setContentsMargins(0, 0, 0, 0)
+        key_panel_layout.addWidget(self.key_source)
+        key_panel_layout.addWidget(self.key_hex)
+        key_panel_layout.addWidget(self.key_status)
+        key_panel_layout.addWidget(self.key_go, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        self.cert_button = QPushButton("Load certificate…")
+        self.cert_button.setToolTip("An X.509 certificate file: .pem, .crt, .cer or .der")
+        self.cert_button.clicked.connect(self._load_certificate)
+        cert_types = QLabel(".pem .crt .cer .der · max 10 MB")
+        cert_types.setProperty("muted", True)
+        cert_row = QHBoxLayout()
+        cert_row.addWidget(self.cert_button)
+        cert_row.addWidget(cert_types, 1)
+        self.cert_status = QLabel("No certificate loaded. The Keys page can export one for your own key.")
+        self.cert_status.setWordWrap(True)
+        self.cert_status.setTextFormat(Qt.TextFormat.RichText)
+        self.cert_status.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.cert_panel = QWidget()
+        cert_panel_layout = QVBoxLayout(self.cert_panel)
+        cert_panel_layout.setContentsMargins(0, 0, 0, 0)
+        cert_panel_layout.addLayout(cert_row)
+        cert_panel_layout.addWidget(self.cert_status)
+        self.cert_note = QLabel(CERT_ONLY_REAL_CURVES)
+        self.cert_note.setWordWrap(True)
+        self.cert_note.setProperty("muted", True)
+
+        key_box = Card("Signer's identity", "periwinkle", "2")
         key_layout = key_box.body
-        key_layout.addWidget(self.key_source)
-        key_layout.addWidget(self.key_hex)
-        key_layout.addWidget(self.key_status)
-        key_layout.addWidget(self.key_go, alignment=Qt.AlignmentFlag.AlignLeft)
+        key_layout.addLayout(mode_row)
+        key_layout.addWidget(self.cert_note)
+        key_layout.addWidget(self.key_panel)
+        key_layout.addWidget(self.cert_panel)
 
         # ---- signature
         self.sig_source = QComboBox()
@@ -217,6 +275,7 @@ class VerifyTab(QWidget):
                 signal.connect(slot)
         self._clear_file()
         self._on_key_source()
+        self._on_identity_mode()
         self._on_new_signature()
         self._refresh_key_status()
 
@@ -242,8 +301,73 @@ class VerifyTab(QWidget):
         name = getattr(curve, "name", "the new curve")
         self.banner.show_message("info", f"Curve changed to {name}",
                                  "Keys and signatures from the old curve were cleared.")
+        self._on_identity_mode()
         self._refresh_key_status()
         self._on_new_signature()
+
+    # ------------------------------------------------------------ identity: key or certificate
+    def identity_mode(self) -> str:
+        return CERTIFICATE_MODE if self.certificate_button.isChecked() else PUBLIC_KEY_MODE
+
+    def _on_identity_mode(self) -> None:
+        """Show the inputs of the chosen mode. Certificates need a curve X.509 can name."""
+        curve = getattr(self.state, "curve", None)
+        supported = curve is not None and certificate_supported(curve)
+        self.certificate_button.setEnabled(supported)
+        self.certificate_button.setToolTip(
+            "Load the signer's X.509 certificate and use the key inside" if supported else CERT_ONLY_REAL_CURVES)
+        self.cert_note.setVisible(not supported)
+        if not supported and self.certificate_button.isChecked():
+            self.public_key_button.setChecked(True)
+        certificate = self.identity_mode() == CERTIFICATE_MODE
+        self.key_panel.setVisible(not certificate)
+        self.cert_panel.setVisible(certificate)
+
+    def _load_certificate(self, *_: Any) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "Load a certificate", "", CERT_FILTER)
+        if not path:
+            return
+        name = Path(path).name
+        if Path(path).suffix.lower() not in CERTIFICATE_EXTENSIONS:
+            self.banner.show_message("bad", "Not a certificate file",
+                                     f"{name}: choose a certificate file (.pem, .crt, .cer or .der).")
+            return
+        problem = file_size_problem(path)
+        if problem:
+            self.banner.show_message("bad", "File too large" if "limit" in problem else "Could not use the file",
+                                     f"{name}: {problem}")
+            return
+        try:
+            info = load_certificate(Path(path).read_bytes())
+        except OSError as exc:
+            self.banner.show_message("bad", "Could not read the file", f"{name}: {exc.strerror or exc}")
+            return
+        except ValueError as exc:  # keep the previous certificate
+            self.banner.show_message("bad", "Not a valid certificate", f"{name}: {exc}")
+            return
+        self._certificate = info
+        self.banner.show_message("info", "Certificate loaded", f"{name}: press Verify to check the signature.")
+        self._show_certificate()
+
+    def _show_certificate(self) -> None:
+        info = self._certificate
+        if info is None:
+            return
+        Q = info.public_key.Q
+        if info.signature_valid is True:
+            check = "✔ its own signature is valid (self-signed)"
+        elif info.signature_valid is False:
+            check = "✘ its own signature is NOT valid: the certificate was changed"
+        else:
+            check = f"issued by “{html.escape(info.issuer)}”: that signature is not checked here"
+        dates = f"{info.not_before:%Y-%m-%d} to {info.not_after:%Y-%m-%d}"
+        if not info.is_current():
+            dates += " (<b>not valid today</b>)"
+        self.cert_status.setText(soft_wrap(
+            f"<b>Subject:</b> {html.escape(info.subject or '(no name)')}<br>"
+            f"<b>Curve:</b> {html.escape(info.curve.name)}<br>"
+            f"<b>Public key Q:</b> {fmt_point(Q, info.curve)}<br>"
+            f"<b>Valid:</b> {dates}<br>{check}"))
 
     def _set_key_status(self, text: str) -> None:
         self.key_status.setText(soft_wrap(text))  # long hex keys wrap inside the card
@@ -388,7 +512,18 @@ class VerifyTab(QWidget):
             raise ValueError("Choose a curve first (toolbar at the top).")
 
         source = self.key_source.currentData()
-        if source == CURRENT:
+        if self.identity_mode() == CERTIFICATE_MODE:
+            info = self._certificate
+            if info is None:
+                raise ValueError("Load the signer's certificate first.")
+            if info.signature_valid is False:
+                raise ValueError("The certificate's own signature is not valid, so the key inside cannot be "
+                                 "trusted.")
+            pub = info.public_key
+            if pub.curve != curve:
+                raise ValueError(f"This certificate's key is on {pub.curve.name}. Select that curve at the top "
+                                 "first.")
+        elif source == CURRENT:
             pub = getattr(self.state, "pub", None)
             if pub is None:
                 raise ValueError("You need a public key first: make one on the Keys page.")
@@ -396,7 +531,9 @@ class VerifyTab(QWidget):
             text = self.key_hex.text().strip()
             if not text:
                 raise ValueError("Paste the public key in hex first.")
-            pub = PublicKey(point_from_hex(curve, text), curve)
+            Q = point_from_hex(curve, text)
+            validate_public_point(curve, Q)  # the same checks as for a key file
+            pub = PublicKey(Q, curve)
         else:
             pub = self._loaded_pub
             if pub is None:

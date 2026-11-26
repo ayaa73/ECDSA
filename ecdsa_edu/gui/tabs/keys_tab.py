@@ -5,7 +5,8 @@ Lets a student
   2. see the public key Q = d * G as coordinates and in both hex encodings,
   3. watch below how Q was computed, step by step,
   4. copy the private key (it is never written to a file), save / load the
-     public key, and load a private key file.
+     public key, export a self-signed X.509 certificate (secp256k1 / P-256),
+     and load a private key file.
 
 While the private key is on screen a warning is shown; "Hide d" masks it.
 A new private key made here must be copied before leaving the page: the
@@ -50,6 +51,7 @@ from ecdsa_edu.core.key_io import load_private_key, load_public_key, point_to_he
 from ecdsa_edu.core.keys import generate_keypair, public_from_private
 from ecdsa_edu.core.trace import Trace
 from ecdsa_edu.core.types import PrivateKey, PublicKey
+from ecdsa_edu.core.x509 import certificate_supported, make_self_signed_certificate, to_pem
 from ecdsa_edu.gui.app_state import AppState
 from ecdsa_edu.gui.widgets.bigint_field import BigIntField, format_bigint
 from ecdsa_edu.gui.widgets.key_derivation import MANUAL_KEY_NOTE, KeyDerivation
@@ -60,6 +62,10 @@ from ecdsa_edu.gui.widgets.cards import Card, make_page_header
 __all__ = ["KeysTab", "make_trace_view", "set_message"]
 
 _KEY_FILTER = "Key files (*.json);;All files (*)"
+_PEM_FILTER, _DER_FILTER = "PEM certificate (*.pem *.crt)", "DER certificate (*.der *.cer)"
+CERTIFICATE_NAME = "ECDSA Lab key"
+CERT_ONLY_REAL_CURVES = ("Certificates work with secp256k1 and P-256 only: X.509 names curves with standard "
+                         "identifiers, and the toy curves have none.")
 
 PRIVATE_KEY_NOTE = ("Don't forget to copy your key and save it in a safe place (for example, a password "
                     "manager). We don't save it for you, and it will be lost when you leave.")
@@ -218,11 +224,17 @@ class KeysTab(QWidget):
         self.btn_save_pub = QPushButton("Save public key…")
         self.btn_load_pub = QPushButton("Load public key…")
         self.btn_load_priv = QPushButton("Load private key…")
+        self.btn_export_cert = QPushButton("Export certificate…")
+        self.btn_export_cert.setToolTip("Save a self-signed X.509 certificate for your public key, signed with "
+                                        "your private key. Load it on the Verify page to check signatures.")
+        self.cert_note = _note(CERT_ONLY_REAL_CURVES)
         grid = QGridLayout()
         box_files.body.addLayout(grid)
         grid.addWidget(self.btn_save_pub, 0, 0)
         grid.addWidget(self.btn_load_pub, 0, 1)
         grid.addWidget(self.btn_load_priv, 1, 0)
+        grid.addWidget(self.btn_export_cert, 1, 1)
+        grid.addWidget(self.cert_note, 3, 0, 1, 2)
         grid.addWidget(_note("The public key is saved as a small JSON file. The private key is never "
                              "saved by the app: copy it instead."), 2, 0, 1, 2)
 
@@ -279,6 +291,7 @@ class KeysTab(QWidget):
         self.d_field.returnPressed.connect(self.derive)
         self.d_field.textChanged.connect(self._update_controls)
         self.btn_copy_priv.clicked.connect(self.copy_private_key)
+        self.btn_export_cert.clicked.connect(self.export_certificate_dialog)
         self.btn_save_pub.clicked.connect(self.save_public_key_dialog)
         self.btn_load_priv.clicked.connect(self.load_private_key_dialog)
         self.btn_load_pub.clicked.connect(self.load_public_key_dialog)
@@ -442,6 +455,31 @@ class KeysTab(QWidget):
         else:
             self._set_status(f"Public key saved to {path}.", "ok")
 
+    def export_certificate_dialog(self) -> None:
+        """Save a self-signed X.509 certificate (PEM or DER) for the current key pair."""
+        priv, pub = self._keys()
+        if priv is None or pub is None:
+            self._set_status("Generate or load a key pair first: the certificate is signed with the private key.",
+                             "error")
+            return
+        if not certificate_supported(self._curve):
+            self._set_status(CERT_ONLY_REAL_CURVES, "error")
+            return
+        path, chosen = QFileDialog.getSaveFileName(
+            self, "Export certificate", f"{self._curve.name}_certificate.pem", f"{_PEM_FILTER};;{_DER_FILTER}"
+        )
+        if not path:
+            return
+        try:
+            der = make_self_signed_certificate(priv, pub, CERTIFICATE_NAME)
+            as_der = chosen == _DER_FILTER or path.lower().endswith((".der", ".cer"))
+            with open(path, "wb") as file:
+                file.write(der if as_der else to_pem(der).encode("ascii"))
+        except (OSError, ValueError) as exc:
+            self._alert("Could not export the certificate", str(exc))
+        else:
+            self._set_status(f"Certificate saved to {path}. Load it on the Verify page (Certificate).", "ok")
+
     def load_private_key_dialog(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Load private key", "", _KEY_FILTER)
         if not path:
@@ -546,6 +584,9 @@ class KeysTab(QWidget):
         self.btn_load_priv.setEnabled(idle)
         self.btn_load_pub.setEnabled(idle)
         self.btn_save_pub.setEnabled(pub is not None)
+        supported = certificate_supported(self._curve)
+        self.btn_export_cert.setEnabled(idle and priv is not None and supported)
+        self.cert_note.setVisible(not supported)
         self.btn_copy_priv.setVisible(priv is not None)
         self.copy_note.setVisible(priv is not None)
 
