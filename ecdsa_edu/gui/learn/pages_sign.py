@@ -78,6 +78,7 @@ def _sign_with_k(st: LearnState) -> list:
 # ================================================================== step 3
 class HashPage(LearnPage):
     title = "Step 3: Alice hashes her message"
+    short_title = "Hash"
     HELP = ("Step 3 turns the message into a number e. SHA-256 makes a 256-bit fingerprint of the message, and "
             "then only as many bits are kept as the group order n has. The table shows the fingerprint, how many "
             "bits were dropped, and the final e that the signature uses.")
@@ -114,6 +115,7 @@ class HashPage(LearnPage):
 # ================================================================== step 4
 class NoncePage(LearnPage):
     title = "Step 4: Alice picks a secret k and computes r"
+    short_title = "Nonce k and r"
     HELP = ("Step 4 shows the secret nonce k and the first half of the signature, r = x(k·G) mod n. By default k "
             "comes from RFC 6979, exactly as on the Sign page. To experiment, type your own k or press \"Try a "
             "random k\" and watch r change; \"Back to the RFC 6979 k\" restores the real one.")
@@ -210,6 +212,7 @@ class NoncePage(LearnPage):
 # ================================================================== step 5
 class SPage(LearnPage):
     title = "Step 5: Alice computes s and the signature is ready"
+    short_title = "Signature s"
     HELP = ("Step 5 computes the second half of the signature, s = k⁻¹ (e + r·d) mod n. The table shows how k⁻¹ "
             "is found with the extended Euclidean algorithm, then every value that goes into s. The pair (r, s) "
             "is the finished signature that step 6 checks.")

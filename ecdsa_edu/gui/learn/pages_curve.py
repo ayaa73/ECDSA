@@ -9,6 +9,9 @@ from ecdsa_edu.gui.tabs.curve_explorer_tab import finite_field_figure
 
 class CurvePage(LearnPage):
     title = 'Step 1: the curve and G'
+    short_title = 'The curve'
+    reading = 'curve.html'
+    reading_title = 'Go deeper: the curve equation, adding points and double-and-add'
 
     HELP = (
         "This page introduces the elliptic curve and its generator point G. "

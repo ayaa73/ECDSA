@@ -40,6 +40,9 @@ class KeysPage(LearnPage):
     """Step 2: choose d (random or typed) and compute Q = d * G."""
 
     title = "Step 2: Alice makes a key pair"
+    short_title = "Key pair"
+    reading = "keys.html"
+    reading_title = "Go deeper: random keys, why Q hides d, and how keys are written down"
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)

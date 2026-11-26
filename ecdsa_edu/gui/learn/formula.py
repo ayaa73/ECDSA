@@ -1,4 +1,4 @@
-"""Render LaTeX-style formulas to PNG for the Theory pages (P4).
+"""Render LaTeX-style formulas to PNG for the Learn ECDSA reading (P4).
 
 Uses matplotlib's built-in mathtext, so it works offline and needs no LaTeX
 install. Supports the usual subset: fractions, sub/superscripts, Greek letters,
@@ -6,7 +6,7 @@ install. Supports the usual subset: fractions, sub/superscripts, Greek letters,
 (mathtext doesn't know them natively).
 
 Example:
-    render_formula(r"s = k^{-1}(e + r d) \\bmod n", "pages/img/sign.png")
+    render_formula(r"s = k^{-1}(e + r d) \\bmod n", "reading/img/sign.png")
 """
 from __future__ import annotations
 

@@ -37,6 +37,9 @@ def _point(s: str) -> tuple[int, int] | None:
 
 class VerifyPage(LearnPage):
     title = "Step 6: Bob verifies the signature"
+    short_title = "Verify"
+    reading = "verify.html"
+    reading_title = "Go deeper: every check, a worked example and why the checks matter"
     HELP = ("Step 6 checks the signature the way Bob would, using only the public key Q, the message and (r, s). "
             "Bob computes w = s⁻¹, then u1 and u2, then the point u1·G + u2·Q. If its x-coordinate mod n equals "
             "r, the signature is VALID. The box below the table explains why this always works.")
@@ -103,8 +106,29 @@ class VerifyPage(LearnPage):
         self.set_values({})
 
 
+class PitfallsPage(LearnPage):
+    title = "Step 7: The classic ECDSA pitfalls"
+    short_title = "Pitfalls"
+    reading = "pitfalls.html"
+    reading_open = True
+    HELP = ("Step 7 lists the mistakes behind almost every real-world break of ECDSA: reusing or leaking the "
+            "nonce k, code that is not constant-time, signature malleability and missing input checks. The Attack "
+            "Demo page lets you try the first one yourself.")
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.set_text("The math of ECDSA is sound, but small implementation mistakes have broken it many times. "
+                      "These are the classic ones, each with a real incident.")
+        self.set_formula("")
+        self.values_table.hide()
+
+    def enter(self, st: LearnState) -> None:
+        """Plain reading: nothing to compute."""
+
+
 class QuizPage(LearnPage):
-    title = "Step 7: Quiz"
+    title = "Step 8: Quiz"
+    short_title = "Quiz"
     HELP = ("Three questions on what you just saw. Click an answer to see right away whether it's correct and "
             "why. You can change your answers; the score at the bottom updates.")
 
@@ -151,4 +175,21 @@ class QuizPage(LearnPage):
         """The quiz keeps its answers when the student goes Back and Next again."""
 
 
-PAGES = [VerifyPage, QuizPage]
+class GlossaryPage(LearnPage):
+    title = "Step 9: Glossary"
+    short_title = "Glossary"
+    reading = "glossary.html"
+    reading_open = True
+    HELP = "Every term used in the walkthrough and in the app, with a one-line meaning."
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.set_text("Every term used in this walkthrough and in the rest of the app, in one place.")
+        self.set_formula("")
+        self.values_table.hide()
+
+    def enter(self, st: LearnState) -> None:
+        """Plain reading: nothing to compute."""
+
+
+PAGES = [VerifyPage, PitfallsPage, QuizPage, GlossaryPage]

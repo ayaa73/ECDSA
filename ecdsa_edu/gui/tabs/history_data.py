@@ -119,7 +119,7 @@ MILESTONES: tuple[Milestone, ...] = (
         "only for verifying existing signatures.",
         "ECDSA is still a current, approved standard, and the one our app follows.",
         "NIST, FIPS 186-5 Digital Signature Standard",
-        "https://csrc.nist.gov/pubs/fips/186-5/final", "Theory"),
+        "https://csrc.nist.gov/pubs/fips/186-5/final", "Learn ECDSA"),
     Milestone(
         2024, "A signature standard for the quantum era", "standard",
         "NIST publishes FIPS 204 (ML-DSA) on 13 August 2024, a lattice-based signature scheme designed to stay "

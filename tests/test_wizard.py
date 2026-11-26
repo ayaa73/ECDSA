@@ -56,11 +56,11 @@ def fake_importer(available: dict[str, object]):
     return imp
 
 
-def test_all_missing_gives_seven_coming_soon_steps():
+def test_all_missing_gives_nine_coming_soon_steps():
     loaded = load_page_modules(importer=fake_importer({}))
     assert [m.spec.module for m in loaded] == ["pages_curve", "pages_keys", "pages_sign", "pages_verify"]
     assert all(m.pages is None for m in loaded)
-    assert step_count(loaded) == 7
+    assert step_count(loaded) == 9
     assert "not written yet" in loaded[0].error
 
 
@@ -68,7 +68,7 @@ def test_loaded_module_uses_real_page_count():
     keys_mod = types.SimpleNamespace(PAGES=[object, object])  # 2 pages instead of the expected 1
     loaded = load_page_modules(importer=fake_importer({"pages_keys": keys_mod}))
     assert loaded[1].pages == [object, object]
-    assert step_count(loaded) == 8
+    assert step_count(loaded) == 10
 
 
 def test_missing_dependency_and_broken_module_are_reported():
@@ -85,7 +85,7 @@ def test_missing_dependency_and_broken_module_are_reported():
 
 
 def test_page_modules_order_matches_contract():
-    assert sum(m.expected_steps for m in PAGE_MODULES) == 7
+    assert sum(m.expected_steps for m in PAGE_MODULES) == 9
 
 
 # --- Qt: the real tab ---------------------------------------------------------

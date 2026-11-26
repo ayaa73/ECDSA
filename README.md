@@ -18,9 +18,8 @@ and watch what goes wrong when a nonce is reused.
 | Sign | Hash and sign messages or files, with the full trace | P3 |
 | Verify | Verify signatures, with the full trace | P4 |
 | Curve Explorer | Explore curves, point addition and scalar multiplication | P1 |
-| Learn ECDSA | Guided walkthrough of the whole signature story, one step per page | P4 (frame) + everyone's pages |
+| Learn ECDSA | Guided walkthrough of the whole signature story, one step per page, with "Go deeper" theory, the classic pitfalls, a quiz and a glossary | P4 (frame) + everyone's pages |
 | Attack Demo | Recover the private key from two signatures that reused a nonce | P4 |
-| Theory | Short illustrated explanations of every topic | P4 (viewer) + everyone's pages |
 
 The pages are listed in the sidebar on the left. The curve selector in the toolbar applies to
 every page. Built-in curves: `toy-17`, `toy-97` (small enough to follow by hand), `secp256k1`,
@@ -99,8 +98,7 @@ ecdsa_edu/
                verify_tab.py  attack_tab.py                  P4
     learn/     wizard.py                                     P4
                pages_curve.py / _keys / _sign / _verify      P1 / P2 / P3 / P4
-    theory/    theory_tab.py  formula.py                     P4
-               pages/NN_slug.html                            each owner
+               reading/*.html  ("Go deeper" theory)          each owner
 tests/                     pytest + pytest-qt
 docs/report/               one report section per person
 docs/slides/               presentation
@@ -154,7 +152,6 @@ every curve change. The expected class names are:
 | Curve Explorer | `gui/tabs/curve_explorer_tab.py` | `CurveExplorerTab` |
 | Learn ECDSA | `gui/learn/wizard.py` | `LearnWizard` |
 | Attack Demo | `gui/tabs/attack_tab.py` | `AttackTab` |
-| Theory | `gui/theory/theory_tab.py` | `TheoryTab` |
 
 **Shared look.** `gui/app.py` holds the light and dark themes. Use these properties instead of
 hard-coded colours, and your page follows the theme toggle automatically:
@@ -186,4 +183,4 @@ but they are **not encrypted**.
 | P1 | Curves and point arithmetic |
 | P2 | Keys, application shell, custom-curve dialog, packaging |
 | P3 | Hashing and signing, TraceViewer |
-| P4 | Verification and nonce-reuse attack, Learn wizard, Theory tab, report |
+| P4 | Verification and nonce-reuse attack, Learn wizard and its reading, report |

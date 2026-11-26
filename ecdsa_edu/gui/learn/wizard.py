@@ -21,8 +21,12 @@ How to write a page (copy ExamplePage at the bottom of this file):
     PAGES = [KeysPage]
 
 enter() runs every time the page is shown, and again for all earlier pages
-when the student switches between the toy curve and secp256k1, so each page
-should (re)compute from the state it is given.
+when the student switches between the toy curve and secp256k1 (or jumps ahead
+with the stepper), so each page should (re)compute from the state it is given.
+
+A page can also set ``short_title`` (its name in the stepper at the top) and
+``reading`` (an HTML file in gui/learn/reading/ shown under the step as
+"Go deeper"; ``reading_open = True`` shows it straight away).
 """
 from __future__ import annotations
 
@@ -41,6 +45,7 @@ from PySide6.QtWidgets import (
     QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -52,6 +57,8 @@ from ecdsa_edu.gui.learn.model import (
     load_page_modules,
     step_count,
 )
+from ecdsa_edu.gui.learn.reading import ReadingView
+from ecdsa_edu.gui.learn.stepper import StepperBar
 
 __all__ = ["LearnState", "LearnPage", "LearnTab", "LearnWizard", "ExamplePage", "LEARN_KEYS"]
 
@@ -91,6 +98,10 @@ class LearnPage(QWidget):
     """
 
     title: str = "Untitled step"
+    short_title: str = ""    # name in the stepper; defaults to the title
+    reading: str = ""        # "Go deeper" HTML file in gui/learn/reading/, if any
+    reading_title: str = "Go deeper"
+    reading_open: bool = False
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -151,6 +162,31 @@ class LearnPage(QWidget):
             self.values_table.setItem(row, 1, item)
         self.values_table.resizeRowsToContents()
 
+    def add_reading_section(self) -> None:
+        """Append the page's "Go deeper" reading (the wizard calls this once, after building the page)."""
+        if not self.reading or getattr(self, "reading_view", None) is not None:
+            return
+        self.reading_view = ReadingView(self.reading)
+        layout = self.layout()
+        if self.reading_open:
+            layout.addWidget(self.reading_view)
+            return
+        self.reading_toggle = QToolButton()
+        self.reading_toggle.setObjectName("readingToggle")
+        self.reading_toggle.setCheckable(True)
+        self.reading_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.reading_toggle.setArrowType(Qt.ArrowType.RightArrow)
+        self.reading_toggle.setText(self.reading_title)
+        self.reading_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.reading_toggle.toggled.connect(self._show_reading)
+        self.reading_view.hide()
+        layout.addWidget(self.reading_toggle, alignment=Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(self.reading_view)
+
+    def _show_reading(self, visible: bool) -> None:
+        self.reading_toggle.setArrowType(Qt.ArrowType.DownArrow if visible else Qt.ArrowType.RightArrow)
+        self.reading_view.setVisible(visible)
+
     # --- override ---------------------------------------------------------
     def enter(self, st: LearnState) -> None:
         """Called when the page is shown. Read earlier values from st, call core
@@ -164,6 +200,7 @@ class ComingSoonPage(LearnPage):
     def __init__(self, spec: PageModule, reason: str, part: int, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.title = spec.topic + (f" (part {part})" if spec.expected_steps > 1 else "")
+        self.short_title = self.title
         self.title_label.setText(self.title)
         self.set_text(
             f"<i>Coming soon.</i> This step is written by <b>{spec.owner}</b> in "
@@ -204,9 +241,10 @@ class LearnTab(QWidget):
     """The Learn ECDSA tab: Back / Next through every teammate's steps."""
 
     HELP = ("A step-by-step walkthrough of one complete ECDSA run with small numbers: the curve, the keys, "
-            "hashing, the nonce k, the signature (r, s), verification and a short quiz. Use Next and Back (or the "
-            "arrow keys). Tick \"Show real-size numbers\" to repeat the same steps on secp256k1, the curve "
-            "Bitcoin uses.")
+            "hashing, the nonce k, the signature (r, s), verification, the classic pitfalls, a short quiz and a "
+            "glossary. Click a step in the row at the top, or use Previous and Next (or the arrow keys). "
+            "\"Go deeper\" under a step opens the longer explanation and worked examples. Tick \"Show real-size "
+            "numbers\" to repeat the same steps on secp256k1, the curve Bitcoin uses.")
 
     def __init__(self, state: Any = None) -> None:
         super().__init__()
@@ -241,6 +279,7 @@ class LearnTab(QWidget):
         # alongside plots, explanations and traces in the available height.
         self._page_scrolls: dict[LearnPage, QScrollArea] = {}
         for p in self.pages:
+            p.add_reading_section()
             scroll = QScrollArea()
             scroll.setFrameShape(QFrame.Shape.NoFrame)
             scroll.setWidgetResizable(True)
@@ -253,8 +292,12 @@ class LearnTab(QWidget):
         self.error_page = ErrorPage()
         self.stack.addWidget(self.error_page)
 
-        # Footer: Back / Next
-        self.back_btn = QPushButton("◀  Back")
+        # Stepper: the reading order, every step clickable
+        self.stepper = StepperBar([p.short_title or p.title for p in self.pages])
+        self.stepper.stepClicked.connect(self.jump_to)
+
+        # Footer: Previous / Next
+        self.back_btn = QPushButton("◀  Previous")
         self.next_btn = QPushButton("Next  ▶")
         self.back_btn.clicked.connect(self.back)
         self.next_btn.clicked.connect(self.next)
@@ -270,6 +313,7 @@ class LearnTab(QWidget):
 
         layout = QVBoxLayout(self)
         layout.addLayout(header)
+        layout.addWidget(self.stepper)
         layout.addWidget(line)
         layout.addWidget(self.stack, stretch=1)
         layout.addLayout(footer)
@@ -299,6 +343,7 @@ class LearnTab(QWidget):
             self.error_page.show_error(page.title, exc)
             self.stack.setCurrentWidget(self.error_page)
         self.step_label.setText(f"Step {self.index + 1} of {self.total}  ·  {page.title}")
+        self.stepper.set_current(self.index)
         self.back_btn.setEnabled(self.index > 0)
         self.next_btn.setEnabled(self.index < len(self.pages) - 1)
 
@@ -309,6 +354,16 @@ class LearnTab(QWidget):
     def back(self) -> None:
         if self.index > 0:
             self.go(self.index - 1)
+
+    def jump_to(self, i: int) -> None:
+        """Go straight to step ``i``. Steps that were skipped are run first,
+        so the values a later step needs (key, hash, k, ...) exist."""
+        for skipped in range(self.index + 1, min(i, len(self.pages))):
+            try:
+                self.pages[skipped].enter(self.st)
+            except Exception:  # noqa: BLE001 - the error shows when that page is visited
+                pass
+        self.go(i)
 
     def _toggle_curve(self, real: bool) -> None:
         """Restart on the other curve and replay the steps up to the current one,

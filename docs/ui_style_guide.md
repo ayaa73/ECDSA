@@ -2,7 +2,7 @@
 
 The Fusion theme in `ecdsa_edu/gui/app.py` is the source of colour tokens. The light canvas is cream `#F6F0E4`, the surface `#FBF7EF`, and the rail `#111111`; text is `#141414`. Block colours are yellow `#F4D35E`, pink `#F5A8D0`, olive `#A7B26A`, periwinkle `#9FB3F2`, peach `#F7C59F`, and lilac `#CDB8F2`. The dark theme supplies muted equivalents and light text for ordinary surfaces. Use dark text on colour blocks. Feedback colours are `ok`, `error`, and `warning`; existing token names remain available through `theme_colors()`.
 
-Suggested page colours: Start here and Keys yellow; Sign pink and lilac; Verify olive and periwinkle; Curve Explorer periwinkle; Attack Demo pink and yellow; Theory lilac. History colours follow the event category.
+Suggested page colours: Start here and Keys yellow; Sign pink and lilac; Verify olive and periwinkle; Curve Explorer periwinkle; Attack Demo pink and yellow; Learn ECDSA lilac. History colours follow the event category.
 
 Set Qt dynamic properties instead of embedding colours in widgets:
 

@@ -228,7 +228,7 @@ def test_themes_define_the_same_colours():
 
 # =========================================================== MainWindow
 PAGE_ORDER = ["Start here", "Overview", "Keys", "Sign", "Verify", "Curve Explorer", "Learn ECDSA",
-              "Attack Demo", "Theory", "History"]
+              "Attack Demo", "History"]
 
 
 def test_sidebar_lists_every_page_in_order(qtbot, state):
@@ -247,8 +247,10 @@ def test_sidebar_switches_the_stack(qtbot, state):
     assert window.current_page_title() == window._start_page_title()
     window.sidebar.setCurrentRow(PAGE_ORDER.index("Curve Explorer"))
     assert window.stack.currentWidget() is window.pages["Curve Explorer"]
-    window.show_page("Theory")
-    assert window.stack.currentWidget() is window.pages["Theory"]
+    window.show_page("History")
+    assert window.stack.currentWidget() is window.pages["History"]
+    window.show_page("Theory")  # removed: its content now lives in Learn ECDSA
+    assert window.stack.currentWidget() is window.pages["History"]
 
 
 def test_real_page_is_built_with_the_state_and_follows_the_curve(qtbot, state, monkeypatch):

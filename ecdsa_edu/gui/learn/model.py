@@ -57,13 +57,13 @@ class PageModule:
     expected_steps: int  # how many steps it contributes when present
 
 
-# Order = walkthrough order. Expected counts give "Step X of 7" even before
+# Order = walkthrough order. Expected counts give "Step X of 9" even before
 # every teammate has pushed their pages.
 PAGE_MODULES: tuple[PageModule, ...] = (
     PageModule("pages_curve", "P1", "The curve and the generator G", 1),
     PageModule("pages_keys", "P2", "Pick a private key d and compute Q = d*G", 1),
     PageModule("pages_sign", "P3", "Signing: hash, nonce k, then r and s", 3),
-    PageModule("pages_verify", "P4", "Verification and quiz", 2),
+    PageModule("pages_verify", "P4", "Verification, pitfalls, quiz and glossary", 4),
 )
 
 

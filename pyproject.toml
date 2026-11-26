@@ -28,4 +28,4 @@ version = { attr = "ecdsa_edu.__version__" }
 include = ["ecdsa_edu*"]
 
 [tool.setuptools.package-data]
-"ecdsa_edu.gui.theory" = ["pages/*"]
+"ecdsa_edu.gui.learn" = ["reading/*.html", "reading/img/*"]

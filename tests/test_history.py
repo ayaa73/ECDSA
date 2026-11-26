@@ -9,7 +9,7 @@ from ecdsa_edu.gui.tabs.history_data import CATEGORIES, MILESTONES, filter_miles
 
 HAS_QT = all(importlib.util.find_spec(m) for m in ("PySide6", "pytestqt"))
 needs_qt = pytest.mark.skipif(not HAS_QT, reason="needs PySide6 and pytest-qt")
-PAGES = {"Start here", "Keys", "Sign", "Verify", "Curve Explorer", "Learn ECDSA", "Attack Demo", "Theory", "History"}
+PAGES = {"Start here", "Keys", "Sign", "Verify", "Curve Explorer", "Learn ECDSA", "Attack Demo", "History"}
 
 
 def test_every_milestone_is_complete_and_sourced():
