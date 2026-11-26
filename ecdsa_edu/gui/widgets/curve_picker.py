@@ -130,7 +130,7 @@ class CurvePicker(QDialog):
         self.cards = {}        # curve name -> card button
         self._order = []       # all card buttons, in reading order (for the arrow keys)
 
-        intro = QLabel("Pick the curve every page will use. <b>New to ECDSA?</b> Start with toy-17: "
+        intro = QLabel("Pick the session curve. <b>New to ECDSA?</b> Start with toy-17: "
                        "its numbers are small enough to check by hand.")
         intro.setWordWrap(True)
         intro.setTextFormat(Qt.TextFormat.RichText)
@@ -184,7 +184,7 @@ class CurvePicker(QDialog):
             card = _Card(info["label"], self._card_lines(curve, info),
                          badge="Recommended for your first time" if curve.name == RECOMMENDED else "",
                          current=(current is not None and current.name == curve.name))
-            card.setToolTip("Use " + curve.name + " on every page")
+            card.setToolTip(f"Select {curve.name} as the session curve")
             card.clicked.connect(lambda _checked=False, c=curve: self._choose(c))
             self.cards[curve.name] = card
             self._order.append(card)

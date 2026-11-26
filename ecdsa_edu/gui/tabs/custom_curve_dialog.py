@@ -137,7 +137,7 @@ class CustomCurveDialog(QDialog):
         self.suggestion_buttons: list[QPushButton] = []
         self.btn_suggest.clicked.connect(self.suggest_values)
         # Kept for older code and tests: the toy-97 button.
-        self.btn_example = self.preset_buttons.get(_EXAMPLE, QPushButton())
+        self.btn_example = self.preset_buttons[_EXAMPLE]
 
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -209,7 +209,7 @@ class CustomCurveDialog(QDialog):
                         + str(curve.G[1]) + ")      →  n = " + str(curve.n) + " points")
                 button = QPushButton(text)
                 button.setAutoDefault(False)
-                button.setToolTip("Use this curve: its group has n = " + str(curve.n) + " points (a prime)")
+                button.setToolTip("Fill the fields with this suggestion, then press Create curve.")
                 button.clicked.connect(lambda _checked=False, c=curve: self._use_suggestion(c))
                 self.suggest_row.addWidget(button)
                 self.suggestion_buttons.append(button)

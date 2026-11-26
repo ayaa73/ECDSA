@@ -273,7 +273,10 @@ class NavigationRail(QWidget):
         return self._row
 
     def setCurrentRow(self, row):
-        if not 0 <= row < len(self._items) or row == self._row:
+        if not 0 <= row < len(self._items):
+            return
+        if row == self._row:
+            self._buttons[row].setChecked(True)
             return
         if self.guard is not None and self._row >= 0 and not self.guard(row):
             for index, button in enumerate(self._buttons):  # undo the click's check mark
@@ -401,9 +404,8 @@ class MainWindow(QMainWindow):
         self.curve_combo = QComboBox()
         self.curve_combo.setMinimumWidth(190)
         self.curve_combo.setAccessibleName("Curve")
-        self.curve_combo.setToolTip("The curve used by every page")
         label.setBuddy(self.curve_combo)
-        self.curve_combo.setToolTip("The curve used by every page. The last entry makes your own curve.")
+        self.curve_combo.setToolTip("Choose the session curve. The last entry makes your own curve.")
 
         # "?" button: help for the page that is shown.
         self.help_button = QToolButton()
@@ -426,7 +428,7 @@ class MainWindow(QMainWindow):
         self.curve_button = QPushButton()
         self.curve_button.setObjectName("curveButton")
         self.curve_button.setAccessibleName("Choose a curve")
-        self.curve_button.setToolTip("Choose the curve every page uses (Ctrl+K)")
+        self.curve_button.setToolTip("Choose the session curve (Ctrl+K)")
         self.curve_button.setShortcut(QKeySequence("Ctrl+K"))
 
         widgets = [spacer, self.curve_info, self.curve_button, label, self.curve_combo,
@@ -489,8 +491,12 @@ class MainWindow(QMainWindow):
         try:
             picker_class = getattr(importlib.import_module(module_name), class_name)
         except (ImportError, AttributeError):
-            self.curve_combo.showPopup()  # no picker available: fall back to the plain list
+            for widget in self._hidden_toolbar_widgets:
+                self._toolbar_actions[widget].setVisible(True)
+            self.curve_combo.showPopup()
             return
+        for widget in self._hidden_toolbar_widgets:
+            self._toolbar_actions[widget].setVisible(False)
         picker = picker_class(self.state, self)
         if not picker.exec():
             return
@@ -522,7 +528,7 @@ class MainWindow(QMainWindow):
                     "Your curve is ready",
                     f"Your curve “{curve.name}” has n = {curve.n} points in G's group and "
                     f"cofactor h = {curve.h}, so it works for ECDSA.\n\n"
-                    "It is now selected on every page.",
+                    "It is now the session curve.",
                 )
 
     def use_curve(self, curve) -> None:
@@ -580,12 +586,6 @@ class MainWindow(QMainWindow):
         rail_layout.addWidget(logo)
         rail_layout.addWidget(self.sidebar)
         rail_layout.addStretch(1)
-        settings = QToolButton()
-        settings.setIcon(make_icon("settings", "#BDBDBD"))
-        settings.setAccessibleName("Settings")
-        settings.setToolTip("Settings")
-        settings.clicked.connect(lambda: self.menuBar().actions()[1].menu().popup(settings.mapToGlobal(settings.rect().topRight())))
-        rail_layout.addWidget(settings, alignment=Qt.AlignmentFlag.AlignHCenter)
         layout.addWidget(rail)
         center = QVBoxLayout()
         self._center_layout = center
@@ -849,6 +849,11 @@ class MainWindow(QMainWindow):
                 action.setShortcut(shortcut)
             action.triggered.connect(lambda _checked=False, h=handler: self._run_keys_action(h))
             file_menu.addAction(action)
+            if method == "save_public_key_dialog":
+                action.setEnabled(self.state.pub is not None)
+                self.state.keysChanged.connect(
+                    lambda a=action: a.setEnabled(self.state.pub is not None)
+                )
         if file_menu.actions():
             file_menu.addSeparator()
         custom = QAction("&Custom curve…", self)
