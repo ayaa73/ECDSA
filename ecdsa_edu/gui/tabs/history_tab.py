@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from ecdsa_edu.gui.tabs.history_data import CATEGORIES, MILESTONES, Milestone, filter_milestones
-from ecdsa_edu.gui.tabs.p4_widgets import explanation, go_to, heading
+from ecdsa_edu.gui.tabs.p4_widgets import explanation, heading
 from ecdsa_edu.gui.widgets.cards import Card
 
 __all__ = ["HistoryTab", "TimelineStrip"]
@@ -93,8 +93,8 @@ class HistoryTab(QWidget):
 
     HELP = ("A short history of ECDSA, from the invention of public-key cryptography to today's standards. Click a "
             "dot on the timeline (or use the Left and Right arrow keys) to read what happened and why it matters. "
-            "Use the boxes to show only some kinds of events. \"See it in the app\" opens the page that shows "
-            "that idea.")
+            "Use the boxes to show only some kinds of events. Where an idea can be tried in the app, the page "
+            "is named under the story.")
 
     def __init__(self, state: Any = None) -> None:
         super().__init__()
@@ -148,15 +148,17 @@ class HistoryTab(QWidget):
         self.source.setOpenExternalLinks(True)
         self.source.setWordWrap(True)
         self.source.setTextFormat(Qt.TextFormat.RichText)
-        self.see_button = QPushButton()
-        self.see_button.clicked.connect(self.open_page)
+        # Where the idea can be tried in the app (plain text: the sidebar navigates).
+        self.see_label = QLabel()
+        self.see_label.setWordWrap(True)
+        self.see_label.setProperty("muted", True)
         self.empty_note = QLabel("No events match. Tick at least one box above.")
         details = Card("What happened", "periwinkle")
         self.details = details
         dl = details.body
         for w in (self.detail_title, self.detail_category, self.story, self.why, self.source):
             dl.addWidget(w)
-        dl.addWidget(self.see_button, alignment=Qt.AlignmentFlag.AlignLeft)
+        dl.addWidget(self.see_label)
         dl.addWidget(self.empty_note)
         dl.addStretch(1)
 
@@ -205,11 +207,6 @@ class HistoryTab(QWidget):
     def current(self) -> Milestone | None:
         return self.items[self.index] if 0 <= self.index < len(self.items) else None
 
-    def open_page(self, *_: Any) -> None:
-        m = self.current()
-        if m is not None and m.page:
-            go_to(self, self.state, m.page)
-
     def _refresh(self) -> None:
         self.strip.set_items(self.items, self.index if self.items else -1)
         m = self.current()
@@ -219,7 +216,7 @@ class HistoryTab(QWidget):
         self.empty_note.setVisible(not has)
         self.prev_button.setEnabled(has and self.index > 0)
         self.next_button.setEnabled(has and self.index < len(self.items) - 1)
-        self.see_button.setVisible(bool(has and m.page))
+        self.see_label.setVisible(bool(has and m.page))
         if not has:
             return
         cat = CATEGORIES[m.category]
@@ -231,4 +228,4 @@ class HistoryTab(QWidget):
         self.why.setText(f"<b>Why it matters for ECDSA:</b> {html.escape(m.why_it_matters)}")
         self.source.setText(f"Source: <a href='{html.escape(m.source_url)}'>{html.escape(m.source_title)}</a>")
         if m.page:
-            self.see_button.setText(f"See it in the app: {m.page}")
+            self.see_label.setText(f"Try it in the app on the “{m.page}” page.")

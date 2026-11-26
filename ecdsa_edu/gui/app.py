@@ -183,6 +183,8 @@ QWidget#appSurface > QWidget {{ border: none; }}
 QWidget#sidePanel {{ background: {hover}; border-radius: 24px; }}
 QWidget#sidePanel QLabel {{ background: transparent; }}
 QWidget#sidePanel QLabel#activityCard {{ background: {panel}; border-radius: 20px; padding: 16px; }}
+QPushButton#sessionHandle {{ background: {hover}; border: 1px solid {border}; border-radius: 12px; padding: 0; }}
+QPushButton#sessionHandle:checked, QPushButton#sessionHandle:hover {{ background: {accent}; color: {accent_text}; border-color: {accent}; }}
 QWidget#rail {{ background: {rail}; border-radius: 24px; }}
 QWidget#sidebar {{ background: {rail}; }}
 QLabel#railLogo {{ color: {sidebar_text}; background: transparent; font-size: 20px; font-weight: 500; padding: 12px 0; }}
@@ -221,7 +223,6 @@ QLabel[heading="hero"] {{ color: {heading}; font-size: 36px; font-weight: 500; }
 QLabel[heading="section"] {{ color: {heading}; font-size: 16pt; font-weight: 600; }}
 QLabel[muted="true"] {{ color: {muted}; }}
 QLabel[formula="true"] {{ background: {input_readonly}; border-radius: 14px; padding: 14px; font-size: 20pt; }}
-QPushButton[tutorialChoice="true"] {{ text-align: left; padding: 10px 14px; }}
 QLabel[result="good"] {{ background: {mint}; color: {pastel_text}; border-radius: 24px; padding: 12px; }}
 QLabel[result="bad"] {{ background: {pink}; color: {pastel_text}; border-radius: 24px; padding: 12px; }}
 QLabel[result="info"] {{ background: {hover}; border-radius: 24px; padding: 12px; }}

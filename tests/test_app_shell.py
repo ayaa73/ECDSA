@@ -522,23 +522,35 @@ def test_start_here_is_shown_first_when_it_exists(qtbot, state, monkeypatch):
     assert again.current_page_title() == "Keys"
 
 
-def test_session_panel_can_be_toggled(qtbot, state, monkeypatch):
+def test_session_drawer_floats_over_the_page(qtbot, state, monkeypatch):
     _install_module(monkeypatch, "fake_pages", GoodTab=FakePage)
     window = _window(qtbot, state, monkeypatch, [
         mw.PageSpec("Keys", "fake_pages", "GoodTab", "P2", "key"),
     ])
-    window.resize(1400, 800)
-    window.show()
-    qtbot.waitExposed(window)
-    assert window.side_panel.isVisible()
+    for size in ((1024, 700), (1440, 900)):
+        window.resize(*size)
+        window.show()
+        qtbot.waitExposed(window)
+        qtbot.wait(50)  # let the layout settle after the resize
+        assert not window.side_panel.isVisible()  # closed by default
+        page_width = window.stack.width()
 
-    window.session_button.click()
-    assert not window.side_panel.isVisible()
-    window.resize(1500, 800)
-    assert not window.side_panel.isVisible()
+        window.session_handle.click()
+        qtbot.wait(50)
+        assert window.side_panel.isVisible()
+        assert window.stack.width() == page_width  # it does not take width from the page
+        handle = window.session_handle.geometry()
+        assert window.side_panel.geometry().right() < handle.left()
+        assert handle.right() <= window.surface.width()
 
-    window.session_button.click()
-    assert window.side_panel.isVisible()
+        window.session_handle.click()
+        assert not window.side_panel.isVisible()
+
+
+def test_session_panel_has_no_navigation_buttons(qtbot, state, monkeypatch):
+    from PySide6.QtWidgets import QPushButton
+    window = _window(qtbot, state, monkeypatch, [])
+    assert [b.text() for b in window.side_panel.findChildren(QPushButton)] == []
 
 
 def test_window_size_is_remembered_but_fits_the_screen(qtbot, state, monkeypatch):

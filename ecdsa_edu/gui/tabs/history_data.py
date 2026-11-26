@@ -35,7 +35,7 @@ class Milestone:
     why_it_matters: str    # the link to ECDSA / to this app
     source_title: str
     source_url: str
-    page: str | None = None  # page in the app that shows this idea ("See it in the app")
+    page: str | None = None  # page in the app that shows this idea (named under the story)
 
 
 MILESTONES: tuple[Milestone, ...] = (

@@ -38,13 +38,7 @@ def test_filter():
 @needs_qt
 def test_history_page(qtbot):
     from ecdsa_edu.gui.tabs.history_tab import HistoryTab
-    requested = []
-
-    class State:
-        def go_to(self, title):
-            requested.append(title)
-
-    tab = HistoryTab(State())
+    tab = HistoryTab(None)
     qtbot.addWidget(tab)
     assert len(tab.items) == len(MILESTONES)
     assert str(MILESTONES[0].year) in tab.detail_title.text()
@@ -59,8 +53,7 @@ def test_history_page(qtbot):
 
     ps3 = next(i for i, m in enumerate(tab.items) if m.page == "Attack Demo")
     tab.select(ps3)
-    tab.see_button.click()
-    assert requested == ["Attack Demo"]
+    assert "Attack Demo" in tab.see_label.text() and not tab.see_label.isHidden()
 
     for box in tab.chips.values():
         box.setChecked(False)

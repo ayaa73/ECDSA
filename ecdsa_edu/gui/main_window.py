@@ -23,11 +23,14 @@ import sys
 import traceback
 from dataclasses import dataclass
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QAction, QColor, QIcon, QKeySequence, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtCore import QEvent, QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtGui import (
+    QAction, QColor, QIcon, QKeySequence, QPainter, QPainterPath, QPen, QPixmap, QShortcut,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QGraphicsDropShadowEffect,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -41,8 +44,9 @@ from PySide6.QtWidgets import (
     QToolBar,
     QToolButton,
     QVBoxLayout,
-    QStyledItemDelegate,
     QStyle,
+    QStyleOptionButton,
+    QStylePainter,
     QWidget,
 )
 
@@ -84,6 +88,8 @@ SETTING_SHOW_TUTORIAL = "tutorial/show_at_startup"  # P4's "Don't show at startu
 SETTING_WINDOW_SIZE = "window/size"
 DEFAULT_WINDOW_SIZE = (1360, 900)
 NO_HELP_TEXT = "No help written yet for this page."
+SESSION_HANDLE_WIDTH = 26
+SESSION_PANEL_WIDTH = 300
 
 CUSTOM_DIALOG = ("ecdsa_edu.gui.tabs.custom_curve_dialog", "CustomCurveDialog")
 CURVE_PICKER = ("ecdsa_edu.gui.widgets.curve_picker", "CurvePicker")
@@ -243,6 +249,34 @@ class NavigationRail(QWidget):
                                      colors["sidebar_selected_text"] if button.isChecked() else colors["sidebar_text"]))
 
 
+class SessionHandle(QPushButton):
+    """Slim tab on the right edge with vertical text; it opens the Session drawer."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__("Session", parent)
+        self.setObjectName("sessionHandle")
+        self.setCheckable(True)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setAccessibleName("Session panel")
+        self.setToolTip("Show or hide your session activity")
+
+    def paintEvent(self, event) -> None:  # noqa: N802 (Qt naming)
+        painter = QStylePainter(self)
+        option = QStyleOptionButton()
+        self.initStyleOption(option)
+        option.text = ""
+        painter.drawControl(QStyle.ControlElement.CE_PushButton, option)
+        colors = theme_colors(current_theme())
+        highlighted = self.isChecked() or self.underMouse()
+        painter.setPen(QColor(colors["accent_text"] if highlighted else colors["text"]))
+        painter.translate(self.width() / 2, self.height() / 2)
+        painter.rotate(-90)
+        text = self.text()
+        width = self.fontMetrics().horizontalAdvance(text)
+        painter.drawText(QRectF(-width / 2 - 2, -self.width() / 2, width + 4, self.width()),
+                         Qt.AlignmentFlag.AlignCenter, text)
+
+
 class ActivityChart(QWidget):
     """Small session chart: each bar records a key, signature, or verification event."""
     def __init__(self, parent=None):
@@ -333,14 +367,6 @@ class MainWindow(QMainWindow):
         self.help_button.setFixedSize(36, 36)
         self.theme_button.setToolTip("Switch between the light and the dark theme  (Ctrl+D)")
 
-        self.session_button = QToolButton()
-        self.session_button.setText("Session")
-        self.session_button.setCheckable(True)
-        self.session_button.setChecked(True)
-        self.session_button.setAccessibleName("Show session panel")
-        self.session_button.setToolTip("Show or hide the Session panel in wide windows")
-        self.session_button.toggled.connect(self._update_side_panel_visibility)
-
         # The single visible way to choose a curve opens the card picker.
         # The old combo remains hidden as a fallback if the picker is unavailable.
         self.curve_button = QPushButton()
@@ -350,7 +376,7 @@ class MainWindow(QMainWindow):
         self.curve_button.setShortcut(QKeySequence("Ctrl+K"))
 
         widgets = [spacer, self.curve_info, self.curve_button, label, self.curve_combo,
-                   self.session_button, self.help_button, self.theme_button]
+                   self.help_button, self.theme_button]
         self._toolbar_actions = {}
         for widget in widgets:
             # Widgets inside a toolbar are shown and hidden through their action.
@@ -479,8 +505,10 @@ class MainWindow(QMainWindow):
         surface.setObjectName("appSurface")
         surface.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         outer.addWidget(surface)
+        self.surface = surface
         layout = QHBoxLayout(surface)
-        layout.setContentsMargins(16, 16, 16, 16)
+        # The right margin leaves room for the Session handle on the edge.
+        layout.setContentsMargins(16, 16, SESSION_HANDLE_WIDTH + 12, 16)
         layout.setSpacing(16)
         rail = QWidget()
         self.rail = rail
@@ -510,18 +538,29 @@ class MainWindow(QMainWindow):
         center.addWidget(self._toolbar)
         center.addWidget(self.stack, 1)
         layout.addLayout(center, 1)
-        self.side_panel = QWidget()
+        # Session drawer: it floats over the page when opened, so it never takes
+        # width away from the pages. A slim handle on the right edge opens it.
+        self.side_panel = QWidget(surface)
         self.side_panel.setObjectName("sidePanel")
         self.side_panel.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.side_panel.setFixedWidth(300)
         panel = QVBoxLayout(self.side_panel)
         panel.setContentsMargins(20, 24, 20, 20)
+        header = QHBoxLayout()
         avatar = QLabel("Session")
-        avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         avatar.setProperty("heading", "hero")
-        panel.addWidget(avatar)
+        header.addWidget(avatar, 1)
+        close = QToolButton()
+        close.setText("×")
+        close.setFixedSize(34, 34)
+        close.setStyleSheet("font-size: 20px;")
+        close.setAccessibleName("Close the session panel")
+        close.setToolTip("Close (Esc)")
+        close.setCursor(Qt.CursorShape.PointingHandCursor)
+        close.clicked.connect(lambda: self.set_session_panel_open(False))
+        header.addWidget(close, alignment=Qt.AlignmentFlag.AlignTop)
+        panel.addLayout(header)
         name = QLabel("Your activity")
-        name.setAlignment(Qt.AlignmentFlag.AlignCenter)
         name.setProperty("heading", "section")
         panel.addWidget(name)
         self.panel_curve = QLabel()
@@ -540,11 +579,6 @@ class MainWindow(QMainWindow):
         self.activity_chart = ActivityChart()
         self.activity_counts = [0, 0, 0]
         panel.addWidget(self.activity_chart)
-        sign = QPushButton("Sign a message  →")
-        sign.setProperty("primary", True)
-        sign.setCursor(Qt.CursorShape.PointingHandCursor)
-        sign.clicked.connect(lambda: self.show_page("Sign"))
-        panel.addWidget(sign)
         timeline_title = QLabel("Today's timeline")
         timeline_title.setProperty("heading", "section")
         panel.addWidget(timeline_title)
@@ -552,16 +586,19 @@ class MainWindow(QMainWindow):
         self.timeline.setProperty("muted", True)
         self.timeline.setWordWrap(True)
         panel.addWidget(self.timeline)
-        label = QLabel("Continue learning")
-        label.setProperty("heading", "section")
-        panel.addWidget(label)
-        for title, color in (("Learn ECDSA", "peach"), ("Curve Explorer", "lavender"), ("Attack Demo", "pink")):
-            button = QPushButton(title + "  →")
-            button.setProperty("card", color)
-            button.clicked.connect(lambda checked=False, page=title: self.show_page(page))
-            panel.addWidget(button)
         panel.addStretch()
-        layout.addWidget(self.side_panel)
+        shadow = QGraphicsDropShadowEffect(self.side_panel)
+        shadow.setBlurRadius(28)
+        shadow.setOffset(-4, 0)
+        shadow.setColor(QColor(0, 0, 0, 90))
+        self.side_panel.setGraphicsEffect(shadow)
+        self.side_panel.hide()
+        self.session_handle = SessionHandle(surface)
+        self.session_handle.toggled.connect(self.set_session_panel_open)
+        close_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self.side_panel)
+        close_shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        close_shortcut.activated.connect(lambda: self.set_session_panel_open(False))
+        surface.installEventFilter(self)
         self.setCentralWidget(central)
 
         self.sidebar.currentRowChanged.connect(self.stack.setCurrentIndex)
@@ -694,15 +731,38 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
         if hasattr(self, "side_panel"):
-            self._update_side_panel_visibility()
             compact = self.width() < 1100
             self.rail.setFixedWidth(72 if compact else 210)
             self.rail_logo.setText("E" if compact else "ecdsa lab")
             self.sidebar.setCompact(compact)
 
-    def _update_side_panel_visibility(self, _checked: bool = False) -> None:
-        if hasattr(self, "side_panel"):
-            self.side_panel.setVisible(self.width() >= 1280 and self.session_button.isChecked())
+    # ------------------------------------------------------ session drawer
+    def set_session_panel_open(self, open_: bool) -> None:
+        """Show or hide the Session drawer (it floats over the page)."""
+        if self.session_handle.isChecked() != open_:
+            self.session_handle.setChecked(open_)  # calls back here through toggled
+            return
+        self.side_panel.setVisible(open_)
+        self._place_session_panel()
+        if open_:
+            self.side_panel.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def _place_session_panel(self) -> None:
+        rect = self.surface.rect()
+        handle_height = min(132, max(rect.height() - 32, 40))
+        self.session_handle.setGeometry(rect.width() - SESSION_HANDLE_WIDTH - 4,
+                                        (rect.height() - handle_height) // 2,
+                                        SESSION_HANDLE_WIDTH, handle_height)
+        width = min(SESSION_PANEL_WIDTH, max(rect.width() - 120, 200))
+        self.side_panel.setGeometry(rect.width() - SESSION_HANDLE_WIDTH - 10 - width, 16,
+                                    width, max(rect.height() - 32, 100))
+        self.side_panel.raise_()
+        self.session_handle.raise_()
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: N802 (Qt naming)
+        if watched is getattr(self, "surface", None) and event.type() == QEvent.Type.Resize:
+            self._place_session_panel()
+        return super().eventFilter(watched, event)
 
     # -------------------------------------------------------------- menus
     def _build_menus(self) -> None:

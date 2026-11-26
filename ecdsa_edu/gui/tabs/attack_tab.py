@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 from ecdsa_edu.core.attacks import demo_nonce_reuse, recover_from_nonce_reuse
 from ecdsa_edu.gui.tabs.p4_logic import attack_result, fmt_number, fmt_point
 from ecdsa_edu.gui.tabs.p4_widgets import (
-    ResultBanner, explanation, go_to, heading, make_trace_view,
+    ResultBanner, explanation, heading, make_trace_view,
 )
 from ecdsa_edu.gui.widgets.worker import run_in_background
 from ecdsa_edu.gui.widgets.cards import Card, make_page_header
@@ -115,15 +115,11 @@ class AttackTab(QWidget):
         columns.addWidget(left, 1)
         columns.addWidget(right, 1)
 
-        self.theory_button = QPushButton("Read more: ECDSA pitfalls (Theory)")
-        self.theory_button.clicked.connect(lambda *_: go_to(self, self.state, "Theory"))
-
         content = QWidget()
         page = QVBoxLayout(content)
         page.addWidget(make_page_header("Why k must never repeat", "See how reusing a nonce can reveal a private key."))
         page.addLayout(columns, 1)
         page.addWidget(explanation(INCIDENT))
-        page.addWidget(self.theory_button, alignment=Qt.AlignmentFlag.AlignLeft)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(content)

@@ -1,9 +1,9 @@
 """The private-key illustration and the d · G → Q diagram."""
 from __future__ import annotations
 
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QLayout, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QLayout, QVBoxLayout, QWidget
 
 from ecdsa_edu.core.curve import Curve, enumerate_points
 from ecdsa_edu.gui.app import current_theme
@@ -166,8 +166,6 @@ class _InputArrows(QWidget):
 class KeyDerivation(QWidget):
     """Organize the lesson as a simulator, derivation diagram, and takeaways."""
 
-    theoryRequested = Signal()
-
     def __init__(self, field: BigIntField, actions: QLayout, *feedback: QLabel) -> None:
         super().__init__()
         simulator = Card("Simulate key generation", "yellow", "d")
@@ -229,9 +227,6 @@ class KeyDerivation(QWidget):
             label = QLabel(text)
             label.setWordWrap(True)
             recap.addWidget(label)
-        more = QPushButton("More on the Theory page  ↗")
-        more.clicked.connect(self.theoryRequested)
-        recap.addWidget(more, alignment=Qt.AlignmentFlag.AlignLeft)
         recap.addStretch()
 
         goal = Card("Why the key stays secret", "pink")

@@ -188,7 +188,6 @@ class KeysTab(QWidget):
         self.key_diagram = KeyDerivation(
             self.d_field, buttons, self.d_note, self.warning, self.hidden_note, self.d_hint
         )
-        self.key_diagram.theoryRequested.connect(lambda: self._state.go_to("Theory"))
 
         # --- 2. public key
         box_pub = Card("Public key Q = d · G", "peach", "2")
