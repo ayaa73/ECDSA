@@ -15,7 +15,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from PySide6.QtCore import QEasingCurve, QEvent, QPointF, QRectF, Qt, QTime, QVariantAnimation
+from PySide6.QtCore import QEasingCurve, QEvent, QPointF, QRectF, Qt, QTime, Signal, QVariantAnimation
 from PySide6.QtGui import (
     QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPainterPath, QPalette, QPen,
 )
@@ -152,6 +152,8 @@ def _anchor(node: Node, side: str) -> QPointF:
 class _OverviewCanvas(QWidget):
     """Paints the diagram and handles hover, focus and the keyboard."""
 
+    pageRequested = Signal(str)
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setMouseTracking(True)
@@ -160,12 +162,13 @@ class _OverviewCanvas(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setAccessibleName("ECDSA overview diagram")
         self.setAccessibleDescription(
-            "Boxes for each ECDSA step. Use the arrow keys to move between boxes.")
+            "Use the arrow keys to move between boxes and Enter to open the selected page.")
         self._mouse_key: str | None = None
         self._focus_key: str | None = None
         self._keyboard_mode = False
         self._target: str | None = None        # box currently highlighted
         self._popup_key: str | None = None     # box whose formulas are showing (stays while fading out)
+        self._popup_link = QRectF()
         self._progress = 0.0
         self._anim = QVariantAnimation(self)
         self._anim.valueChanged.connect(self._on_progress)
@@ -203,9 +206,7 @@ class _OverviewCanvas(QWidget):
         return self._progress
 
     def _refresh_target(self) -> None:
-        active = self._mouse_key or (
-            self._focus_key if self.hasFocus() and self._keyboard_mode else None
-        )
+        active = self._focus_key if self.hasFocus() and self._keyboard_mode else self._mouse_key
         if active == self._target:
             return
         self._target = active
@@ -239,20 +240,39 @@ class _OverviewCanvas(QWidget):
         self.update()
 
     # ---- events -------------------------------------------------------------
+    def _link_at(self, pos: QPointF) -> str | None:
+        if self._popup_key == self._target and self._popup_link.contains(self._to_logical(pos)):
+            return self._popup_key
+        return None
+
     def mouseMoveEvent(self, event) -> None:  # noqa: N802 (Qt naming)
-        key = self._node_at(event.position())
-        if key != self._mouse_key:
+        pos = event.position()
+        link = self._link_at(pos)
+        key = link or self._node_at(pos)
+        self.setCursor(Qt.CursorShape.PointingHandCursor if key else Qt.CursorShape.ArrowCursor)
+        if key is None and self._mouse_key is not None and self._mouse_key == self._popup_key:
+            # Keep the preview open while the pointer crosses the gap to its link.
+            corridor = NODE_BY_KEY[self._mouse_key].rect.united(self._popup_link)
+            if corridor.contains(self._to_logical(pos)):
+                key = self._mouse_key
+        if key != self._mouse_key or self._keyboard_mode:
+            self._keyboard_mode = False
             self._mouse_key = key
             self._refresh_target()
 
     def leaveEvent(self, event) -> None:  # noqa: N802
         self._mouse_key = None
+        self.unsetCursor()
         self._refresh_target()
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
         self._keyboard_mode = False
         self._focus_key = None
         self.setFocus(Qt.FocusReason.MouseFocusReason)
+        if event.button() == Qt.MouseButton.LeftButton:
+            key = self._link_at(event.position()) or self._node_at(event.position())
+            if key is not None:
+                self.pageRequested.emit(NODE_BY_KEY[key].page)
 
     def focusInEvent(self, event) -> None:  # noqa: N802
         super().focusInEvent(event)
@@ -286,6 +306,9 @@ class _OverviewCanvas(QWidget):
         elif key == Qt.Key.Key_End:
             self._keyboard_mode = True
             self._focus_key = order[-1]
+        elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and self._focus_key is not None:
+            self.pageRequested.emit(NODE_BY_KEY[self._focus_key].page)
+            return
         else:
             super().keyPressEvent(event)
             return
@@ -312,6 +335,7 @@ class _OverviewCanvas(QWidget):
         for node in NODES:
             if node.key != self._popup_key:
                 self._draw_node(painter, theme, node)
+        self._popup_link = QRectF()
         if self._popup_key is not None:
             node = NODE_BY_KEY[self._popup_key]
             self._draw_popup(painter, theme, node)
@@ -432,7 +456,7 @@ class _OverviewCanvas(QWidget):
         blurb_font = QFont("Georgia"); blurb_font.setPixelSize(14); blurb_font.setWeight(QFont.Weight.Medium)
         formula_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont); formula_font.setPixelSize(15)
         hint_font = QFont("Georgia"); hint_font.setPixelSize(13); hint_font.setItalic(True)
-        hint = f"Try it on the {node.page} page"
+        hint = f"Open {node.page}"
 
         widths = [QFontMetricsF(title_font).horizontalAdvance(node.title),
                   QFontMetricsF(blurb_font).horizontalAdvance(node.blurb),
@@ -472,7 +496,8 @@ class _OverviewCanvas(QWidget):
             y += 24
         y += 6
         painter.setFont(hint_font); painter.setPen(theme["accent"])
-        painter.drawText(QRectF(box.left() + 18, y, width - 36, 22), Qt.AlignmentFlag.AlignVCenter, hint)
+        self._popup_link = QRectF(box.left() + 18, y, QFontMetricsF(hint_font).horizontalAdvance(hint), 22)
+        painter.drawText(self._popup_link, Qt.AlignmentFlag.AlignVCenter, hint)
         painter.restore()
 
 
@@ -491,7 +516,7 @@ class OverviewTab(QWidget):
 
     HELP = ("This picture shows the whole ECDSA story from start to finish. "
             "Move the mouse over a box to see its formulas pop up and the page where you can try that step. "
-            "You can also use the arrow keys.")
+            "Click a box or its link to open the page. You can also use the arrow keys and Enter.")
 
     def __init__(self, state, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -500,11 +525,12 @@ class OverviewTab(QWidget):
         self.heading = QLabel()
         self.heading.setProperty("heading", "hero")
         self.caption = QLabel("ECDSA at a glance: how a key pair, a message and a one-time secret k become a "
-                              "signature, and how anyone can check it. Hover over a box to see its formulas.")
+                              "signature, and how anyone can check it. Hover for formulas. Click a box to open its page.")
         self.caption.setProperty("muted", True)
         self.caption.setWordWrap(True)
 
         self.canvas = _OverviewCanvas()
+        self.canvas.pageRequested.connect(state.go_to)
         content = QWidget()
         layout = QVBoxLayout(content)
         layout.setContentsMargins(16, 12, 16, 16)

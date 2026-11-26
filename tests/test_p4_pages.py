@@ -169,7 +169,7 @@ def test_overview_greeting_follows_the_clock():
     assert greeting(QTime(2, 0)) == "Good evening"
 
 
-def test_overview_is_only_the_diagram(qtbot, state):
+def test_overview_diagram_opens_pages(qtbot, state):
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QPushButton
     from ecdsa_edu.gui.overview_tab import OverviewTab
@@ -182,5 +182,6 @@ def test_overview_is_only_the_diagram(qtbot, state):
     assert tab.findChildren(QPushButton) == []
     assert "Welcome to ECDSA Lab" in tab.heading.text()
     qtbot.mouseClick(tab.canvas, Qt.MouseButton.LeftButton, pos=tab.canvas.node_center("priv").toPoint())
+    qtbot.keyClick(tab.canvas, Qt.Key.Key_Home)
     qtbot.keyClick(tab.canvas, Qt.Key.Key_Return)
-    assert requested == []
+    assert requested == ["Keys", "Curve Explorer"]
