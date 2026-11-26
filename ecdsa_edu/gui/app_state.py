@@ -46,8 +46,8 @@ MODES = ("beginner", "expert")
 
 # The page titles go_to() understands (the sidebar entries in main_window.py).
 PAGE_TITLES = (
-    "Start here", "Overview", "Keys", "Sign", "Verify", "Curve Explorer",
-    "Learn ECDSA", "Attack Demo", "Theory", "History",
+    "Start here", "Overview", "Keys", "Sign", "Verify", "Verification Game",
+    "Curve Explorer", "Learn ECDSA", "Attack Demo", "Theory", "History",
 )
 
 # Names of the remembered settings.

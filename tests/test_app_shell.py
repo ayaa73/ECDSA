@@ -227,8 +227,8 @@ def test_themes_define_the_same_colours():
 
 
 # =========================================================== MainWindow
-PAGE_ORDER = ["Start here", "Overview", "Keys", "Sign", "Verify", "Curve Explorer", "Learn ECDSA",
-              "Attack Demo", "Theory", "History"]
+PAGE_ORDER = ["Start here", "Overview", "Keys", "Sign", "Verify", "Verification Game",
+              "Curve Explorer", "Learn ECDSA", "Attack Demo", "Theory", "History"]
 
 
 def test_sidebar_lists_every_page_in_order(qtbot, state):

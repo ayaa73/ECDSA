@@ -17,6 +17,7 @@ and watch what goes wrong when a nonce is reused.
 | Keys | Generate / type a private key, watch `Q = d·G`, import, save and load keys | P2 |
 | Sign | Hash and sign messages or files, with the full trace | P3 |
 | Verify | Verify signatures, with the full trace | P4 |
+| Verification Game | Solve a signed-threat case by testing suspects' public keys | Game |
 | Curve Explorer | Explore curves, point addition and scalar multiplication | P1 |
 | Learn ECDSA | Guided walkthrough of the whole signature story, one step per page | P4 (frame) + everyone's pages |
 | Attack Demo | Recover the private key from two signatures that reused a nonce | P4 |

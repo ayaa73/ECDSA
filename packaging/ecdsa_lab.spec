@@ -17,8 +17,11 @@ a = Analysis(
     [str(ROOT / "packaging" / "launcher.py")],
     pathex=[str(ROOT)],
     # The Theory pages are data files, not Python modules.
-    datas=[(str(ROOT / "ecdsa_edu" / "gui" / "theory" / "pages"), "ecdsa_edu/gui/theory/pages"),
-           (str(ROOT / "ecdsa_edu" / "gui" / "assets"), "ecdsa_edu/gui/assets")],
+    datas=[
+        (str(ROOT / "ecdsa_edu" / "gui" / "theory" / "pages"), "ecdsa_edu/gui/theory/pages"),
+        (str(ROOT / "ecdsa_edu" / "gui" / "assets"), "ecdsa_edu/gui/assets"),
+        (str(ROOT / "ecdsa_edu" / "gui" / "games"), "ecdsa_edu/gui/games"),
+    ],
     # The main window imports the tabs by name at run time (importlib), which
     # PyInstaller cannot see - so list every module of the package explicitly.
     hiddenimports=collect_submodules("ecdsa_edu") + ["matplotlib.backends.backend_qtagg"],
