@@ -240,12 +240,6 @@ class KeysTab(QWidget):
 
         self.status = QLabel()
         self.status.setWordWrap(True)
-        # Shown after a curve change cleared the keys: one click makes new ones.
-        self.btn_regenerate = QPushButton("Generate new keys")
-        self.btn_regenerate.setVisible(False)
-        status_row = QHBoxLayout()
-        status_row.addWidget(self.status, 1)
-        status_row.addWidget(self.btn_regenerate)
 
         # Put secondary controls below the shared simulator, using the dashboard cards.
         details = QWidget()
@@ -270,7 +264,7 @@ class KeysTab(QWidget):
         top = QWidget()
         top_lay = QVBoxLayout(top)
         top_lay.addWidget(make_page_header("Your keys", "Create a private key and share its matching public key."))
-        top_lay.addLayout(status_row)
+        top_lay.addWidget(self.status)
         top_lay.addWidget(self.key_diagram)
         top_lay.addWidget(self.details_button, alignment=Qt.AlignmentFlag.AlignLeft)
         top_lay.addWidget(details)
@@ -297,7 +291,6 @@ class KeysTab(QWidget):
         self.btn_load_pub.clicked.connect(self.load_public_key_dialog)
         self.hex_check.toggled.connect(self._set_hex)
         self.hide_check.toggled.connect(self._apply_privacy)
-        self.btn_regenerate.clicked.connect(self.generate)
         self.d_note.setText(MANUAL_KEY_NOTE)
         self.encoding_note.setText("Compressed = 02/03 + Qx (the prefix tells whether Qy is even or odd). "
                                    "Uncompressed = 04 + Qx + Qy.")
@@ -340,10 +333,9 @@ class KeysTab(QWidget):
         if showed_keys and old_curve is not None and old_curve != curve:
             self._set_status(
                 f"The curve changed to {curve.name}. The keys shown before belonged to "
-                f"{old_curve.name} and were cleared - generate or load new ones.",
+                f"{old_curve.name} and were cleared. Press “Generate key pair” or load new keys.",
                 "warning",
             )
-            self.btn_regenerate.setVisible(True)
         else:
             self._set_status("")
         self.refresh()
@@ -567,7 +559,6 @@ class KeysTab(QWidget):
             self._state.set_curve(curve)
         if curve != self._curve:
             self.set_curve(curve)
-        self.btn_regenerate.setVisible(False)
         self._uncopied = priv if must_copy else None  # a new key: copying starts over
         self._leave_confirmed_for = None
         self._state.set_keys(priv, pub)  # -> keysChanged -> refresh()
@@ -579,7 +570,6 @@ class KeysTab(QWidget):
         priv, pub = self._keys()
         idle = not self._busy
         self.btn_generate.setEnabled(idle)
-        self.btn_regenerate.setEnabled(idle)
         self.btn_derive.setEnabled(idle and self.d_field.is_valid())
         self.btn_load_priv.setEnabled(idle)
         self.btn_load_pub.setEnabled(idle)

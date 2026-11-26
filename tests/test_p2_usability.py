@@ -122,11 +122,11 @@ def test_curve_change_offers_new_keys(qtbot, state):
     tab.btn_generate.click()
     wait_idle(qtbot, tab)
     state.set_curve(CURVES["toy-97"])
-    assert not tab.btn_regenerate.isHidden() and tab.status.property("kind") == "warning"
-    tab.btn_regenerate.click()
+    assert tab.btn_generate.isEnabled() and tab.status.property("kind") == "warning"
+    tab.btn_generate.click()
     wait_idle(qtbot, tab)
     assert state.priv is not None and state.priv.curve == CURVES["toy-97"]
-    assert tab.btn_regenerate.isHidden()
+    assert tab.status.property("kind") == "ok"
 
 
 # ======================================================= "Suggest values"
