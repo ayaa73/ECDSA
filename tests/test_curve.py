@@ -9,7 +9,7 @@ from ecdsa_edu.core.curve import (
 )
 
 from ecdsa_edu.core.field import is_probable_prime
-from ecdsa_edu.core.curves_registry import get_curve
+from ecdsa_edu.core.curves_registry import get_curve, suggest_small_curves
 
 TOY = get_curve("toy-17")
 # k*G for k = 1..19, with O represented as None.
@@ -227,3 +227,41 @@ def test_negative_scalar():
     assert scalar_mult(curve, -3, curve.G) == point_neg(
         curve, scalar_mult(curve, 3, curve.G)
     )
+
+
+# ---------------------------------------------------------------- suggest_small_curves
+
+
+@pytest.mark.parametrize("p", [5, 7, 17, 97, 251, 1009, 4999])
+def test_suggested_curves_are_good_teaching_curves(p):
+    curves = suggest_small_curves(p)
+    assert 1 <= len(curves) <= 5
+    assert len({(c.a, c.b) for c in curves}) == len(curves)  # all different
+    for c in curves:
+        assert c.p == p and 0 <= c.a < p and 0 <= c.b < p
+        assert (4 * c.a ** 3 + 27 * c.b ** 2) % p != 0          # non-singular
+        assert is_on_curve(c, c.G)                               # G is on the curve
+        assert scalar_mult(c, c.n, c.G) is None                  # n * G = O
+        assert c.n >= 5 and is_probable_prime(c.n) and c.h == 1          # prime order, cofactor 1
+        assert len(enumerate_points(c)) == c.n                   # the count is right
+
+
+def test_suggestions_agree_with_make_custom_curve():
+    for c in suggest_small_curves(97, limit=3):
+        made = make_custom_curve(c.p, c.a, c.b, c.G)
+        assert (made.n, made.h) == (c.n, c.h)
+
+
+def test_suggest_limit_and_bad_p():
+    assert len(suggest_small_curves(4999, limit=2)) == 2
+    assert suggest_small_curves(97, limit=0) == []
+    for bad in (4, 9, 5000, 4998, -7):
+        with pytest.raises(ValueError):
+            suggest_small_curves(bad)
+
+
+def test_suggest_is_fast_for_the_largest_p():
+    import time
+    start = time.perf_counter()
+    suggest_small_curves(4999)
+    assert time.perf_counter() - start < 3  # well under a second on a laptop; generous for slow CI

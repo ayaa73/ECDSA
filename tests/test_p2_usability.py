@@ -153,3 +153,23 @@ def test_suggest_values_fills_a_valid_curve(qtbot, state, monkeypatch):
     dialog.create_curve()
     qtbot.waitUntil(lambda: dialog.curve() is not None, timeout=10_000)
     assert dialog.curve().n == 79
+
+
+def test_real_suggestions_enable_the_button_and_fill_the_fields(qtbot, state):
+    """No monkeypatch: P1's real suggest_small_curves() is used."""
+    dialog = CustomCurveDialog(state)
+    qtbot.addWidget(dialog)
+    assert not dialog.btn_suggest.isEnabled()  # no p yet
+    dialog.p_field.set_value(91)  # 7 * 13: not prime
+    assert not dialog.btn_suggest.isEnabled()
+    dialog.p_field.set_value(251)
+    assert dialog.btn_suggest.isEnabled()
+    dialog.btn_suggest.click()
+    qtbot.waitUntil(lambda: len(dialog.suggestion_buttons) == 5, timeout=10_000)
+    dialog.suggestion_buttons[2].click()
+    p, a, b, gx, gy = (f.value() for f in (dialog.p_field, dialog.a_field, dialog.b_field, dialog.gx_field,
+                                            dialog.gy_field))
+    assert p == 251 and dialog.g_hint.property("kind") == "ok"
+    dialog.create_curve()
+    qtbot.waitUntil(lambda: dialog.curve() is not None, timeout=10_000)
+    assert dialog.curve().h == 1 and (dialog.curve().a, dialog.curve().b, dialog.curve().G) == (a, b, (gx, gy))

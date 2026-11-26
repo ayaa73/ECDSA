@@ -1,5 +1,6 @@
 """Defines the curves that we can select in the application"""
 from .curve import Curve
+from .field import is_probable_prime
 
 """Our four curves are: toy-17 small curve for learning and testing
                         toy-97 small curve for demonstration
@@ -39,3 +40,52 @@ def get_curve(name: str) -> Curve:
     Raises: KeyError: If the curve name is not registered.
     """
     return CURVES[name]
+
+
+MIN_SUGGEST_P, MAX_SUGGEST_P = 5, 5000  # p is enumerated point by point, so it must stay small
+
+
+def suggest_small_curves(p: int, limit: int = 5) -> list[Curve]:
+    """Good teaching curves over F_p: up to ``limit`` curves y^2 = x^3 + ax + b (mod p).
+
+    Every curve returned is non-singular (4a^3 + 27b^2 != 0 mod p) and has a
+    PRIME number of points n >= 5 (the point at infinity included). In a group
+    of prime order every point except O generates the whole group, so any
+    point can be G and the cofactor is h = 1. G is the point with the smallest x.
+
+    Counting: for each x the curve has as many points as y^2 = x^3 + ax + b has
+    square roots (0, 1 or 2). The square roots of every residue are tabulated
+    once, so each candidate (a, b) costs one pass over x and no modular
+    square roots. Candidates are tried in order a = 0, 1, ...; b = 1, 2, ...
+    and the search stops as soon as ``limit`` curves are found.
+    """
+    if not isinstance(p, int) or isinstance(p, bool) or not MIN_SUGGEST_P <= p < MAX_SUGGEST_P:
+        raise ValueError(f"p must be a prime from {MIN_SUGGEST_P} to {MAX_SUGGEST_P - 1}")
+    if not is_probable_prime(p):
+        raise ValueError(f"{p} is not a prime number")
+    if limit < 1:
+        return []
+
+    roots: dict[int, int] = {}  # residue -> its smallest square root
+    for y in range(p):
+        roots.setdefault(y * y % p, y)
+    root_count = [0] * p  # how many y have y^2 = r
+    for r in roots:
+        root_count[r] = 1 if r == 0 else 2
+    cubes = [x * x * x % p for x in range(p)]
+    xs = range(p)
+
+    found: list[Curve] = []
+    for a in range(p):
+        for b in range(p):
+            if (4 * a ** 3 + 27 * b ** 2) % p == 0:
+                continue  # singular: not an elliptic curve
+            n = 1 + sum(root_count[(cubes[x] + a * x + b) % p] for x in xs)
+            if n < 5 or not is_probable_prime(n):
+                continue
+            gx = next(x for x in xs if (cubes[x] + a * x + b) % p in roots)
+            G = (gx, roots[(cubes[gx] + a * gx + b) % p])
+            found.append(Curve(f"suggested-p{p}-a{a}-b{b}", p, a, b, G, n, 1))
+            if len(found) >= limit:
+                return found
+    return found
