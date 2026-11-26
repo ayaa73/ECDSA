@@ -14,14 +14,16 @@ and watch what goes wrong when a nonce is reused.
 
 | Page | What you can do | Owner |
 |---|---|---|
-| Keys | Generate / type a private key, watch `Q = d·G`, import, save and load keys | P2 |
-| Sign | Hash and sign messages or files, with the full trace | P3 |
-| Verify | Verify signatures, with the full trace | P4 |
+| Keys | Generate / type a private key and copy it (it is never saved), watch `Q = d·G`, save and load the public key, export a self-signed X.509 certificate | P2 |
+| Sign | Hash (SHA-512 by default) and sign messages or files (max 10 MB), with the full trace | P3 |
+| Verify | Verify signatures with a public key or an X.509 certificate, with the full trace | P4 |
 | Curve Explorer | Explore curves, point addition and scalar multiplication | P1 |
 | Learn ECDSA | Guided walkthrough of the whole signature story, one step per page, with "Go deeper" theory, the classic pitfalls, a quiz and a glossary | P4 (frame) + everyone's pages |
 | Attack Demo | Recover the private key from two signatures that reused a nonce | P4 |
 
-The pages are listed in the sidebar on the left. The curve selector in the toolbar applies to
+The pages are listed in the sidebar on the left: History, Start here, Overview and the
+learning pages first, then the games under a "Games & Practice" divider. A slim "Session"
+tab on the right edge opens a panel with your activity. The curve selector in the toolbar applies to
 every page. Built-in curves: `toy-17`, `toy-97` (small enough to follow by hand), `secp256k1`,
 `P-256`; **Custom curve…** at the end of the list adds your own small curve. A light and a
 dark theme are available (toolbar button, or View → Dark theme).
