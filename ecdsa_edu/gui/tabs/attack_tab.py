@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 from ecdsa_edu.core.attacks import demo_nonce_reuse, recover_from_nonce_reuse
 from ecdsa_edu.gui.tabs.p4_logic import attack_result, fmt_number, fmt_point
 from ecdsa_edu.gui.tabs.p4_widgets import (
-    ResultBanner, current_mode, explanation, go_to, heading, make_trace_view, on_mode_changed,
+    ResultBanner, explanation, go_to, heading, make_trace_view,
 )
 from ecdsa_edu.gui.widgets.worker import run_in_background
 from ecdsa_edu.gui.widgets.cards import Card, make_page_header
@@ -133,8 +133,6 @@ class AttackTab(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(scroll)
 
-        on_mode_changed(state, self._apply_mode)
-        self._apply_mode(current_mode(state))
         self._reset()
 
     # ------------------------------------------------------------ tab contract
@@ -149,11 +147,6 @@ class AttackTab(QWidget):
             from ecdsa_edu.core.curves_registry import get_curve
             curve = get_curve("toy-17")
         return curve
-
-    # ------------------------------------------------------------ mode
-    def _apply_mode(self, mode: str) -> None:
-        expert = mode == "expert"
-        self.k_label.setVisible(expert)  # beginners see the effect (same r), experts also see k
 
     def _toggle_trace(self, visible: bool) -> None:
         """Let the student open the attack algebra when ready."""
@@ -188,7 +181,7 @@ class AttackTab(QWidget):
         self.sig2.setText(f"r = {hl}{fmt_number(s2.r, curve)}</span><br>s = {fmt_number(s2.s, curve)}")
         self.same_r.setText("<span style='color:#b00020; font-weight:bold'>⚠ Both signatures have the same r.</span> "
                             "r comes from k·G, so the victim reused k. That is the attacker's way in.")
-        self.k_label.setText(f"(Expert) the secret k that was reused: {fmt_number(demo['k'], curve)}")
+        self.k_label.setText(f"The secret k that was reused: {fmt_number(demo['k'], curve)}")
         self.attack_button.setEnabled(True)
         self.attack_button.setFocus()
 

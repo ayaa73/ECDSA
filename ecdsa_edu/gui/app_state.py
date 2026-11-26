@@ -1,27 +1,25 @@
 """Shared application state (owner: P2).
 
 One ``AppState`` object is created at start-up and handed to every page. Pages
-read the current curve / keys / last signature / mode from it and listen to its
+read the current curve / keys / last signature from it and listen to its
 signals, so they never need to know about each other.
 
-Contract attributes:  .curve  .priv  .pub  .last_sig  .last_msg  .mode
+Contract attributes:  .curve  .priv  .pub  .last_sig  .last_msg
 Contract signals:     curveChanged(Curve)  keysChanged()  signatureChanged()
-                      modeChanged(str)  pageRequested(str)
+                      pageRequested(str)
 
 How to change the state:
 
     state.set_curve(curve)            # or: state.curve = curve
     state.set_keys(priv, pub)         # sets both, emits keysChanged once
     state.set_signature(sig, msg)     # sets both, emits signatureChanged once
-    state.set_mode("expert")          # "beginner" (default) or "expert"
     state.go_to("Keys")               # ask the main window to show another page
 
 Plain assignment to .priv / .pub / .last_sig / .last_msg also works, but then
 the caller must emit the matching signal itself.
 
-Remembered between runs (QSettings): the mode. The curve starts at toy-17.
-The main window also keeps the window size and the "show Start here at
-startup" choice in the same settings object, ``state.settings``.
+The curve starts at toy-17. The main window keeps the window size and the
+"show Start here at startup" choice in the settings object ``state.settings``.
 
 ``state.curve`` is None only while P1's curve registry does not exist yet.
 """
@@ -38,11 +36,9 @@ from ecdsa_edu.core.types import PrivateKey, PublicKey, Signature
 if TYPE_CHECKING:
     from ecdsa_edu.core.curve import Curve
 
-__all__ = ["AppState", "DEFAULT_CURVE", "DEFAULT_MODE", "MODES", "PAGE_TITLES"]
+__all__ = ["AppState", "DEFAULT_CURVE", "PAGE_TITLES"]
 
 DEFAULT_CURVE = "toy-17"  # small numbers first: best for teaching
-DEFAULT_MODE = "beginner"
-MODES = ("beginner", "expert")
 
 # The page titles go_to() understands (the sidebar entries in main_window.py).
 PAGE_TITLES = (
@@ -52,7 +48,6 @@ PAGE_TITLES = (
 
 # Names of the remembered settings.
 SETTING_CURVE = "state/curve"
-SETTING_MODE = "state/mode"
 
 
 def _builtin_curves() -> dict[str, Curve]:
@@ -79,7 +74,6 @@ class AppState(QObject):
     keysChanged = Signal()
     signatureChanged = Signal()
     verificationCompleted = Signal(bool)
-    modeChanged = Signal(str)  # "beginner" or "expert"
     pageRequested = Signal(str)  # a page title, see PAGE_TITLES
     # Extra (not in the contract): the list of selectable curves changed.
     curvesListChanged = Signal()
@@ -103,13 +97,6 @@ class AppState(QObject):
         self._curve: Curve | None = curve
         if curve is not None and curve.name not in self._builtin:
             self.custom_curves[curve.name] = curve
-
-        # Starting mode: the one used last time, else Beginner.
-        saved_mode = settings.value(SETTING_MODE, DEFAULT_MODE)
-        if saved_mode in MODES:
-            self.mode = saved_mode
-        else:
-            self.mode = DEFAULT_MODE
 
         self.priv: PrivateKey | None = None
         self.pub: PublicKey | None = None
@@ -175,21 +162,6 @@ class AppState(QObject):
             return
         self.custom_curves[curve.name] = curve
         self.curvesListChanged.emit()
-
-    # ------------------------------------------------------------- mode
-    def set_mode(self, mode: str) -> None:
-        """Switch between "beginner" and "expert". Pages listen to modeChanged."""
-        if mode not in MODES:
-            raise ValueError(f"unknown mode {mode!r}: use 'beginner' or 'expert'")
-        if mode == self.mode:
-            return
-        self.mode = mode
-        self.settings.setValue(SETTING_MODE, mode)
-        self.modeChanged.emit(mode)
-
-    def is_expert(self) -> bool:
-        """Shortcut for pages: True in Expert mode."""
-        return self.mode == "expert"
 
     # ------------------------------------------------------- navigation
     def go_to(self, page_title: str) -> None:

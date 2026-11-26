@@ -10,7 +10,7 @@ from PySide6.QtCore import QSettings
 
 @pytest.fixture(autouse=True)
 def _isolated_settings(tmp_path):
-    """Every test gets its own empty settings store, so the remembered curve, mode or
+    """Every test gets its own empty settings store, so the remembered curve or
     window size of one test (or of your own use of the app) never leaks into another."""
     QSettings.setDefaultFormat(QSettings.Format.IniFormat)
     QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, str(tmp_path / "settings"))

@@ -39,7 +39,7 @@ def test_no_key_empty_state_links_to_keys(qtbot):
     assert requested == ["Keys"]
 
 
-def test_beginner_signing_on_toy17_produces_valid_values_and_hides_d(qtbot):
+def test_signing_on_toy17_produces_valid_values_and_hides_d(qtbot):
     state = _state_with_key()
     tab = SignTab(state)
     qtbot.addWidget(tab)
@@ -57,15 +57,13 @@ def test_beginner_signing_on_toy17_produces_valid_values_and_hides_d(qtbot):
     assert all("d" not in {name.strip().lower() for name in step.values} for step in tab._last_trace)
 
 
-def test_expert_mode_exposes_nonce_and_encoding_controls(qtbot):
+def test_advanced_options_expose_nonce_and_encoding_controls(qtbot):
     state = _state_with_key()
     tab = SignTab(state)
     qtbot.addWidget(tab)
-
-    assert not tab.expert_options.isVisibleTo(tab)
-    state.set_mode("expert")
     tab.show()
-    assert tab.expert_options.isVisibleTo(tab)
+    assert tab.advanced_options.isVisibleTo(tab)
+    assert tab.advanced_options.title() == "Advanced options"
 
     tab.manual_radio.click()
     tab.manual_k_field.setText("10")
@@ -73,6 +71,7 @@ def test_expert_mode_exposes_nonce_and_encoding_controls(qtbot):
     tab.sign_button.click()
     _wait_idle(qtbot, tab)
     assert (state.last_sig.r, state.last_sig.s) == (7, 13)
+    assert tab.encoding_panel.isVisibleTo(tab)
 
     tab.der_encoding_radio.click()
     assert tab.encoding_output.hex_value().startswith("30")
@@ -80,7 +79,6 @@ def test_expert_mode_exposes_nonce_and_encoding_controls(qtbot):
 
 def test_hash_choice_does_not_change_when_scrolling_the_page(qtbot):
     state = _state_with_key()
-    state.set_mode("expert")
     tab = SignTab(state)
     qtbot.addWidget(tab)
     tab.show()
@@ -108,9 +106,8 @@ def test_hash_choice_does_not_change_when_scrolling_the_page(qtbot):
     assert tab.result_box.isVisibleTo(tab)
 
 
-def test_expert_file_signing_uses_the_file_path(qtbot, tmp_path, monkeypatch):
+def test_file_signing_uses_the_file_path(qtbot, tmp_path, monkeypatch):
     state = _state_with_key()
-    state.set_mode("expert")
     tab = SignTab(state)
     qtbot.addWidget(tab)
     path = tmp_path / "coursework.txt"

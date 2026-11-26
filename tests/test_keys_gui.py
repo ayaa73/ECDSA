@@ -51,7 +51,6 @@ def state(qapp) -> AppState:
 
 @pytest.fixture
 def tab(qtbot, state) -> KeysTab:
-    state.set_mode("expert")  # most tests use the full page; Beginner mode has its own tests
     widget = KeysTab(state)
     qtbot.addWidget(widget)
     # MainWindow normally makes this connection for every page.

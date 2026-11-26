@@ -5,9 +5,9 @@ big VALID / INVALID banner with the reason in plain words, plus the steps from
 core.verify's trace. "Change one letter" tampers with the message and checks
 again, so they can watch the signature break.
 
-Beginner mode (default) uses the current key from the Keys page and the last
-signature from the Sign page. Expert mode adds pasting or loading a key and a
-signature, signing files, and choosing the hash.
+By default it uses the current key from the Keys page and the last signature
+from the Sign page; a key and a signature can also be pasted or loaded, a file
+can be checked instead of text, and the hash can be chosen.
 
 No math here: everything comes from core.verify / core.key_io and the trace.
 """
@@ -29,7 +29,7 @@ from ecdsa_edu.core.types import PublicKey
 from ecdsa_edu.core.verify import verify, verify_file
 from ecdsa_edu.gui.tabs.p4_logic import fmt_number, fmt_point, parse_signature_text, tamper_text, verdict_from_trace
 from ecdsa_edu.gui.tabs.p4_widgets import (
-    ResultBanner, current_mode, explanation, go_to, heading, make_trace_view, on_mode_changed,
+    ResultBanner, explanation, go_to, heading, make_trace_view,
 )
 from ecdsa_edu.gui.widgets.worker import run_in_background
 from ecdsa_edu.gui.widgets.cards import Card, make_page_header
@@ -118,7 +118,7 @@ class VerifyTab(QWidget):
         sig_layout.addWidget(self.sig_status)
         sig_layout.addWidget(self.sig_go, alignment=Qt.AlignmentFlag.AlignLeft)
 
-        # ---- options (expert)
+        # ---- options
         self.hash_combo = QComboBox()
         for name in HASHES:
             self.hash_combo.addItem(name.upper() + ("  (insecure, for comparison only)" if name == "sha1" else ""),
@@ -189,9 +189,8 @@ class VerifyTab(QWidget):
             signal = getattr(state, name, None)
             if signal is not None:
                 signal.connect(slot)
-        on_mode_changed(state, self._apply_mode)
         self._clear_file()
-        self._apply_mode(current_mode(state))
+        self._on_key_source()
         self._on_new_signature()
         self._refresh_key_status()
 
@@ -218,23 +217,6 @@ class VerifyTab(QWidget):
                                  "Keys and signatures from the old curve were cleared.")
         self._refresh_key_status()
         self._on_new_signature()
-
-    # ------------------------------------------------------------ mode
-    def _apply_mode(self, mode: str) -> None:
-        expert = mode == "expert"
-        for combo in (self.key_source, self.sig_source):
-            for row in (1, 2):  # paste / file sources only in Expert mode
-                combo.model().item(row).setEnabled(expert)
-            if not expert:
-                combo.setCurrentIndex(0)
-        for w in (self.file_button, self.options_box):
-            w.setVisible(expert)
-        if not expert:
-            self.hash_combo.setCurrentIndex(0)
-            if self._file_path is not None:
-                self._clear_file()
-        self._on_key_source()
-        self._on_sig_source()
 
     def _toggle_trace(self, visible: bool) -> None:
         """Show the recorded verification steps only when requested."""

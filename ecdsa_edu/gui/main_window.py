@@ -11,9 +11,9 @@ What a page must provide (see the interface contract):
         def set_curve(self, curve): ...      # called whenever the active curve changes
         HELP = "3-4 plain sentences"         # optional: shown by the toolbar "?" button
 
-Toolbar: curve selector, Beginner/Expert switch (Ctrl+E), help "?" (F1) and the
-light/dark theme switch (Ctrl+D). The window size, the mode and the
-"show Start here at startup" choice are remembered between runs.
+Toolbar: curve selector, help "?" (F1) and the light/dark theme switch (Ctrl+D).
+The window size and the "show Start here at startup" choice are remembered
+between runs.
 """
 from __future__ import annotations
 
@@ -84,12 +84,6 @@ SETTING_SHOW_TUTORIAL = "tutorial/show_at_startup"  # P4's "Don't show at startu
 SETTING_WINDOW_SIZE = "window/size"
 DEFAULT_WINDOW_SIZE = (1360, 900)
 NO_HELP_TEXT = "No help written yet for this page."
-
-MODE_TOOLTIP = (
-    "Beginner mode shows only what you need for the main task.\n"
-    "Expert mode also shows advanced options, such as typing your own private key,\n"
-    "choosing the hash, DER encoding and the full step-by-step math.  (Ctrl+E)"
-)
 
 CUSTOM_DIALOG = ("ecdsa_edu.gui.tabs.custom_curve_dialog", "CustomCurveDialog")
 CURVE_PICKER = ("ecdsa_edu.gui.widgets.curve_picker", "CurvePicker")
@@ -290,7 +284,6 @@ class MainWindow(QMainWindow):
         self.statusBar().hide()
 
         state.curveChanged.connect(self._on_curve_changed)
-        state.modeChanged.connect(self._sync_mode_controls)
         state.pageRequested.connect(self.show_page)
         state.curvesListChanged.connect(self._fill_curve_combo)
         state.keysChanged.connect(self._update_status)
@@ -323,12 +316,6 @@ class MainWindow(QMainWindow):
         self.curve_combo.setToolTip("The curve used by every page")
         label.setBuddy(self.curve_combo)
         self.curve_combo.setToolTip("The curve used by every page. The last entry makes your own curve.")
-
-        # Beginner / Expert switch: a button that stays pressed in Expert mode.
-        self.mode_button = QToolButton()
-        self.mode_button.setCheckable(True)
-        self.mode_button.setAccessibleName("Expert mode")
-        self.mode_button.setToolTip(MODE_TOOLTIP)
 
         # "?" button: help for the page that is shown.
         self.help_button = QToolButton()
@@ -363,7 +350,7 @@ class MainWindow(QMainWindow):
         self.curve_button.setShortcut(QKeySequence("Ctrl+K"))
 
         widgets = [spacer, self.curve_info, self.curve_button, label, self.curve_combo,
-                   self.mode_button, self.session_button, self.help_button, self.theme_button]
+                   self.session_button, self.help_button, self.theme_button]
         self._toolbar_actions = {}
         for widget in widgets:
             # Widgets inside a toolbar are shown and hidden through their action.
@@ -377,11 +364,9 @@ class MainWindow(QMainWindow):
         self._fill_curve_combo()
         self.curve_combo.activated.connect(self._on_combo_activated)  # user choices only
         self.curve_button.clicked.connect(self.open_curve_picker)
-        self.mode_button.clicked.connect(self._on_mode_button)
         self.help_button.clicked.connect(self.show_help)
         self.theme_button.clicked.connect(lambda checked: self.set_theme("dark" if checked else "light"))
         self._sync_theme_controls()
-        self._sync_mode_controls()
 
     def _fill_curve_combo(self) -> None:
         """(Re)build the curve list: built-in curves, custom curves, then "Custom curve…"."""
@@ -668,7 +653,7 @@ class MainWindow(QMainWindow):
             return titles[row]
         return ""
 
-    # ------------------------------------------------------- help and mode
+    # -------------------------------------------------------------- help
     def show_help(self) -> None:
         """Show the HELP text of the current page (the toolbar "?" button, F1)."""
         title = self.current_page_title()
@@ -686,33 +671,6 @@ class MainWindow(QMainWindow):
                 text = getattr(steps[index], "HELP", None) or text
             text = text or NO_HELP_TEXT
         QMessageBox.information(self, f"Help: {title}", text)
-
-    def _on_mode_button(self, checked: bool) -> None:
-        if checked:
-            self.state.set_mode("expert")
-        else:
-            self.state.set_mode("beginner")
-
-    def toggle_mode(self) -> None:
-        """Switch between Beginner and Expert (View menu, Ctrl+E)."""
-        if self.state.mode == "expert":
-            self.state.set_mode("beginner")
-        else:
-            self.state.set_mode("expert")
-
-    def _sync_mode_controls(self, _mode: str = "") -> None:
-        """Make the toolbar button and the menu entry show the current mode."""
-        expert = self.state.mode == "expert"
-        self.mode_button.setChecked(expert)
-        if expert:
-            self.mode_button.setText("Mode: Expert")
-        else:
-            self.mode_button.setText("Mode: Beginner")
-        action = getattr(self, "mode_action", None)  # menus are built after the toolbar
-        if action is not None:
-            action.setChecked(expert)
-        for widget in self._hidden_toolbar_widgets:
-            self._toolbar_actions[widget].setVisible(False)
 
     # ---------------------------------------------------- window size
     def _restore_window_size(self) -> None:
@@ -781,11 +739,6 @@ class MainWindow(QMainWindow):
         self.theme_action.setShortcut(QKeySequence("Ctrl+D"))
         self.theme_action.triggered.connect(lambda checked: self.set_theme("dark" if checked else "light"))
         view_menu.addAction(self.theme_action)
-        self.mode_action = QAction("&Expert mode", self)
-        self.mode_action.setCheckable(True)
-        self.mode_action.setShortcut(QKeySequence("Ctrl+E"))
-        self.mode_action.triggered.connect(self.toggle_mode)
-        view_menu.addAction(self.mode_action)
         view_menu.addSeparator()
         self.tutorial_action = QAction("Show “Start here” at startup", self)
         self.tutorial_action.setCheckable(True)
@@ -797,7 +750,6 @@ class MainWindow(QMainWindow):
         # P4's "Show this page when the app starts" box can change it too: refresh on open.
         view_menu.aboutToShow.connect(lambda: self.tutorial_action.setChecked(self._show_tutorial_at_startup()))
         self._sync_theme_controls()
-        self._sync_mode_controls()
 
         help_menu = self.menuBar().addMenu("&Help")
         page_help = QAction("&Help for this page", self)

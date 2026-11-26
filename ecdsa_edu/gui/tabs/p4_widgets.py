@@ -3,19 +3,18 @@
 * make_trace_view(): P3's TraceViewer when it exists, otherwise a simple list
   with the same set_trace() method, so the pages work before it is merged.
 * ResultBanner: the big VALID / INVALID / MATCH box (color + mark + words).
-* go_to(), current_mode(), on_mode_changed(): use P2's AppState additions when
-  they exist, and fall back to what the current main window already offers.
+* go_to(): uses P2's AppState.go_to() when it exists, and falls back to the
+  main window's show_page().
 """
 from __future__ import annotations
 
 import html
-from typing import Any, Callable
+from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QTextBrowser, QWidget
 
-__all__ = ["make_trace_view", "SimpleTraceView", "ResultBanner", "go_to", "current_mode", "on_mode_changed",
-           "heading", "explanation"]
+__all__ = ["make_trace_view", "SimpleTraceView", "ResultBanner", "go_to", "heading", "explanation"]
 
 
 class SimpleTraceView(QTextBrowser):
@@ -118,14 +117,3 @@ def go_to(widget: QWidget, state: Any, page_title: str) -> bool:
             return False
     return False
 
-
-def current_mode(state: Any) -> str:
-    """"beginner" (default) or "expert". Before P2 adds modes, always beginner."""
-    mode = getattr(state, "mode", "beginner") if state is not None else "beginner"
-    return mode if mode in ("beginner", "expert") else "beginner"
-
-
-def on_mode_changed(state: Any, slot: Callable[[str], None]) -> None:
-    signal = getattr(state, "modeChanged", None) if state is not None else None
-    if signal is not None and hasattr(signal, "connect"):
-        signal.connect(slot)

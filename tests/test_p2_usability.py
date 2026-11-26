@@ -1,4 +1,4 @@
-"""Tests for P2's usability features: curve picker, Beginner/Expert Keys page, "Suggest values".
+"""Tests for P2's usability features: curve picker, the Keys page, "Suggest values".
 
 Runs headless (offscreen Qt platform), like the other GUI tests.
 """
@@ -98,60 +98,24 @@ def test_curve_button_shows_the_curve_and_opens_the_picker(qtbot, state, monkeyp
     assert state.curve == CURVES["toy-97"] and "toy-97" in window.curve_button.text()
 
 
-def test_expert_mode_does_not_add_a_second_curve_control(qtbot, state):
+def test_there_is_only_one_curve_control(qtbot, state):
     window = MainWindow(state)
     qtbot.addWidget(window)
     combo_action = window._toolbar_actions[window.curve_combo]
-    state.set_mode("beginner")
-    assert not combo_action.isVisible()
-    state.set_mode("expert")
     assert not combo_action.isVisible()
     assert "toy-17" in window.curve_button.text()
 
 
-# ======================================================= Keys page modes
-def test_beginner_keys_page_is_simple(qtbot, state):
-    state.set_mode("beginner")
+# ======================================================= Keys page
+def test_keys_page_shows_every_feature(qtbot, state):
     tab = KeysTab(state)
     qtbot.addWidget(tab)
-    assert tab.btn_generate.text() == "Generate my key pair"
-    assert tab.d_field.isReadOnly() and tab.btn_derive.isHidden()
-    assert tab.hide_check.isChecked()                       # d hidden by default
-    assert not tab._pub_form.isRowVisible(tab.uncompressed_field)
-    assert tab._box_trace.isHidden() and tab._box_import.isHidden()
-
-
-def test_expert_keys_page_shows_everything(qtbot, state):
-    state.set_mode("expert")
-    tab = KeysTab(state)
-    qtbot.addWidget(tab)
-    assert not tab.d_field.isReadOnly() and not tab.btn_derive.isHidden()
+    assert not tab.d_field.isReadOnly()
     assert tab._pub_form.isRowVisible(tab.uncompressed_field)
-    assert not tab._box_trace.isHidden() and not tab._box_import.isHidden()
-
-
-def test_beginner_generates_a_key_with_d_hidden(qtbot, state):
-    state.set_mode("beginner")
-    tab = KeysTab(state)
-    qtbot.addWidget(tab)
-    tab.btn_generate.click()
-    wait_idle(qtbot, tab)
-    assert state.priv is not None and tab.compressed_field.hex_value().startswith(("02", "03"))
-    assert tab.warning.isHidden() and not tab.hidden_note.isHidden()
-
-
-def test_show_the_math_switches_to_expert(qtbot, state):
-    state.set_mode("beginner")
-    tab = KeysTab(state)
-    qtbot.addWidget(tab)
-    tab.btn_generate.click()
-    wait_idle(qtbot, tab)
-    tab.btn_show_math.click()
-    assert state.mode == "expert" and not tab._box_trace.isHidden()
+    assert not tab._box_trace.isHidden() and not tab.hex_check.isHidden()
 
 
 def test_curve_change_offers_new_keys(qtbot, state):
-    state.set_mode("expert")
     tab = KeysTab(state)
     qtbot.addWidget(tab)
     state.curveChanged.connect(tab.set_curve)

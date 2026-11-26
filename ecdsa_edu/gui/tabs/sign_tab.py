@@ -1,6 +1,6 @@
 """Practical ECDSA signing page (owner: P3).
 
-Students use this page to sign text or, in Expert mode, a file. The page never
+Students use this page to sign text or a file. The page never
 implements cryptographic arithmetic: it calls the P3 core functions, displays
 their result, and hands their recorded steps to the shared trace widget.
 """
@@ -32,7 +32,7 @@ from ecdsa_edu.core.sign import sign, sign_file
 from ecdsa_edu.core.trace import TraceStep
 from ecdsa_edu.core.types import PrivateKey, Signature
 from ecdsa_edu.gui.tabs.keys_tab import set_message
-from ecdsa_edu.gui.tabs.p4_widgets import current_mode, go_to, make_trace_view, on_mode_changed
+from ecdsa_edu.gui.tabs.p4_widgets import go_to, make_trace_view
 from ecdsa_edu.gui.widgets.bigint_field import BigIntField
 from ecdsa_edu.gui.widgets.hex_field import HexOutputField
 from ecdsa_edu.gui.widgets.worker import run_in_background
@@ -113,9 +113,10 @@ class SignTab(QWidget):
     """Sign text or a file using the private key stored in ``AppState``."""
 
     HELP = (
-        "Enter a message and press Sign to create an ECDSA signature. "
-        "Beginner mode uses SHA-256 and the safe RFC 6979 nonce automatically. "
-        "Expert mode adds file signing, other hashes, and nonce experiments. "
+        "Enter a message (or choose a file) and press Sign to create an ECDSA signature. "
+        "Advanced options let you choose the hash and how the nonce k is picked; the safe "
+        "RFC 6979 nonce is the default. The result shows r and s, the encoded signature "
+        "(fixed-width hex or DER) and every step of the calculation. "
         "Never reuse a manually chosen nonce with a real private key."
     )
 
@@ -204,15 +205,15 @@ class SignTab(QWidget):
         self.manual_row_widget.setLayout(manual_row)
         self.manual_row_widget.hide()
 
-        self.expert_options = QGroupBox("Expert options")
-        self.expert_options.setObjectName("expertCard")
-        expert_layout = QVBoxLayout(self.expert_options)
-        expert_layout.addLayout(file_row)
+        self.advanced_options = QGroupBox("Advanced options")
+        self.advanced_options.setObjectName("advancedCard")
+        advanced_layout = QVBoxLayout(self.advanced_options)
+        advanced_layout.addLayout(file_row)
         hash_form = QFormLayout()
         hash_form.addRow("Hash", self.hash_combo)
-        expert_layout.addLayout(hash_form)
-        expert_layout.addLayout(nonce_row)
-        expert_layout.addWidget(self.manual_row_widget)
+        advanced_layout.addLayout(hash_form)
+        advanced_layout.addLayout(nonce_row)
+        advanced_layout.addWidget(self.manual_row_widget)
 
         self.sign_button = QPushButton("Sign")
         self.sign_button.setProperty("primary", True)
@@ -274,7 +275,7 @@ class SignTab(QWidget):
         trace_layout.addWidget(self.trace_view)
         self.trace_box.hide()
 
-        # This page becomes tall in Expert mode. Keeping one outer scroll area
+        # This page is tall. Keeping one outer scroll area
         # lets every output and trace control stay at a readable height.
         page_content = QWidget()
         page_content.setObjectName("signPage")
@@ -285,7 +286,7 @@ class SignTab(QWidget):
         content_layout.addWidget(self.no_key_box)
         content_layout.addWidget(QLabel("Message"))
         content_layout.addWidget(self.message_edit)
-        content_layout.addWidget(self.expert_options)
+        content_layout.addWidget(self.advanced_options)
         content_layout.addWidget(self.sign_button)
         content_layout.addWidget(self.status)
         content_layout.addWidget(self.result_box)
@@ -316,7 +317,6 @@ class SignTab(QWidget):
         self.nonce_group.buttonClicked.connect(self._input_changed)
         self.manual_k_field.textChanged.connect(self._input_changed)
         state.keysChanged.connect(self._refresh_key_state)
-        on_mode_changed(state, self._apply_mode)
 
         self.save_action = QAction("Save signature", self)
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
@@ -324,7 +324,6 @@ class SignTab(QWidget):
         self.addAction(self.save_action)
 
         self._update_curve_controls()
-        self._apply_mode(current_mode(state))
         self._refresh_key_state()
         self._apply_visual_style()
 
@@ -487,16 +486,6 @@ class SignTab(QWidget):
             return
         self.manual_k_field.set_range(1, self._curve.n - 1)
         self.manual_k_field.set_display_hex(self._curve.n.bit_length() > 64)
-
-    def _apply_mode(self, mode: str) -> None:
-        expert = mode == "expert"
-        self.expert_options.setVisible(expert)
-        self.encoding_panel.setVisible(expert)
-        if not expert:
-            # Beginner mode always returns to the safest working defaults.
-            self.use_typed_message()
-            self.hash_combo.setCurrentIndex(self.hash_combo.findData("sha256"))
-            self.deterministic_radio.setChecked(True)
 
     def _apply_visual_style(self) -> None:
         """Set the teaching font on text controls without changing numbers."""

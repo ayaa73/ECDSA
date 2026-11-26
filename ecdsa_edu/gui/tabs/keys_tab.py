@@ -8,12 +8,6 @@ Lets a student
 
 While the private key is on screen a warning is shown; "Hide d" masks it.
 
-Beginner and Expert mode (the toolbar switch, Ctrl+E):
-  Beginner - one big "Generate my key pair" button, d hidden by default,
-             only the compressed public key, Save/Load buttons. The math is
-             one click away ("See how Q was computed").
-  Expert   - type your own d, both encodings, hexadecimal switch, importing
-             someone else's public key and the full step-by-step trace.
 The resulting keys are stored in the shared AppState (state.priv, state.pub),
 which emits keysChanged so the Sign and Verify pages pick them up.
 
@@ -27,7 +21,7 @@ import html
 from collections.abc import Callable
 from typing import Any
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -139,9 +133,9 @@ class KeysTab(QWidget):
         "Keep d secret: anyone who has it can sign as you. Q is safe to share; others use it to "
         "check your signatures.\n\n"
         "You can save both keys as small files, load them later, or paste somebody else's "
-        "public key to verify their signatures (Expert mode).\n\n"
-        "Beginner mode keeps the page simple: d is hidden and only the short (compressed) public "
-        "key is shown. Expert mode (Ctrl+E) lets you type your own d and shows every step of the math."
+        "public key to verify their signatures.\n\n"
+        "You can also type your own d, see the public key in both encodings and follow every "
+        "step of the math under “Show key details”."
     )
 
     def __init__(self, state: AppState, parent: QWidget | None = None) -> None:
@@ -211,10 +205,6 @@ class KeysTab(QWidget):
         form.addRow("Uncompressed", self.uncompressed_field)
         self.encoding_note = _note("")
         form.addRow("", self.encoding_note)
-        # Beginner mode: a shortcut to the math, instead of the full trace below.
-        self.btn_show_math = QPushButton("See how Q was computed  →")
-        self.btn_show_math.setToolTip("Switch to Expert mode and show every step of Q = d · G")
-        form.addRow("", self.btn_show_math)
         self._pub_form = form
 
         # --- key files
@@ -307,50 +297,15 @@ class KeysTab(QWidget):
         self.hex_check.toggled.connect(self._set_hex)
         self.hide_check.toggled.connect(self._apply_privacy)
         self.btn_regenerate.clicked.connect(self.generate)
-        self.btn_show_math.clicked.connect(self._open_trace)
-        self._state.modeChanged.connect(self.apply_mode)
-        self.apply_mode()
-
-    # ------------------------------------------------------ beginner / expert
-    def apply_mode(self, _mode: str = "") -> None:
-        """Show the simple page (Beginner) or every option (Expert)."""
-        expert = self._state.mode == "expert"
-        self.btn_generate.setText("Generate key pair" if expert else "Generate my key pair")
-        self.btn_generate.setProperty("big", not expert)
-        self.btn_generate.style().unpolish(self.btn_generate)
-        self.btn_generate.style().polish(self.btn_generate)
-        # Typing your own d is an Expert feature.
-        self.d_field.setReadOnly(not expert)
-        self.btn_derive.setVisible(expert)
-        if expert:
-            self.d_note.setText(MANUAL_KEY_NOTE)
-        else:
-            self.d_note.setText("The app picks a random secret number for you, as it should be in real use. "
-                                "(Expert mode, Ctrl+E, lets you type your own.)")
-            self.hide_check.setChecked(True)  # Beginner: d is hidden by default
-        # Beginner sees only the compressed public key.
-        self._pub_form.setRowVisible(self.uncompressed_field, expert)
-        if expert:
-            self.encoding_note.setText("Compressed = 02/03 + Qx (the prefix tells whether Qy is even or odd). "
-                                       "Uncompressed = 04 + Qx + Qy.")
-        else:
-            self.encoding_note.setText("This short text is your public key: share it so others can check "
-                                       "your signatures.")
-        self.hex_check.setVisible(expert)
-        self._box_import.setVisible(expert)
-        self._box_trace.setVisible(expert)
-        self._pub_form.setRowVisible(self.btn_show_math, not expert)
+        self.d_note.setText(MANUAL_KEY_NOTE)
+        self.encoding_note.setText("Compressed = 02/03 + Qx (the prefix tells whether Qy is even or odd). "
+                                   "Uncompressed = 04 + Qx + Qy.")
         self._update_controls()
 
     def _toggle_details(self, visible: bool) -> None:
         self._details.setVisible(visible)
         self.details_button.setText("Hide key details" if visible else "Show key details")
         self._apply_privacy()
-
-    def _open_trace(self) -> None:
-        self._state.set_mode("expert")
-        self.details_button.setChecked(True)
-        QTimer.singleShot(0, self, lambda: self._scroll.ensureWidgetVisible(self._box_trace))
 
     # ------------------------------------------------------- tab contract
     def set_curve(self, curve: Curve) -> None:
@@ -575,7 +530,6 @@ class KeysTab(QWidget):
         idle = not self._busy
         self.btn_generate.setEnabled(idle)
         self.btn_regenerate.setEnabled(idle)
-        self.btn_show_math.setEnabled(pub is not None and bool(self._trace))
         self.btn_derive.setEnabled(idle and self.d_field.is_valid())
         self.btn_import.setEnabled(idle and self.import_field.is_valid())
         self.btn_load_priv.setEnabled(idle)

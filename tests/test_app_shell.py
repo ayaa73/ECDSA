@@ -398,7 +398,7 @@ def test_menus(qtbot, state, monkeypatch):
     menus = [a.text().replace("&", "") for a in window.menuBar().actions()]
     assert menus == ["File", "View", "Help"]
     view_actions = [a.text().replace("&", "") for a in window.menuBar().actions()[1].menu().actions() if not a.isSeparator()]
-    assert view_actions == ["Dark theme", "Expert mode", "Show “Start here” at startup"]
+    assert view_actions == ["Dark theme", "Show “Start here” at startup"]
     file_actions = [a.text().replace("&", "") for a in window.menuBar().actions()[0].menu().actions() if not a.isSeparator()]
     assert file_actions[-2:] == ["Custom curve…", "Quit"]
 
@@ -413,18 +413,7 @@ def test_icons_are_drawn(qapp, name):
 
 
 
-# ======================================================= mode, go_to, settings
-def test_mode_is_beginner_by_default_and_can_change(qtbot, state):
-    assert state.mode == "beginner" and not state.is_expert()
-    with qtbot.waitSignal(state.modeChanged) as blocker:
-        state.set_mode("expert")
-    assert blocker.args == ["expert"] and state.mode == "expert" and state.is_expert()
-    with qtbot.assertNotEmitted(state.modeChanged):
-        state.set_mode("expert")  # same mode again: nothing happens
-    with pytest.raises(ValueError):
-        state.set_mode("wizard")
-
-
+# ======================================================= go_to, settings
 def test_go_to_asks_for_a_page(qtbot, state):
     with qtbot.waitSignal(state.pageRequested) as blocker:
         state.go_to("Keys")
@@ -433,25 +422,23 @@ def test_go_to_asks_for_a_page(qtbot, state):
         state.go_to("Kitchen")
 
 
-def test_curve_resets_to_toy_and_mode_is_remembered(qapp, monkeypatch):
+def test_curve_resets_to_toy_on_restart(qapp, monkeypatch):
     monkeypatch.setattr(app_state_module, "_builtin_curves", lambda: dict(BUILTIN))
     first = AppState()
     first.set_curve(K1)
-    first.set_mode("expert")
     first.settings.sync()  # write to disk now, as happens when the app closes
 
     second = AppState()  # like starting the app again
-    assert second.curve == TOY and second.mode == "expert"
+    assert second.curve == TOY
 
 
 def test_bad_or_missing_settings_fall_back_to_defaults(qapp, monkeypatch):
     monkeypatch.setattr(app_state_module, "_builtin_curves", lambda: dict(BUILTIN))
     first = AppState()
     first.settings.setValue(app_state_module.SETTING_CURVE, "no-such-curve")
-    first.settings.setValue(app_state_module.SETTING_MODE, "wizard")
     first.settings.sync()
     second = AppState()
-    assert second.curve == TOY and second.mode == "beginner"
+    assert second.curve == TOY
 
 
 def test_custom_curves_are_not_remembered(qapp, monkeypatch):
@@ -474,18 +461,12 @@ def test_curve_change_says_what_was_cleared(qtbot, state, monkeypatch):
     assert window.statusBar().currentMessage() == "New curve: secp256k1."
 
 
-def test_mode_button_and_menu_follow_each_other(qtbot, state, monkeypatch):
+def test_there_is_no_beginner_expert_switch(qtbot, state, monkeypatch):
     window = _window(qtbot, state, monkeypatch, [])
-    assert window.mode_button.text() == "Mode: Beginner" and not window.mode_action.isChecked()
-    assert "Ctrl+E" in window.mode_button.toolTip()
-    with qtbot.waitSignal(state.modeChanged):
-        window.mode_button.click()
-    assert state.mode == "expert" and window.mode_button.text() == "Mode: Expert"
-    assert window.mode_action.isChecked()
-    window.mode_action.trigger()
-    assert state.mode == "beginner" and not window.mode_button.isChecked()
-    state.set_mode("expert")  # a page could change it too
-    assert window.mode_button.isChecked()
+    assert not hasattr(window, "mode_button") and not hasattr(window, "mode_action")
+    assert not hasattr(state, "mode") and not hasattr(state, "set_mode")
+    shortcuts = [a.shortcut().toString() for menu in window.menuBar().actions() for a in menu.menu().actions()]
+    assert "Ctrl+E" not in shortcuts
 
 
 def test_go_to_switches_the_page(qtbot, state, monkeypatch):

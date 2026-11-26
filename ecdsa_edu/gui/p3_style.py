@@ -14,7 +14,7 @@ QWidget#signPage QGroupBox {{
     background: {panel}; color: {text}; border: 1px solid {border}; border-radius: 14px;
     margin-top: 18px; padding: 16px 14px 14px 14px; font-weight: 600;
 }}
-QWidget#signPage QGroupBox#expertCard {{ background: {pink}; color: {pastel_text}; }}
+QWidget#signPage QGroupBox#advancedCard {{ background: {pink}; color: {pastel_text}; }}
 QWidget#signPage QGroupBox#resultCard {{ background: {lilac}; color: {pastel_text}; }}
 QWidget#signPage QGroupBox#traceCard {{ background: {panel}; }}
 QWidget#signPage QGroupBox#emptyCard {{ background: {peach}; color: {pastel_text}; }}
