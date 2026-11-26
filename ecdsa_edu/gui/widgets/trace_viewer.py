@@ -292,7 +292,7 @@ class TraceViewer(QWidget):
 
     PAGE_SIZE = 24
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, *, paginated: bool = True) -> None:
         super().__init__(parent)
         self.setFont(QFont("Georgia", 10))
         self.setObjectName("traceViewer")
@@ -313,13 +313,12 @@ class TraceViewer(QWidget):
         self.hex_toggle.setCheckable(True)
         self.step_label = QLabel("No steps")
         self.step_label.setObjectName("traceStepCount")
-        self.previous_page_button = QPushButton("Earlier steps")
-        self.next_page_button = QPushButton("Later steps")
+        self.previous_page_button = QPushButton("Earlier steps") if paginated else None
+        self.next_page_button = QPushButton("Later steps") if paginated else None
 
         self.step_through_button.setToolTip("Show one calculation step at a time")
         self.previous_button.setToolTip("Go to the previous calculation step")
         self.next_button.setToolTip("Go to the next calculation step")
-        self.show_all_button.setToolTip("Show every calculation step")
         self.copy_button.setToolTip("Copy the complete trace as plain text")
         self.hex_toggle.setToolTip("Display integer values in hexadecimal")
 
@@ -327,8 +326,8 @@ class TraceViewer(QWidget):
         # the page wider (one row of them needed about 1050 px).
         self.controls = make_flow_container(
             self.step_through_button, self.previous_button, self.next_button, self.show_all_button,
-            self.copy_button, self.hex_toggle, self.step_label, self.previous_page_button,
-            self.next_page_button,
+            self.copy_button, self.hex_toggle, self.step_label,
+            *(button for button in (self.previous_page_button, self.next_page_button) if button is not None),
         )
 
         self.empty_label = QLabel("No calculation steps yet.")
@@ -360,8 +359,9 @@ class TraceViewer(QWidget):
         self.show_all_button.clicked.connect(self.show_all)
         self.copy_button.clicked.connect(self.copy_as_text)
         self.hex_toggle.toggled.connect(self._set_use_hex)
-        self.previous_page_button.clicked.connect(lambda: self._set_page(self._page - 1))
-        self.next_page_button.clicked.connect(lambda: self._set_page(self._page + 1))
+        if self.previous_page_button is not None and self.next_page_button is not None:
+            self.previous_page_button.clicked.connect(lambda: self._set_page(self._page - 1))
+            self.next_page_button.clicked.connect(lambda: self._set_page(self._page + 1))
         self._update_controls()
 
     def use_page_scrolling(self, page_scroll: QScrollArea) -> None:
@@ -396,7 +396,8 @@ class TraceViewer(QWidget):
     def _render_page(self) -> None:
         self._clear_panels()
         start = self._page * self.PAGE_SIZE
-        for number, step in enumerate(self._trace[start:start + self.PAGE_SIZE], start=start + 1):
+        steps = self._trace[start:start + self.PAGE_SIZE] if self.next_page_button is not None else self._trace
+        for number, step in enumerate(steps, start=start + 1):
             panel = _StepPanel(number, step, self.content)
             panel.set_use_hex(self.hex_toggle.isChecked())
             self._panels.append(panel)
@@ -496,16 +497,23 @@ class TraceViewer(QWidget):
         self.next_button.setEnabled(
             in_step_mode and self._step_index is not None and self._step_index < len(self._panels) - 1
         )
-        self.previous_page_button.setVisible(len(self._trace) > self.PAGE_SIZE)
-        self.next_page_button.setVisible(len(self._trace) > self.PAGE_SIZE)
-        self.previous_page_button.setEnabled(self._page > 0)
-        self.next_page_button.setEnabled((self._page + 1) * self.PAGE_SIZE < len(self._trace))
+        paged = self.next_page_button is not None and len(self._trace) > self.PAGE_SIZE
+        if self.previous_page_button is not None and self.next_page_button is not None:
+            self.previous_page_button.setVisible(paged)
+            self.next_page_button.setVisible(paged)
+            self.previous_page_button.setEnabled(self._page > 0)
+            self.next_page_button.setEnabled((self._page + 1) * self.PAGE_SIZE < len(self._trace))
+        self.show_all_button.setText("Show all on this page" if paged else "Show all")
+        self.show_all_button.setToolTip(
+            "Show every calculation step on this page" if paged else "Show every calculation step"
+        )
         if not has_steps:
             self.step_label.setText("No steps")
         elif in_step_mode:
-            self.step_label.setText(f"Step {self._step_index + 1} of {len(self._panels)}")
+            number = self._page * self.PAGE_SIZE + self._step_index + 1
+            self.step_label.setText(f"Step {number} of {len(self._trace)}")
         else:
-            self.step_label.setText(f"{len(self._trace)} steps" if len(self._trace) <= self.PAGE_SIZE else
+            self.step_label.setText(f"{len(self._trace)} steps" if not paged else
                                     f"Steps {self._page * self.PAGE_SIZE + 1}–"
                                     f"{min((self._page + 1) * self.PAGE_SIZE, len(self._trace))} of {len(self._trace)}")
 

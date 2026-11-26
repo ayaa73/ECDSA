@@ -96,7 +96,7 @@ class AttackTab(QWidget):
         self.show_math = QPushButton("Show calculations")
         self.show_math.setCheckable(True)
         self.show_math.setEnabled(False)
-        self.trace_view = make_trace_view()
+        self.trace_view = make_trace_view(paginated=False)
         self.trace_view.hide()
         self.show_math.toggled.connect(lambda on: self._toggle_trace(on))
         right = Card("The attack", "yellow", "2")

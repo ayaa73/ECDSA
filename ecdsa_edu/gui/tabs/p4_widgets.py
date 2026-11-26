@@ -43,11 +43,11 @@ class SimpleTraceView(QTextBrowser):
         self.clear()
 
 
-def make_trace_view(parent: QWidget | None = None) -> QWidget:
+def make_trace_view(parent: QWidget | None = None, *, paginated: bool = True) -> QWidget:
     """P3's TraceViewer if it is merged and builds, else SimpleTraceView."""
     try:
         from ecdsa_edu.gui.widgets.trace_viewer import TraceViewer
-        view = TraceViewer(parent) if parent is not None else TraceViewer()
+        view = TraceViewer(parent, paginated=paginated)
         if callable(getattr(view, "set_trace", None)):
             return view
     except Exception:  # missing module, stub, or a bug in it: keep our page usable

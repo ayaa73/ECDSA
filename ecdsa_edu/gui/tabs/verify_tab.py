@@ -3,7 +3,7 @@
 Students pick a message, the signer's identity (a public key or an X.509
 certificate) and a signature, press Verify and get a
 big VALID / INVALID banner with the reason in plain words, plus the steps from
-core.verify's trace. "Change one letter" tampers with the message and checks
+core.verify's trace. "Change one character" tampers with the message and checks
 again, so they can watch the signature break.
 
 By default it uses the current key from the Keys page and the last signature
@@ -61,7 +61,7 @@ class VerifyTab(QWidget):
             "signature. The identity is either a public key (yours, someone else's pasted in hex, or a key file) "
             "or an X.509 certificate (.pem, .crt, .cer, .der; secp256k1 and P-256 only), which also shows who "
             "the key belongs to. Press Verify: a green VALID means this exact message was signed with the "
-            "matching private key. Then press \"Change one letter\" to see that even a tiny change makes the "
+            "matching private key. Then press \"Change one character\" to see that even a tiny change makes the "
             "signature INVALID.")
 
     def __init__(self, state: Any) -> None:
@@ -73,7 +73,7 @@ class VerifyTab(QWidget):
         self._loaded_sig_text: str | None = None
         self._autofilled = True  # message box still holds the last signed message
         self._busy = False
-        self._tamper_note = ""  # set by "Change one letter", shown with the next result
+        self._tamper_note = ""  # set by "Change one character", shown with the next result
 
         # ---- message
         self.msg_edit = QPlainTextEdit()
@@ -125,7 +125,7 @@ class VerifyTab(QWidget):
         self.key_status = QLabel()
         self.key_status.setWordWrap(True)
         self.key_status.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        self.key_go = QPushButton("Make a key →")
+        self.key_go = QPushButton("Go to Keys")
         self.key_go.setProperty("primary", True)
         self.key_go.clicked.connect(lambda *_: go_to(self, self.state, "Keys"))
         self.key_panel = QWidget()
@@ -178,7 +178,7 @@ class VerifyTab(QWidget):
         self.sig_status = QLabel()
         self.sig_status.setWordWrap(True)
         self.sig_status.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        self.sig_go = QPushButton("Sign something on the Sign page")
+        self.sig_go = QPushButton("Go to Sign")
         self.sig_go.clicked.connect(lambda *_: go_to(self, self.state, "Sign"))
         sig_box = Card("Signature (r, s)", "periwinkle", "3")
         sig_layout = sig_box.body
@@ -211,16 +211,15 @@ class VerifyTab(QWidget):
         self.verify_button.setToolTip("Check the signature (Ctrl+Shift+V)")
         self.verify_button.clicked.connect(self.run_verify)
         QShortcut(QKeySequence("Ctrl+Shift+V"), self, activated=self.run_verify)
-        self.tamper_button = QPushButton("Change one letter")
+        self.tamper_button = QPushButton("Change one character")
         self.tamper_button.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
-        self.tamper_button.setToolTip("Changes one character of the message, then verifies again")
         self.tamper_button.clicked.connect(self.tamper_and_verify)
         self.banner = ResultBanner()
         self.show_math = QPushButton("Show calculations")
         self.show_math.setCheckable(True)
         self.show_math.setEnabled(False)
         self.show_math.toggled.connect(lambda on: self._toggle_trace(on))
-        self.trace_view = make_trace_view()
+        self.trace_view = make_trace_view(paginated=False)
         self.trace_view.hide()
 
         # ---- page layout
@@ -404,12 +403,14 @@ class VerifyTab(QWidget):
                                 f"({format_size(self._file_path.stat().st_size)})")
         self.msg_edit.setEnabled(False)
         self.file_clear.setVisible(True)
+        self._update_tamper_button()
 
     def _clear_file(self, *_: Any) -> None:
         self._file_path = None
         self.file_label.setText("")
         self.msg_edit.setEnabled(True)
         self.file_clear.setVisible(False)
+        self._update_tamper_button()
 
     def _on_new_signature(self) -> None:
         """Pre-fill the message with the one just signed (unless the user typed their own)."""
@@ -612,4 +613,12 @@ class VerifyTab(QWidget):
     def _set_busy(self, busy: bool) -> None:
         self._busy = busy
         self.verify_button.setEnabled(not busy)
-        self.tamper_button.setEnabled(not busy)
+        self._update_tamper_button()
+
+    def _update_tamper_button(self) -> None:
+        typed = self._file_path is None
+        self.tamper_button.setEnabled(typed and not self._busy)
+        self.tamper_button.setToolTip(
+            "Changes one character of the message, then verifies again" if typed else
+            "Choose Back to text to change a character of the typed message."
+        )
