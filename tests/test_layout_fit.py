@@ -26,8 +26,9 @@ def test_soft_wrap_only_breaks_long_runs():
 
 @pytest.fixture
 def window(qtbot, qapp):
-    from ecdsa_edu.gui.app import apply_theme
-    apply_theme(qapp, "dark")  # the app's real look (fonts and paddings decide the widths)
+    from ecdsa_edu.gui.app import apply_theme, current_theme
+    if current_theme(qapp) != "dark":
+        apply_theme(qapp, "dark")  # the app's real look (fonts and paddings decide the widths)
     state = AppState(get_curve("secp256k1"))
     win = MainWindow(state)
     qtbot.addWidget(win)

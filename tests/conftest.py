@@ -32,3 +32,20 @@ def _no_blocking_message_boxes(monkeypatch):
     monkeypatch.setattr(QMessageBox, "about", lambda *args, **kwargs: None)
     monkeypatch.setattr(QMessageBox, "exec", lambda self: ok)
     yield
+
+
+@pytest.fixture(autouse=True)
+def _delete_windows_after_each_test():
+    """pytest-qt closes the widgets a test made but does not delete them. Hidden
+    windows from earlier tests would pile up, and every theme switch restyles all
+    of them, which made later tests very slow. Delete them for real."""
+    yield
+    from PySide6.QtCore import QCoreApplication, QEvent
+    from PySide6.QtWidgets import QApplication
+    app = QApplication.instance()
+    if app is None:
+        return
+    for widget in app.topLevelWidgets():
+        if not widget.isVisible():
+            widget.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)

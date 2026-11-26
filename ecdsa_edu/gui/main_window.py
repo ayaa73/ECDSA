@@ -54,6 +54,7 @@ from PySide6.QtWidgets import (
 from ecdsa_edu import __version__
 from ecdsa_edu.gui.app import apply_theme, current_theme, theme_colors
 from ecdsa_edu.gui.app_state import AppState
+from ecdsa_edu.gui.widgets.wheel_scroll import install_wheel_scrolling
 
 __all__ = ["MainWindow", "PAGE_SPECS", "PageSpec", "make_icon"]
 
@@ -378,6 +379,9 @@ class MainWindow(QMainWindow):
         self._refresh_curve_widgets()
         self._update_status()
         self._apply_icons()
+        # The mouse wheel scrolls the page wherever the pointer is (plots, lists,
+        # number boxes included), unless the widget under it can scroll itself.
+        install_wheel_scrolling(QApplication.instance())
 
     # ------------------------------------------------------------ toolbar
     def _build_toolbar(self) -> None:
