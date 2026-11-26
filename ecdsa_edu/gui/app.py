@@ -316,7 +316,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     app = QApplication(list(argv) if argv is not None else sys.argv)
     app.setApplicationName("ECDSA Lab")
     app.setApplicationVersion(__version__)
-    apply_theme(app, "light")
+    apply_theme(app, "dark")
     _install_excepthook()
     state = AppState()
     window = MainWindow(state)
