@@ -2,10 +2,11 @@
 
 The page draws the flow "curve -> keys -> message -> hash -> nonce -> signature
 -> verify -> valid / invalid" as rounded boxes joined by curved arrows. Hovering
-(or arrow-keying to) a box lifts its formulas up from behind it; clicking it
-(or pressing Enter) calls ``state.go_to(page_title)`` to open the page that
-explains that step. Nothing here does cryptography: the text is documentation,
-and the colours come from the current Qt palette, so light and dark mode both work.
+(or arrow-keying to) a box lifts its formulas up from behind it and names the
+page where that step can be tried. The sidebar does the navigation, so the
+diagram itself is explanation only. Nothing here does cryptography: the text is
+documentation, and the colours come from the current Qt palette, so light and
+dark mode both work.
 
 Used by: main_window.py (needs a PAGE_SPECS row, see ``PAGE_TITLE`` below).
 """
@@ -14,18 +15,15 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from PySide6.QtCore import (
-    QEasingCurve, QEvent, QPointF, QRectF, Qt, QVariantAnimation, Signal,
-)
+from PySide6.QtCore import QEasingCurve, QEvent, QPointF, QRectF, Qt, QTime, QVariantAnimation
 from PySide6.QtGui import (
     QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPainterPath, QPalette, QPen,
 )
-from PySide6.QtWidgets import (QFrame, QLabel, QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
-                               QHBoxLayout, QGridLayout, QPushButton, QButtonGroup)
+from PySide6.QtWidgets import QFrame, QLabel, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
 
-__all__ = ["OverviewTab", "NODES", "EDGES", "PAGE_TITLE"]
+__all__ = ["OverviewTab", "NODES", "EDGES", "PAGE_TITLE", "greeting"]
 
-PAGE_TITLE = "Overview"  # title P2 adds to PAGE_SPECS and to the go_to() list
+PAGE_TITLE = "Overview"  # title used in PAGE_SPECS
 
 # Everything is laid out on a fixed "logical" canvas and scaled to fit the window.
 LOGICAL_W, LOGICAL_H = 1100.0, 570.0
@@ -40,7 +38,7 @@ class Node:
     role: str        # "alice" | "bob" | "shared" | "danger"
     x: float
     y: float
-    page: str        # page title for state.go_to()
+    page: str        # the page where this step can be tried
     blurb: str       # one plain-English line
     formulas: tuple[str, ...]  # at most 3 lines
 
@@ -152,23 +150,19 @@ def _anchor(node: Node, side: str) -> QPointF:
 
 
 class _OverviewCanvas(QWidget):
-    """Paints the diagram and handles hover, focus, keyboard and clicks."""
-
-    nodeActivated = Signal(str)  # page title
+    """Paints the diagram and handles hover, focus and the keyboard."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.setMinimumSize(1040, 560)
+        self.setMinimumSize(560, 300)  # the drawing scales to fit; keep it usable in small windows
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setAccessibleName("ECDSA overview diagram")
         self.setAccessibleDescription(
             "Boxes for each ECDSA step. Use the arrow keys to move between boxes.")
-        self.navigation_enabled = False
         self._mouse_key: str | None = None
         self._focus_key: str | None = None
-        self._pressed_key: str | None = None
         self._keyboard_mode = False
         self._target: str | None = None        # box currently highlighted
         self._popup_key: str | None = None     # box whose formulas are showing (stays while fading out)
@@ -207,12 +201,6 @@ class _OverviewCanvas(QWidget):
     @property
     def popup_progress(self) -> float:
         return self._progress
-
-    def set_navigation_enabled(self, enabled: bool) -> None:
-        """Enable click-through only when the host provides a navigation callback."""
-        self.navigation_enabled = enabled
-        suffix = " Press Enter to open that page." if enabled else " Page navigation is coming soon."
-        self.setAccessibleDescription("Boxes for each ECDSA step. Use the arrow keys to move between boxes." + suffix)
 
     def _refresh_target(self) -> None:
         active = self._mouse_key or (
@@ -253,8 +241,6 @@ class _OverviewCanvas(QWidget):
     # ---- events -------------------------------------------------------------
     def mouseMoveEvent(self, event) -> None:  # noqa: N802 (Qt naming)
         key = self._node_at(event.position())
-        clickable = key is not None and self.navigation_enabled
-        self.setCursor(Qt.CursorShape.PointingHandCursor if clickable else Qt.CursorShape.ArrowCursor)
         if key != self._mouse_key:
             self._mouse_key = key
             self._refresh_target()
@@ -264,18 +250,9 @@ class _OverviewCanvas(QWidget):
         self._refresh_target()
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
-        self._pressed_key = self._node_at(event.position())
-        # A modal navigation dialog temporarily removes and restores focus. Keep
-        # that restoration from activating the first keyboard node afterward.
         self._keyboard_mode = False
         self._focus_key = None
         self.setFocus(Qt.FocusReason.MouseFocusReason)
-
-    def mouseReleaseEvent(self, event) -> None:  # noqa: N802
-        key = self._node_at(event.position())
-        if self.navigation_enabled and key is not None and key == self._pressed_key:
-            self.nodeActivated.emit(NODE_BY_KEY[key].page)
-        self._pressed_key = None
 
     def focusInEvent(self, event) -> None:  # noqa: N802
         super().focusInEvent(event)
@@ -309,10 +286,6 @@ class _OverviewCanvas(QWidget):
         elif key == Qt.Key.Key_End:
             self._keyboard_mode = True
             self._focus_key = order[-1]
-        elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
-            if self.navigation_enabled and self._focus_key is not None:
-                self.nodeActivated.emit(NODE_BY_KEY[self._focus_key].page)
-            return
         else:
             super().keyPressEvent(event)
             return
@@ -459,8 +432,7 @@ class _OverviewCanvas(QWidget):
         blurb_font = QFont("Georgia"); blurb_font.setPixelSize(14); blurb_font.setWeight(QFont.Weight.Medium)
         formula_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont); formula_font.setPixelSize(15)
         hint_font = QFont("Georgia"); hint_font.setPixelSize(13); hint_font.setItalic(True)
-        hint = (f"Click to open \u201c{node.page}\u201d" if self.navigation_enabled
-                else f"{node.page} page \u00b7 navigation coming soon")
+        hint = f"Try it on the {node.page} page"
 
         widths = [QFontMetricsF(title_font).horizontalAdvance(node.title),
                   QFontMetricsF(blurb_font).horizontalAdvance(node.blurb),
@@ -504,109 +476,56 @@ class _OverviewCanvas(QWidget):
         painter.restore()
 
 
+def greeting(now: QTime | None = None) -> str:
+    """A greeting that matches the local time of day."""
+    hour = (now or QTime.currentTime()).hour()
+    if 5 <= hour < 12:
+        return "Good morning"
+    if 12 <= hour < 18:
+        return "Good afternoon"
+    return "Good evening"
+
+
 class OverviewTab(QWidget):
-    """The "Overview" page: ECDSA at a glance, with links to every other page."""
+    """The "Overview" page: the whole of ECDSA in one diagram."""
 
     HELP = ("This picture shows the whole ECDSA story from start to finish. "
-            "Move the mouse over a box to see its formulas pop up. "
-            "Click a box to open the page that explains it. "
-            "You can also use the arrow keys and Enter.")
+            "Move the mouse over a box to see its formulas pop up and the page where you can try that step. "
+            "You can also use the arrow keys.")
 
     def __init__(self, state, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._state = state
 
-        heading = QLabel("Good morning! Ready to\nexplore ECDSA?")
-        heading.setProperty("heading", "hero")
-        navigation_enabled = callable(getattr(state, "go_to", None))
-        hint_text = ("Hover over a box to see its formulas. Click it to open that page."
-                     if navigation_enabled
-                     else "Hover over a box to see its formulas. Page navigation is coming soon.")
-        hint = QLabel(hint_text)
-        hint.setProperty("muted", True)
-        hint.setWordWrap(True)
+        self.heading = QLabel()
+        self.heading.setProperty("heading", "hero")
+        self.caption = QLabel("ECDSA at a glance: how a key pair, a message and a one-time secret k become a "
+                              "signature, and how anyone can check it. Hover over a box to see its formulas.")
+        self.caption.setProperty("muted", True)
+        self.caption.setWordWrap(True)
 
         self.canvas = _OverviewCanvas()
-        self.canvas.set_navigation_enabled(navigation_enabled)
-        self.canvas.nodeActivated.connect(self._open_page)
-        self.scroll = QScrollArea()
-        self.scroll.setWidgetResizable(True)
-        self.scroll.setFrameShape(QFrame.Shape.NoFrame)
-        self.scroll.setWidget(self.canvas)
-
-        # The existing interactive flow remains below the navigation dashboard.
-        outer = QVBoxLayout(self)
-        dashboard_scroll = QScrollArea()
-        dashboard_scroll.setWidgetResizable(True)
-        dashboard_scroll.setFrameShape(QFrame.Shape.NoFrame)
         content = QWidget()
         layout = QVBoxLayout(content)
         layout.setContentsMargins(16, 12, 16, 16)
-        layout.addWidget(heading)
-        chips = QHBoxLayout()
-        group = QButtonGroup(self)
-        self._cards = []
-        for category in ("All", "Keys", "Sign", "Verify", "Curves", "Attacks"):
-            chip = QPushButton(category)
-            chip.setCheckable(True)
-            chip.setProperty("chip", True)
-            chip.setChecked(category == "All")
-            group.addButton(chip)
-            chip.clicked.connect(lambda checked=False, name=category: self._filter_cards(name))
-            chips.addWidget(chip)
-        chips.addStretch()
-        layout.addLayout(chips)
-        section = QLabel("Explore the lab")
-        section.setProperty("muted", True)
-        layout.addWidget(section)
-        self._grid = QGridLayout()
-        self._grid.setSpacing(12)
-        self._category = "All"
-        from ecdsa_edu.gui.main_window import PAGE_SPECS
-        colors = ("yellow", "lilac", "yellow", "pink", "olive", "periwinkle", "peach", "pink", "lilac", "yellow")
-        categories = ("All", "All", "Keys", "Sign", "Verify", "Curves", "All", "Attacks", "All", "All")
-        for spec, color, category in zip(PAGE_SPECS, colors, categories):
-            card = QPushButton(f"{category if category != 'All' else 'Explore'}\n\n{spec.title}\nOpen this part of the lab  →")
-            card.setProperty("card", color)
-            card.setMinimumHeight(130)
-            card.setCursor(Qt.CursorShape.PointingHandCursor)
-            card.setAccessibleName("Open " + spec.title)
-            card.clicked.connect(lambda checked=False, title=spec.title: self._open_page(title))
-            self._cards.append((card, category))
-        self._filter_cards("All")
-        layout.addLayout(self._grid)
-        flow_title = QLabel("ECDSA at a glance")
-        flow_title.setProperty("heading", "section")
-        layout.addWidget(flow_title)
-        layout.addWidget(hint)
-        self.scroll.setMinimumHeight(450)
-        layout.addWidget(self.scroll)
-        dashboard_scroll.setWidget(content)
-        outer.addWidget(dashboard_scroll)
+        layout.addWidget(self.heading)
+        layout.addWidget(self.caption)
+        layout.addWidget(self.canvas, 1)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll.setWidget(content)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(self.scroll)
+        self._update_greeting()
 
-    def _filter_cards(self, category: str) -> None:
-        """Reflow visible cards after a filter selection."""
-        self._category = category
-        columns = 1 if self.width() < 650 else 2
-        visible = 0
-        for card, card_category in self._cards:
-            self._grid.removeWidget(card)
-            show = category == "All" or category == card_category
-            card.setVisible(show)
-            if show:
-                self._grid.addWidget(card, visible // columns, visible % columns)
-                visible += 1
+    def _update_greeting(self) -> None:
+        self.heading.setText(f"{greeting()}! Welcome to ECDSA Lab")
 
-    def resizeEvent(self, event) -> None:  # noqa: N802
-        super().resizeEvent(event)
-        if hasattr(self, "_grid") and hasattr(self, "_category"):
-            self._filter_cards(self._category)
+    def showEvent(self, event) -> None:  # noqa: N802 (Qt naming)
+        super().showEvent(event)
+        self._update_greeting()  # the app may stay open from morning into the evening
 
     def set_curve(self, curve) -> None:
         """The overview is the same for every curve."""
-
-    def _open_page(self, page_title: str) -> None:
-        """Send the user to the page for the clicked step (does nothing without go_to)."""
-        go_to = getattr(self._state, "go_to", None)
-        if callable(go_to):
-            go_to(page_title)
