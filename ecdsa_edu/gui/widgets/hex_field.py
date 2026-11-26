@@ -117,7 +117,7 @@ class HexOutputField(QWidget):
         self.text_field = HexField(read_only=True, lines=lines)
         self.copy_button = QPushButton("Copy")
         self.copy_button.setToolTip("Copy the hex string to the clipboard")
-        self.save_button = QPushButton("Save…")
+        self.save_button = QPushButton("Save…", self)
         self.save_button.setToolTip("Save as a text file (hex) or as raw bytes")
         self.save_button.setVisible(show_save)
 

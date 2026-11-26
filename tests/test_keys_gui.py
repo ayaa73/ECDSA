@@ -479,6 +479,9 @@ def test_hex_toggle_and_real_curve(qtbot, tab, state):
     assert tab.hex_check.isChecked()  # hex is the default on real curves
     tab.generate()
     wait_idle(qtbot, tab)
+    assert tab.trace_view._panels == []  # details are collapsed; defer the large trace UI
+    tab.details_button.click()
+    assert len(tab.trace_view._panels) > 200
     assert tab.d_field.text() == hex(state.priv.d)
     assert len(tab.compressed_field.hex_value()) == 66
     tab.hex_check.setChecked(False)

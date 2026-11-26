@@ -346,6 +346,7 @@ class KeysTab(QWidget):
     def _toggle_details(self, visible: bool) -> None:
         self._details.setVisible(visible)
         self.details_button.setText("Hide key details" if visible else "Show key details")
+        self._apply_privacy()
 
     def _open_trace(self) -> None:
         self._state.set_mode("expert")
@@ -618,6 +619,11 @@ class KeysTab(QWidget):
         if hidden and self._trace:
             shown: Trace = []
             note = "The steps are hidden while “Hide d” is on, because they contain the private key."
+        elif self._curve.n.bit_length() > 64 and not self.details_button.isChecked():
+            # Building hundreds of trace cards delays the visible key result.
+            # Keep the steps in memory until the user opens the details.
+            shown = []
+            note = "Open key details to see every step of Q = d · G."
         else:
             shown = self._trace
             note = ("Every step of the double-and-add computation of Q = d · G." if shown

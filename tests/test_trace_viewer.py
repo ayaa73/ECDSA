@@ -29,6 +29,7 @@ def test_empty_state_then_set_trace(qtbot):
     assert viewer.scroll.verticalScrollBar().value() == 0
     assert viewer.copy_button.isEnabled()
     assert all(panel.isVisibleTo(viewer) for panel in viewer._panels)
+    assert all(panel.values_table.parentWidget() is panel.details for panel in viewer._panels)
 
 
 def test_step_through_navigation_and_show_all(qtbot):

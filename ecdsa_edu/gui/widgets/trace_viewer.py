@@ -215,7 +215,7 @@ class _StepPanel(QFrame):
         self.formula_label.setFont(formula_font)
         details_layout.addWidget(self.formula_label)
 
-        self.values_table = _ValuesGrid(len(self._rows))
+        self.values_table = _ValuesGrid(len(self._rows), self.details)
         self.values_table.setVisible(bool(self._rows))
         details_layout.addWidget(self.values_table)
 
