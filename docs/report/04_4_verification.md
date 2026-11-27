@@ -1,6 +1,6 @@
 # 4.4 Verification and the nonce-reuse attack
 
-<!-- 4.4.4 Security notes moves to 07_security.md (Mira) and 4.4.5 Testing summary to 05_testing.md (Aya). -->
+<!-- The security notes eventually move to 07_security.md (Mira) and the testing summary to 05_testing.md (Aya). -->
 
 *Author: P4. Code: `core/verify.py`, `core/attacks.py`, `gui/tabs/verify_tab.py`, `gui/tabs/attack_tab.py`.*
 
@@ -71,7 +71,48 @@ $X = 16G + 6Q = 16G + 42G = 58G = G = (5, 1)$. Since $5 \ne 7$, the signature is
 These are exactly the values the app's trace shows (they are checked by
 `test_textbook_example_valid` in `tests/test_verify.py`).
 
-## 4.4.3 The nonce-reuse attack
+## 4.4.3 Investigator verification game
+
+We turned the verification algorithm into **Case File: The Signed Threat**, an investigation game embedded in
+the desktop application through Qt WebEngine. A case contains a threatening message, an ECDSA signature and
+between three and five suspects whose public keys are pinned to an evidence board. The game randomly chooses
+either one listed suspect or an unlisted outsider as the signer. For every generated case it checks that only
+the intended listed key verifies; this avoids accidental ambiguity on tiny teaching curves. The player tests
+the public keys, accuses a matching suspect or crosses off a non-matching one. If the player dismisses the real
+signer, the result screen identifies the mistake and reveals the complete calculation for every suspect.
+
+The same mathematical verification is presented at three levels. **Beginner** reveals the six steps one at a
+time; **Investigator** supplies only two case-wide hints; and **Expert** supplies no computed trail before the
+decision. Cases may correctly end with “none of the suspects”, so the activity teaches that verification answers
+whether a particular public key matches rather than proving that the signer must be one of the supplied names.
+
+### Curves, hashes and host integration
+
+The first prototype was fixed to toy-97. The final game supports toy-17, toy-97 and validated custom teaching
+curves. Its Python wrapper sends compatible curves from the application's registry into the embedded HTML and
+keeps the active small curve and hash synchronized. Built-in names are deduplicated, and changing the host curve
+or hash resets the current case so that a message, signature and public keys generated under different parameters
+can never be mixed.
+
+Custom input is accepted only after all of the following checks:
+
+1. $p$, $a$, $b$ and both coordinates of $G$ are integers, with prime $7 \le p < 5000$;
+2. $4a^3 + 27b^2 \not\equiv 0 \pmod p$, so the curve is non-singular;
+3. $G$ satisfies $y^2 = x^3 + ax + b \pmod p$;
+4. repeated point addition finds a prime order $n$ for $G$, with $n \ge 11$; and
+5. that order divides the total number of curve points, giving an integral cofactor $h$.
+
+The lower bound $p \ge 7$ follows from the game's separate requirement $n \ge 11$, not from ECDSA in general.
+Hasse's bound gives $\#E(\mathbb{F}_p) \le p + 1 + 2\sqrt{p}$. For $p=5$, the integer group size is therefore
+at most $10$, so no generator over $\mathbb{F}_5$ can have order at least $11$. Seven is the next prime and permits
+group sizes up to $13$. The upper bound keeps exhaustive point counting responsive; real curves such as P-256
+and secp256k1 are intentionally excluded from this hand-calculation game and the wrapper falls back to toy-97.
+
+The player may compare SHA-256, SHA-384, SHA-512 and legacy SHA-1. The browser computes the complete digest with
+the Web Crypto API, displays it on demand, and highlights the leftmost $\operatorname{bitlength}(n)$ bits used as
+$e$. Thus changing the curve automatically changes the number of digest bits used by the ECDSA calculation.
+
+## 4.4.4 The nonce-reuse attack
 
 If the same $k$ signs two messages with hashes $e_1 \ne e_2$, both signatures share $R = kG$ and so the
 same $r$. The two signing equations are
@@ -111,7 +152,7 @@ The attacker sees $r_1 = r_2 = 7$ and computes, with $7^{-1} \equiv 11 \pmod{19}
 In 2010 this exact mistake exposed Sony's PlayStation 3 signing key, because the same $k$ was used for
 every signature. The Attack Demo tab replays the attack live on toy-17 or secp256k1.
 
-## 4.4.4 Security notes
+## 4.4.5 Security notes
 
 This application is **educational and must not be used to protect real keys**:
 
@@ -127,7 +168,7 @@ This application is **educational and must not be used to protect real keys**:
   range check and accepted $r = s = 0$ for any message (CVE-2022-21449).
 - **Keys on disk.** Private keys are saved as plain JSON (section 4.2), without encryption.
 
-## 4.4.5 Testing summary
+## 4.4.6 Testing summary
 
 All tests run with `pytest`. Correctness is cross-checked against independent libraries, which are used
 only inside tests.

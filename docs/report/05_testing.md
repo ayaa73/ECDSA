@@ -47,7 +47,9 @@ We test at four levels, all with `pytest` (run with `pytest -q` from the project
 | `test_history.py` | Aya | 4 | every milestone complete and sourced, filters, History page (Qt) |
 | `test_p4_pages.py` | Aya | 8 | Verify, Attack Demo and Start here pages (Qt) |
 | `test_pages_sign.py` | Aya | 5 | Learn steps 3–5: valid signature, RFC 6979 k by default (Qt) |
-| **Total** | | **437 + 2 Qt files** | **412 passed, 25 skipped, 0 failed** |
+| `test_verification_game_multicurve.py` | Aya | 2 | Small curves cross the Qt/HTML bridge; real-size curves are excluded from exhaustive game arithmetic |
+| **Recorded full run (23 November)** | | **437 + 2 Qt files** | **412 passed, 25 skipped, 0 failed** |
+| **Added since that run** | | **2** | **2 passed in the targeted 28 November game run** |
 
 The skipped tests are expected on the machine used for this run, which has no display libraries: the GUI tests
 need PySide6 and pytest-qt (18 tests, plus Serena's two Qt test files, which are skipped as whole files), 4 need
@@ -67,6 +69,10 @@ the optional `ecdsa` library, and 1 is the "hex input not supported yet" message
   ($s \to n - s$). A dedicated test covers this, including the case where the flipped value equals the other $s$.
 - **Robust parsing.** The fuzz tests fed hundreds of malformed hex strings, key files and DER blobs to Serena's and
   Mira's parsers; none raised anything other than `ValueError`.
+- **Why the game starts at $p=7$.** The investigator game needs a prime-order subgroup with $n \ge 11$ to create
+  enough distinct suspect and outsider keys. Hasse's bound limits a curve over $\mathbb{F}_5$ to at most 10
+  points, so accepting $p=5$ would offer an input that can never pass the later order check. The next prime,
+  $p=7$, can support up to 13 points.
 
 ## 5.4 Requirements check
 

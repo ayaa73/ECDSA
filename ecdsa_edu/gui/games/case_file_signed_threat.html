@@ -94,6 +94,24 @@ button:disabled{opacity:.4;cursor:default}
 .corkpanel .strip{display:inline-block;background:#f0e3c8;color:#4A1220;padding:5px 14px;font-size:12px;letter-spacing:.2em;transform:rotate(-1.5deg);box-shadow:0 5px 10px #000a;margin-bottom:12px}
 .corkpanel h3{margin:6px 0 6px;font-weight:400;font-size:28px;letter-spacing:.06em;color:#f6e9d2;text-shadow:0 2px 6px #000}
 .corkpanel .lead{color:#e6d3b4;font-size:13px;margin:0 auto;max-width:520px;text-shadow:0 1px 4px #000}
+.curvebox{position:relative;margin:20px auto 0;max-width:600px;padding:16px 16px 12px;text-align:left;color:#2a1a14;transform:rotate(-.4deg);
+  background:linear-gradient(104deg,#f2e6c9,#e5d1a9 60%,#f3e4c7);border:1px solid #b9a27d;box-shadow:0 9px 18px #000b}
+.cvtop{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;border-bottom:1px solid #9d7d5c;padding-bottom:8px}
+.cvtitle{font-size:12px;letter-spacing:.2em;color:#9b1b30;border:2px solid #9b1b30;padding:1px 7px;transform:rotate(-2deg)}
+.cvtabs{display:flex;gap:6px;flex-wrap:wrap}
+.cvtabs button{padding:3px 11px;font-size:12px;border-radius:99px;background:#d9c39b;color:#3a0f1a;border:1px solid #9d7d5c}
+.cvtabs button:hover{background:#cdb383}.cvtabs button.on{background:#7A1F35;color:#F8E6E9;border-color:#4A1220;box-shadow:0 0 0 2px #a3152b55}
+.cvmain{margin:10px 0 12px}.hsrow{border-top:1px dashed #9d7d5c;border-bottom:0;padding:10px 0 0}
+.cveq{font-family:var(--hand);font-size:25px;color:#7a1226;line-height:1.1}
+.cvpar{font-size:13px;margin-top:4px;color:#4a2a2a;letter-spacing:.02em}
+.ferr{grid-column:1/-1;font-size:12px;color:#9b1b30}.ferr:empty{display:none}
+.hx{cursor:pointer;text-decoration:underline dotted}.hx mark{background:#d1162f55;color:inherit;padding:0}
+.cvgrid{grid-template-columns:repeat(3,1fr) 1.5fr;gap:8px;margin-top:10px;align-items:start}
+.cvgrid label{font-size:11px;letter-spacing:.1em;display:flex;flex-direction:column;gap:2px}
+.cvgrid input{width:100%;font:13px var(--type);background:#fff9;color:#2a1a14;border:1px solid #9d7d5c;padding:3px 6px}.gg{display:flex;gap:4px}
+.cvbtn{grid-column:1/-1;display:flex;gap:8px}.cvbtn button{padding:4px 12px;font-size:12px}
+#cvMsg{min-height:0;font-size:12px;margin-top:6px}#cvMsg:empty{display:none}#cvMsg.bad{color:#9b1b30}#cvMsg.good{color:#1f6a43}
+@media(max-width:560px){.cvgrid{grid-template-columns:1fr 1fr}}
 .difficulty-grid{position:relative;display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:34px}
 .difficulty-grid .link{position:absolute;left:0;top:0;width:100%;height:34px;z-index:0;pointer-events:none}
 .difficulty{position:relative;z-index:1;padding:22px 16px 18px;text-align:left;min-height:210px;color:var(--ink);cursor:pointer;
@@ -148,7 +166,7 @@ html.embedded .dlg,html.embedded .sheet,html.embedded .corkpanel{max-height:calc
 </head>
 <body>
 <header>
-  <div><h1>CASE FILE · THE SIGNED THREAT</h1><div class="sub">ECDSA verification · toy-97 curve · y² = x³ + 5 (mod 97), G = (1, 43), n = 79</div></div>
+  <div><h1>CASE FILE · THE SIGNED THREAT</h1><div class="sub" id="curveSub"></div></div>
   <div class="actions"><span class="mode-chip" id="modeChip">Difficulty: —</span><button id="modeBtn">Change difficulty</button><button id="newBtn">New case</button></div>
 </header>
 <div class="board-scroll">
@@ -166,6 +184,16 @@ html.embedded .dlg,html.embedded .sheet,html.embedded .corkpanel{max-height:calc
   <div class="strip"><span>CASE Nº 047 · OPEN FILES</span></div>
   <h3>Choose your investigation</h3>
   <p class="lead">The mathematics is identical in every file. Only the amount of support changes.</p>
+  <div class="curvebox"><div class="pin"></div>
+    <div class="cvtop"><span class="cvtitle">CURVE ON FILE</span><div id="cvTabs" class="cvtabs"></div></div>
+    <div class="cvmain"><div id="cvEq" class="cveq"></div><div id="cvPar" class="cvpar"></div></div>
+    <div class="cvtop hsrow"><span class="cvtitle">HASH</span><div id="hsTabs" class="cvtabs"></div></div>
+    <div id="cvCustom" class="cvgrid" style="display:none">
+      <label>p<input id="cp" inputmode="numeric"></label><label>a<input id="ca" inputmode="numeric"></label><label>b<input id="cb" inputmode="numeric"></label>
+      <label>G (x, y)<span class="gg"><input id="cgx" inputmode="numeric"><input id="cgy" inputmode="numeric"></span></label>
+      <div id="pErr" class="ferr"></div>
+      <div class="cvbtn"><button id="cSug">Suggest a curve</button><button id="cUse">Use this curve</button></div></div>
+    <div id="cvMsg"></div></div>
   <div class="difficulty-grid">
     <svg class="link" viewBox="0 0 100 20" preserveAspectRatio="none"><path d="M16.7,1 Q33.3,16 50,1 Q66.7,16 83.3,1" fill="none" stroke="#000" stroke-width="5" opacity=".4" vector-effect="non-scaling-stroke" transform="translate(0,2)"/><path d="M16.7,1 Q33.3,16 50,1 Q66.7,16 83.3,1" fill="none" stroke="#a3152b" stroke-width="2.6" vector-effect="non-scaling-stroke"/></svg>
     <button class="difficulty" data-mode="beginner"><div class="pin"></div><span class="fno">FILE 01</span><h4>Beginner</h4><p>Run the complete ECDSA verification one step at a time before making your call.</p><span class="tag">FULL WALKTHROUGH</span></button>
@@ -180,8 +208,8 @@ html.embedded .dlg,html.embedded .sheet,html.embedded .corkpanel{max-height:calc
 <script>
 const PAGE_PARAMS=new URLSearchParams(location.search);
 if(PAGE_PARAMS.get("embedded")==="1")document.documentElement.classList.add("embedded");
-// ---------- ECDSA on toy-97 (same maths as core/verify.py: SEC 1 §4.1.4) ----------
-const P=97,A=0,B=5,G=[1,43],N=79;
+// ---------- ECDSA on the selected toy curve (same maths as core/verify.py: SEC 1 §4.1.4) ----------
+let P=97,A=0,B=5,G=[1,43],N=79,NB=7,H=1,CNAME="toy-97",HASHN="SHA-256"; // set by applyCurve()
 const mod=(x,m)=>((x%m)+m)%m;
 function inv(a,m){a=mod(a,m);let [r0,r1]=[m,a],[t0,t1]=[0,1];while(r1){const q=Math.floor(r0/r1);[r0,r1]=[r1,r0-q*r1];[t0,t1]=[t1,t0-q*t1];}return mod(t0,m);}
 function add(p,q){if(!p)return q;if(!q)return p;
@@ -191,10 +219,10 @@ function add(p,q){if(!p)return q;if(!q)return p;
 function mul(k,p){let r=null,a=p;k=mod(k,N);while(k){if(k&1)r=add(r,a);a=add(a,a);k>>=1;}return r;}
 const onCurve=q=>!!q&&mod(q[1]*q[1],P)===mod(q[0]**3+A*q[0]+B,P);
 const f=q=>q?`(${q[0]}, ${q[1]})`:"O (point at infinity)";
-async function hashE(msg){ // top 7 bits of SHA-256 (n has 7 bits), as in hashing.py
-  const d=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(msg)));
+async function hashE(msg){ // leftmost bit_length(n) bits of the digest (hashing.py: right shift), n < 2^13 so two bytes are enough
+  const d=new Uint8Array(await crypto.subtle.digest(HASHN,new TextEncoder().encode(msg)));
   const hex=[...d].map(b=>b.toString(16).padStart(2,"0")).join("");
-  return {e:d[0]>>1,hex};}
+  return {e:((d[0]<<8)|d[1])>>(16-NB),hex};}
 function sign(d,e,k){const R=mul(k,G);const r=mod(R[0],N);if(!r)return null;const s=mod(inv(k,N)*(e+r*d),N);return s?{r,s}:null;}
 // verification: returns every intermediate value so the UI can reveal them step by step
 function verifyTrace(Q,e,sig){
@@ -214,7 +242,7 @@ const MODES={beginner:{label:"Beginner",hints:0},medium:{label:"Investigator",hi
 const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
 async function newCase(){
   for(;;){
-    const count=rnd(3,5),ds=new Set();while(ds.size<count)ds.add(rnd(2,N-1));
+    const count=Math.min(rnd(3,5),N-2),ds=new Set();while(ds.size<count)ds.add(rnd(2,N-1));
     const keys=[...ds].map(d=>({d,Q:mul(d,G)}));
     const outsider=Math.random()<0.3, ci=rnd(0,count-1);
     let dSigner=outsider?rnd(2,N-1):keys[ci].d; if(outsider&&ds.has(dSigner))continue;
@@ -230,12 +258,14 @@ async function newCase(){
 
 // ---------- Rendering ----------
 const $=id=>document.getElementById(id);
+function hexHtml(full){const k=Math.ceil(NB/4);return `<mark>${C.hex.slice(0,k)}</mark>${full?C.hex.slice(k):C.hex.slice(k,24)+"…"}`}
+document.addEventListener("click",e=>{const h=e.target.closest(".hx");if(h&&C){const on=h.dataset.f!=="1";h.dataset.f=on?"1":"";h.innerHTML=hexHtml(on)}});
 function render(){
   const c=$("case");
   c.innerHTML=`<div class="pin"></div><h2>CASE Nº 0${C.no} · RECEIVED THREAT</h2>
    <div class="msg">“${C.msg}”</div>
    <div class="meta"><b>Signature:</b> r = ${C.sig.r}, s = ${C.sig.s}<br>
-   <b>SHA-256:</b> ${C.hex.slice(0,24)}…<br><b>e</b> (first 7 bits) = ${C.e}</div>
+   <b>${HASHN}:</b> <span class="hx" id="hx" title="Click to show or hide the full digest">${hexHtml(false)}</span><br><b>e</b> = the first ${NB} bits of the digest (the highlighted start) = <code>${C.e.toString(2).padStart(NB,"0")}</code>₂ = ${C.e}</div>
    <span class="stamp">UNVERIFIED</span>`;
   document.querySelectorAll(".sus").forEach(e=>e.remove());
   C.sus.forEach((s,i)=>{
@@ -283,7 +313,7 @@ function steps(i){
   const s=C.sus[i],t=verifyTrace(s.Q,C.e,C.sig),{r,s:ss}=C.sig,e=C.e;
   return {t,list:[
    [`1 · Sanity checks`,`Is <code>1 ≤ r ≤ ${N-1}</code> and <code>1 ≤ s ≤ ${N-1}</code>? r = ${r}, s = ${ss} → <b>${t.rangeOk?"yes":"NO"}</b>.<br>Is ${s.name}’s key Q on the curve? → <b>${t.keyOk?"yes":"NO"}</b>.`,""],
-   [`2 · Message hash`,`e = first 7 bits of SHA-256(message) = <code>${e}</code> (same for every suspect).`,""],
+   [`2 · Message hash`,`e = first ${NB} bits of ${HASHN}(message) = <code>${e}</code> (same for every suspect).`,""],
    [`3 · Inverse of s`,`w = s⁻¹ mod n = ${ss}⁻¹ mod ${N} = <code>${t.w}</code>`,""],
    [`4 · Scalars u1, u2`,`u1 = e·w mod n = ${e}·${t.w} mod ${N} = <code>${t.u1}</code><br>u2 = r·w mod n = ${r}·${t.w} mod ${N} = <code>${t.u2}</code>`,""],
    [`5 · Rebuild the point`,`u1·G = ${f(t.P1)}<br>u2·Q = ${f(t.P2)}<br><b>X = u1·G + u2·Q = ${f(t.X)}</b>`,""],
@@ -295,7 +325,7 @@ function openLab(i){
     $("labBox").innerHTML=`${intro}<div id="stepsBox"></div><div class="row" id="ctl"><button id="nx">Run next step</button><button class="ghost" id="cl">Close</button></div>`;
     $("lab").classList.add("on");$("cl").onclick=closeLab;$("nx").onclick=nextStep;return;}
   const hint=MODE==="medium"?`<button id="hint">Use hint (${MODES.medium.hints-hintsUsed} left)</button>`:"";
-  $("labBox").innerHTML=`${intro}<div class="evidence"><b>Your evidence</b><br>Curve: y² = x³ + 5 (mod 97) · G = (1, 43) · n = 79<br>e = ${C.e} · r = ${C.sig.r} · s = ${C.sig.s}<br>Test Q = ${f(s.Q)}</div><div id="hintBox"></div><div class="row"><button class="grn" id="yes">Accuse ${s.name}</button><button class="red" id="no">Cross off</button>${hint}<button class="ghost" id="cl">Close</button></div>`;
+  $("labBox").innerHTML=`${intro}<div class="evidence"><b>Your evidence</b><br>Curve: ${curveEq()} · G = ${f(G)} · n = ${N}<br>e = ${C.e} · r = ${C.sig.r} · s = ${C.sig.s}<br>Test Q = ${f(s.Q)}</div><div id="hintBox"></div><div class="row"><button class="grn" id="yes">Accuse ${s.name}</button><button class="red" id="no">Cross off</button>${hint}<button class="ghost" id="cl">Close</button></div>`;
   $("lab").classList.add("on");$("cl").onclick=closeLab;$("yes").onclick=()=>decide(true);$("no").onclick=()=>decide(false);
   if(MODE==="medium"){$("hint").disabled=hintsUsed>=MODES.medium.hints;$("hint").onclick=useHint;}}
 function closeLab(){$("lab").classList.remove("on");}
@@ -339,6 +369,59 @@ function chooseMode(mode){MODE=mode;$("mode").classList.remove("on");start();}
 function showModes(){$("mode").classList.add("on");}
 document.querySelectorAll("[data-mode]").forEach(b=>b.onclick=()=>chooseMode(b.dataset.mode));
 $("newBtn").onclick=()=>MODE?start():showModes();$("modeBtn").onclick=showModes;
+
+// ---------- Curve selection (mirrors curves_registry.py / make_custom_curve / suggest_small_curves) ----------
+const PRESETS={"toy-17":{p:17,a:2,b:2,G:[5,1],n:19,h:1},"toy-97":{p:97,a:0,b:5,G:[1,43],n:79,h:1}};
+const isPrime=n=>{if(n<2)return false;for(let i=2;i*i<=n;i++)if(n%i===0)return false;return true};
+const curveEq=()=>`y² = x³ ${A?"+ "+(A===1?"":A)+"x ":""}+ ${B} (mod ${P})`;
+const countPts=(p,a,b)=>{const sq=new Uint8Array(p);for(let y=0;y<p;y++)sq[y*y%p]++;let t=1;for(let x=0;x<p;x++)t+=sq[mod(x*x*x+a*x+b,p)];return t};
+function applyCurve(c,name){P=c.p;A=c.a;B=c.b;G=c.G;N=c.n;H=c.h;NB=N.toString(2).length;CNAME=name||c.name||"custom";
+  $("curveSub").textContent=`ECDSA verification · ${CNAME} · ${curveEq()}, G = ${f(G)}, n = ${N}`;
+  $("cvEq").textContent=curveEq();$("cvPar").textContent=`p = ${P}  ·  a = ${A}  ·  b = ${B}  ·  G = ${f(G)}  ·  n = ${N} (${NB}-bit)`;}
+function validate(p,a,b,g){ // same rules and messages as make_custom_curve, plus what the game needs to seat suspects
+  if(![p,a,b,...g].every(Number.isInteger))throw Error("p, a, b and G must be integers.");
+  if(p>=5000)throw Error("Choose a smaller prime: p must be below 5000.");
+  if(p<7)throw Error("p must be at least 7.");
+  if(!isPrime(p))throw Error(`${p} is not prime.`);
+  a=mod(a,p);b=mod(b,p);if(mod(4*a**3+27*b*b,p)===0)throw Error("This curve is singular. Choose different a and b values.");
+  if(mod(g[1]*g[1],p)!==mod(g[0]**3+a*g[0]+b,p))throw Error("Generator G is not on the curve. Check its coordinates.");
+  const total=countPts(p,a,b),sv=[P,A,B];P=p;A=a;B=b;let order=0;
+  try{let R=null;for(let o=1;o<=total;o++){R=add(R,g);if(R===null){order=o;break}}}finally{[P,A,B]=sv}
+  if(!order)throw Error("Could not determine the generator order.");
+  if(!isPrime(order))throw Error(`G has order ${order}, which is not prime. Choose a generator with prime order.`);
+  if(total%order)throw Error("Invalid generator order.");
+  if(order<11)throw Error(`n = ${order} is too small to seat the suspects. The game needs n ≥ 11.`);
+  return {p,a,b,G:g,n:order,h:total/order};}
+function suggest(p,skip){ // curves y² = x³+ax+b with a prime number of points, G = point with smallest x
+  const out=[];for(let a=0;a<p&&out.length<=skip;a++)for(let b=1;b<p&&out.length<=skip;b++){
+    if(mod(4*a**3+27*b*b,p)===0)continue;const t=countPts(p,a,b);if(t<11||!isPrime(t))continue;
+    let g=null;for(let x=0;x<p&&!g;x++){const r=mod(x**3+a*x+b,p);for(let y=0;y<p;y++)if(y*y%p===r){g=[x,y];break}}if(g)out.push({a,b,G:g})}
+  return out[skip];}
+function pCheck(v){v=String(v).trim();if(!v)return "";if(!/^\d+$/.test(v))return "p must be a whole number.";const n=+v;
+  if(n<7)return `${n} is too small: p must be at least 7.`;if(n>=5000)return `${n} is too big: p must be below 5000.`;return isPrime(n)?"":`${n} is not prime.`}
+const msg=(t,ok)=>{$("cvMsg").className=ok?"good":"bad";$("cvMsg").textContent=t};
+const extra={},MAXX=3;
+function addExtra(n,c){if(PRESETS[n])return;delete extra[n];extra[n]=c;for(const k of Object.keys(extra)){if(Object.keys(extra).length<=MAXX)break;if(k!==CNAME&&k!==n)delete extra[k]}} // curves handed over by the host app; built-in names are already shown
+function fillSel(sel){sel=sel||CNAME;$("cvTabs").innerHTML=[...Object.keys(PRESETS),...Object.keys(extra),"__c"].map(n=>`<button data-n="${n}" class="${n===sel?"on":""}">${n==="__c"?"＋ Custom":n}</button>`).join("")}
+function pick(name){const c=PRESETS[name]||extra[name];if(!c)return false;applyCurve(c,name);fillSel(name);$("cvCustom").style.display="none";msg("",1);return true}
+$("cvTabs").onclick=e=>{const b=e.target.closest("button");if(!b)return;if(b.dataset.n==="__c"){fillSel("__c");$("cvCustom").style.display="grid";msg("Enter a prime p, a, b and a generator G, or press Suggest.",1)}else pick(b.dataset.n)};
+let sugP=0,sugN=0;
+$("cp").oninput=()=>{$("pErr").textContent=pCheck($("cp").value)};
+$("cSug").onclick=()=>{const pe=pCheck($("cp").value);$("pErr").textContent=pe||($("cp").value.trim()?"":"Type a prime p first.");if(pe||!$("cp").value.trim())return;const p=+$("cp").value;
+  if(p!==sugP){sugP=p;sugN=0}const c=suggest(p,sugN);if(!c){const t=sugN;sugN=0;return msg(`That was all ${t} suitable curves over F_${p}: every (a, b) has been shown. Suggest again to start over.`)}
+  sugN++;$("ca").value=c.a;$("cb").value=c.b;$("cgx").value=c.G[0];$("cgy").value=c.G[1];msg(`Suggestion ${sugN}: press “Use this curve”, or Suggest again for another.`,1)};
+$("cUse").onclick=()=>{const pe=pCheck($("cp").value);$("pErr").textContent=pe||($("cp").value.trim()?"":"Type a prime p first.");if(pe||!$("cp").value.trim())return;try{const c=validate(+$("cp").value,+$("ca").value,+$("cb").value,[+$("cgx").value,+$("cgy").value]);
+  const nm=`custom (p=${c.p})`;addExtra(nm,c);applyCurve(c,nm);fillSel(nm);msg(`✓ Valid: G has prime order n = ${c.n}. Now choose a difficulty.`,1)}catch(e){msg(e.message)}};
+// Host hooks (Qt): window.setGameCurve(curveOrName), window.setGameCurves([curves]). Curves above p = 5000 are refused, the game stays hand-checkable.
+function resetAfterHostSetting(){if(!C)return;$('end').classList.remove('on');closeLab();C=null;MODE=null;showModes()}
+window.setGameCurves=l=>{(l||[]).forEach(c=>{try{if(String(c.p).length<=4&&c.p<5000){const v=validate(+c.p,+c.a,+c.b,c.G.map(Number));addExtra(c.name,v)}}catch(e){}});fillSel()};
+window.setGameCurve=c=>{let ok=false;if(typeof c==="string")ok=pick(c);else try{const v=validate(+c.p,+c.a,+c.b,c.G.map(Number));addExtra(c.name,v);applyCurve(v,c.name);fillSel(c.name);ok=true}catch(e){}if(ok)resetAfterHostSetting();return ok};
+const HASHES={"SHA-256":"sha256","SHA-384":"sha384","SHA-512":"sha512","SHA-1":"sha1"};
+function fillHash(){$("hsTabs").innerHTML=Object.keys(HASHES).map(n=>`<button data-h="${n}" class="${n===HASHN?"on":""}" ${n==="SHA-1"?'title="Legacy: fine for a classroom, not for new systems"':""}>${n}</button>`).join("")}
+$("hsTabs").onclick=e=>{const b=e.target.closest("button");if(b){HASHN=b.dataset.h;fillHash()}};
+window.setGameHash=n=>{const k=Object.keys(HASHES).find(x=>HASHES[x]===String(n).toLowerCase()||x===n);if(k){const changed=HASHN!==k;HASHN=k;fillHash();if(changed)resetAfterHostSetting();return true}return false};
+fillHash();
+fillSel("toy-97");pick(PRESETS[PAGE_PARAMS.get("curve")]?PAGE_PARAMS.get("curve"):"toy-97");
 const PAGES=[
 "The letter arrived at 6:41 a.m., slipped under the door of Director Adrian Wren’s office.\n\nNo stamp. No sender. Four lines of ink and a signature that no one in the building could explain.",
 "Five people had access to the building that night. Each one has a public key on file with the registry.\n\nOnly one of them holds the private key that could have signed this letter. The others are just names with alibis.",
@@ -354,7 +437,7 @@ function typePage(){
   (function tick(){ if(full)return; i++;tx.textContent=t.slice(0,i);
     if(i>=t.length)return done();
     const ch=t[i-1];tmr=setTimeout(tick,/[.!?]/.test(ch)?330:/[,:—]/.test(ch)?170:ch==="\n"?220:28);})();}
-function showIntro(){pg=0;$("intro").classList.add("on");typePage();}
+function showIntro(){pg=0;$("intro").classList.add("on");clearTimeout(tmr);$("tx").textContent="";$("nextP").disabled=true;$("folio").textContent=`FILE 047 · PAGE 1 OF ${PAGES.length}`;tmr=setTimeout(typePage,1800);} // let the widget finish loading before the typewriter starts
 function endIntro(){clearTimeout(tmr);$("intro").classList.remove("on");showModes();}
 $("sheet").onclick=e=>{if(!full&&!e.target.closest("button")){full=true;clearTimeout(tmr);$("tx").textContent=PAGES[pg];$("nextP").disabled=false;}};
 $("nextP").onclick=()=>{pg<PAGES.length-1?(pg++,typePage()):endIntro();};
