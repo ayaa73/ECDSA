@@ -169,6 +169,7 @@ class _OverviewCanvas(QWidget):
         self._target: str | None = None        # box currently highlighted
         self._popup_key: str | None = None     # box whose formulas are showing (stays while fading out)
         self._popup_link = QRectF()
+        self._popup_rect = QRectF()
         self._progress = 0.0
         self._anim = QVariantAnimation(self)
         self._anim.valueChanged.connect(self._on_progress)
@@ -248,11 +249,11 @@ class _OverviewCanvas(QWidget):
     def mouseMoveEvent(self, event) -> None:  # noqa: N802 (Qt naming)
         pos = event.position()
         link = self._link_at(pos)
-        key = link or self._node_at(pos)
+        key = link or (self._popup_key if self._popup_key == self._target and self._popup_rect.contains(self._to_logical(pos)) else self._node_at(pos))
         self.setCursor(Qt.CursorShape.PointingHandCursor if key else Qt.CursorShape.ArrowCursor)
         if key is None and self._mouse_key is not None and self._mouse_key == self._popup_key:
             # Keep the preview open while the pointer crosses the gap to its link.
-            corridor = NODE_BY_KEY[self._mouse_key].rect.united(self._popup_link)
+            corridor = NODE_BY_KEY[self._mouse_key].rect.united(self._popup_rect)
             if corridor.contains(self._to_logical(pos)):
                 key = self._mouse_key
         if key != self._mouse_key or self._keyboard_mode:
@@ -270,7 +271,10 @@ class _OverviewCanvas(QWidget):
         self._focus_key = None
         self.setFocus(Qt.FocusReason.MouseFocusReason)
         if event.button() == Qt.MouseButton.LeftButton:
-            key = self._link_at(event.position()) or self._node_at(event.position())
+            key = self._link_at(event.position())
+            if key is None and self._popup_key == self._target and self._popup_rect.contains(self._to_logical(event.position())):
+                return
+            key = key or self._node_at(event.position())
             if key is not None:
                 self.pageRequested.emit(NODE_BY_KEY[key].page)
 
@@ -333,13 +337,12 @@ class _OverviewCanvas(QWidget):
         for edge in EDGES:
             self._draw_edge(painter, theme, edge)
         for node in NODES:
-            if node.key != self._popup_key:
-                self._draw_node(painter, theme, node)
+            self._draw_node(painter, theme, node)
         self._popup_link = QRectF()
+        self._popup_rect = QRectF()
         if self._popup_key is not None:
             node = NODE_BY_KEY[self._popup_key]
             self._draw_popup(painter, theme, node)
-            self._draw_node(painter, theme, node)  # the box sits in front, so the popup rises from behind it
         painter.end()
 
     def _draw_edge(self, painter: QPainter, theme: dict[str, QColor], edge: Edge) -> None:
@@ -467,10 +470,12 @@ class _OverviewCanvas(QWidget):
 
         rect = node.rect
         left = min(max(8.0, rect.center().x() - width / 2), LOGICAL_W - width - 8)
-        final_top = max(4.0, rect.top() - 10 - height)
-        hidden_top = rect.top() + NODE_H * 0.45 - height  # bottom edge tucked behind the box
+        above = rect.top() - 10 - height
+        final_top = above if above >= 4 else min(rect.bottom() + 10, LOGICAL_H - height - 4)
+        hidden_top = final_top  # fade in without moving the clickable target
         top = hidden_top + (final_top - hidden_top) * self._progress
         box = QRectF(left, top, width, height)
+        self._popup_rect = box
 
         painter.save()
         painter.setOpacity(max(0.0, min(1.0, self._progress * 2.2)))

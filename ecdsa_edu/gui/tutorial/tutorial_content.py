@@ -48,14 +48,9 @@ WELCOME = ("We're glad you're here! This app is a friendly, hands-on place to di
 ABOUT = ("ECDSA (the Elliptic Curve Digital Signature Algorithm) is what lets anyone check that a message "
          "really came from its author and was not changed. It protects websites, software updates and "
          "cryptocurrencies such as Bitcoin. Here you can learn how ECDSA works step by step, generate your own "
-         "keys, sign and verify messages and files, watch a real attack such as nonce reuse recover a private "
-         "key, explore elliptic curves visually, and read the history behind it all. Every number is computed "
-         "live by the app, so you can see exactly what happens.")
+         "keys, sign and verify messages and files.")
 
-HOW_TO_USE = ("Use the sidebar on the left to move between pages; it is always there. Every page also has a "
-              "\"?\" button (F1) at the top with a short help text, and the curve button at the top lets you "
-              "switch between tiny teaching curves and real-world curves.")
-
+HOW_TO_USE = "Use the sidebar to explore. Press F1 for help; choose a curve on pages that use it."
 
 @dataclass(frozen=True)
 class Stop:
@@ -64,16 +59,11 @@ class Stop:
 
 
 SUGGESTED_ORDER: tuple[Stop, ...] = (
-    Stop("Start here", "this page: the big idea in 60 seconds and a 3-click demo."),
-    Stop("Overview", "one picture of the whole process, from keys to verification."),
-    Stop("Learn ECDSA", "a guided walkthrough of one full run with small numbers, then a quiz."),
-    Stop("Keys", "make your own key pair."),
-    Stop("Sign", "sign a message or a file with your private key."),
-    Stop("Verify", "check a signature, then change one letter and watch it fail."),
-    Stop("Curve Explorer", "see how points are added on a curve."),
-    Stop("Attack Demo", "in Games & Practice: see how reusing k reveals a private key."),
-    Stop("Verification Game", "solve a case: find out which suspect signed a threat."),
-    Stop("Pirate Adventure", "sail to the treasure by computing a public key and signing a map."),
-    Stop("Key Collision", "recover a private key yourself from two signatures that share k."),
-    Stop("History", "anytime: where ECDSA came from."),
+    Stop("Overview", "See the complete workflow."),
+    Stop("Learn ECDSA", "Follow a guided example."),
+    Stop("Keys", "Generate a key pair."),
+    Stop("Sign", "Sign a message."),
+    Stop("Verify", "Check the signature."),
+    Stop("Curve Explorer", "Explore point arithmetic."),
+    Stop("Attack Demo", "Explore nonce reuse."),
 )

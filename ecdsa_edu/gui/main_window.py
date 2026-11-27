@@ -107,8 +107,6 @@ SETTING_SHOW_TUTORIAL = "tutorial/show_at_startup"  # P4's "Don't show at startu
 SETTING_WINDOW_SIZE = "window/size"
 DEFAULT_WINDOW_SIZE = (1360, 900)
 NO_HELP_TEXT = "No help written yet for this page."
-SESSION_HANDLE_WIDTH = 26
-SESSION_PANEL_WIDTH = 300
 
 CUSTOM_DIALOG = ("ecdsa_edu.gui.tabs.custom_curve_dialog", "CustomCurveDialog")
 CURVE_PICKER = ("ecdsa_edu.gui.widgets.curve_picker", "CurvePicker")
@@ -316,58 +314,6 @@ class NavigationRail(QWidget):
                                      colors["sidebar_selected_text"] if button.isChecked() else colors["sidebar_text"]))
 
 
-class SessionHandle(QPushButton):
-    """Slim tab on the right edge with vertical text; it opens the Session drawer."""
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__("Session", parent)
-        self.setObjectName("sessionHandle")
-        self.setCheckable(True)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setAccessibleName("Session panel")
-        self.setToolTip("Show or hide your session activity")
-
-    def paintEvent(self, event) -> None:  # noqa: N802 (Qt naming)
-        painter = QStylePainter(self)
-        option = QStyleOptionButton()
-        self.initStyleOption(option)
-        option.text = ""
-        painter.drawControl(QStyle.ControlElement.CE_PushButton, option)
-        colors = theme_colors(current_theme())
-        highlighted = self.isChecked() or self.underMouse()
-        painter.setPen(QColor(colors["accent_text"] if highlighted else colors["text"]))
-        painter.translate(self.width() / 2, self.height() / 2)
-        painter.rotate(-90)
-        text = self.text()
-        width = self.fontMetrics().horizontalAdvance(text)
-        painter.drawText(QRectF(-width / 2 - 2, -self.width() / 2, width + 4, self.width()),
-                         Qt.AlignmentFlag.AlignCenter, text)
-
-
-class ActivityChart(QWidget):
-    """Small session chart: each bar records a key, signature, or verification event."""
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.values = []
-        self.setMinimumHeight(105)
-
-    def record(self, category):
-        self.values = (self.values + [category])[-8:]
-        self.update()
-
-    def paintEvent(self, event):  # noqa: N802
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        palette = ("#D17A88", "#A63A50", "#7A1F35")
-        for index, value in enumerate(self.values):
-            x = 10 + index * 24
-            height = 25 + value * 18
-            rect = QRectF(x, self.height() - height - 10, 16, height)
-            painter.setBrush(QColor(palette[value]))
-            painter.setPen(QPen(QColor(theme_colors(current_theme())["text"]), 2) if index == len(self.values)-1 else Qt.PenStyle.NoPen)
-            painter.drawRoundedRect(rect, 8, 8)
-
-
 class MainWindow(QMainWindow):
     """Application shell: toolbar, sidebar, pages, menus, status bar."""
 
@@ -396,9 +342,6 @@ class MainWindow(QMainWindow):
         state.curvesListChanged.connect(self._fill_curve_combo)
         state.keysChanged.connect(self._update_status)
         state.signatureChanged.connect(self._update_status)
-        state.keysChanged.connect(lambda: self._record_activity(0))
-        state.signatureChanged.connect(lambda: self._record_activity(1))
-        state.verificationCompleted.connect(lambda valid: self._record_activity(2))
         self._refresh_curve_widgets()
         self._update_status()
         self._apply_icons()
@@ -591,8 +534,7 @@ class MainWindow(QMainWindow):
         outer.addWidget(surface)
         self.surface = surface
         layout = QHBoxLayout(surface)
-        # The right margin leaves room for the Session handle on the edge.
-        layout.setContentsMargins(16, 16, SESSION_HANDLE_WIDTH + 12, 16)
+        layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(16)
         rail = QWidget()
         self.rail = rail
@@ -616,67 +558,6 @@ class MainWindow(QMainWindow):
         center.addWidget(self._toolbar)
         center.addWidget(self.stack, 1)
         layout.addLayout(center, 1)
-        # Session drawer: it floats over the page when opened, so it never takes
-        # width away from the pages. A slim handle on the right edge opens it.
-        self.side_panel = QWidget(surface)
-        self.side_panel.setObjectName("sidePanel")
-        self.side_panel.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.side_panel.setFixedWidth(300)
-        panel = QVBoxLayout(self.side_panel)
-        panel.setContentsMargins(20, 24, 20, 20)
-        header = QHBoxLayout()
-        avatar = QLabel("Session")
-        avatar.setProperty("heading", "hero")
-        header.addWidget(avatar, 1)
-        close = QToolButton()
-        close.setText("×")
-        close.setFixedSize(34, 34)
-        close.setStyleSheet("font-size: 20px;")
-        close.setAccessibleName("Close the session panel")
-        close.setToolTip("Close (Esc)")
-        close.setCursor(Qt.CursorShape.PointingHandCursor)
-        close.clicked.connect(lambda: self.set_session_panel_open(False))
-        header.addWidget(close, alignment=Qt.AlignmentFlag.AlignTop)
-        panel.addLayout(header)
-        name = QLabel("Your activity")
-        name.setProperty("heading", "section")
-        panel.addWidget(name)
-        self.panel_curve = QLabel()
-        self.panel_curve.setWordWrap(True)
-        self.panel_curve.setProperty("badge", True)
-        panel.addWidget(self.panel_curve)
-        self.panel_counts = QLabel()
-        self.panel_counts.setWordWrap(True)
-        self.panel_counts.setProperty("muted", True)
-        panel.addWidget(self.panel_counts)
-        panel.addSpacing(20)
-        activity = QLabel("Activity · This session")
-        activity.setObjectName("activityCard")
-        activity.setWordWrap(True)
-        panel.addWidget(activity)
-        self.activity_chart = ActivityChart()
-        self.activity_counts = [0, 0, 0]
-        panel.addWidget(self.activity_chart)
-        timeline_title = QLabel("Today's timeline")
-        timeline_title.setProperty("heading", "section")
-        panel.addWidget(timeline_title)
-        self.timeline = QLabel("Your session activity will appear here.")
-        self.timeline.setProperty("muted", True)
-        self.timeline.setWordWrap(True)
-        panel.addWidget(self.timeline)
-        panel.addStretch()
-        shadow = QGraphicsDropShadowEffect(self.side_panel)
-        shadow.setBlurRadius(28)
-        shadow.setOffset(-4, 0)
-        shadow.setColor(QColor(0, 0, 0, 90))
-        self.side_panel.setGraphicsEffect(shadow)
-        self.side_panel.hide()
-        self.session_handle = SessionHandle(surface)
-        self.session_handle.toggled.connect(self.set_session_panel_open)
-        close_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self.side_panel)
-        close_shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
-        close_shortcut.activated.connect(lambda: self.set_session_panel_open(False))
-        surface.installEventFilter(self)
         self.setCentralWidget(central)
 
         self.sidebar.currentRowChanged.connect(self._on_page_changed)
@@ -707,12 +588,23 @@ class MainWindow(QMainWindow):
     def _on_page_changed(self, row: int) -> None:
         """Switch pages and activate the investigation game when selected."""
         self.stack.setCurrentIndex(row)
+        self._update_curve_visibility()
         game_page = self.pages.get("Verification Game")
         if game_page is not None:
             game_active = self.stack.currentWidget() is game_page
             method = getattr(game_page, "activate" if game_active else "deactivate", None)
             if callable(method):
                 method()
+
+    def _update_curve_visibility(self):
+        visible = self.current_page_title() in {"Keys", "Sign", "Verify", "Curve Explorer", "Attack Demo", "Verification Game"}
+        for widget in (self.curve_info, self.curve_button):
+            self._toolbar_actions[widget].setVisible(visible)
+        self.curve_button.setEnabled(visible)
+        for widget in self._hidden_toolbar_widgets:
+            self._toolbar_actions[widget].setVisible(False)
+        if hasattr(self, "custom_curve_action"):
+            self.custom_curve_action.setVisible(visible)
 
     def _tutorial_settings(self):
         """Where the "show Start here at startup" choice lives.
@@ -791,6 +683,11 @@ class MainWindow(QMainWindow):
                 self.statusBar().showMessage(f"There is no page called “{title}”.", 5000)
             return
         self.sidebar.setCurrentRow(titles.index(title))
+        if title == "Learn ECDSA" and self.current_page_title() == title and getattr(self.state, "open_first_learn_step", False):
+            page = self.pages[title]
+            if callable(getattr(page, "go", None)):
+                page.go(0)
+        self._update_curve_visibility()
 
     def current_page_title(self) -> str:
         """Title of the page that is shown ('' if there are no pages)."""
@@ -852,39 +749,11 @@ class MainWindow(QMainWindow):
 
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
-        if hasattr(self, "side_panel"):
+        if hasattr(self, "rail"):
             compact = self.width() < 1100
             self.rail.setFixedWidth(72 if compact else 210)
             self.rail_logo.setText("E" if compact else "ecdsa lab")
             self.sidebar.setCompact(compact)
-
-    # ------------------------------------------------------ session drawer
-    def set_session_panel_open(self, open_: bool) -> None:
-        """Show or hide the Session drawer (it floats over the page)."""
-        if self.session_handle.isChecked() != open_:
-            self.session_handle.setChecked(open_)  # calls back here through toggled
-            return
-        self.side_panel.setVisible(open_)
-        self._place_session_panel()
-        if open_:
-            self.side_panel.setFocus(Qt.FocusReason.OtherFocusReason)
-
-    def _place_session_panel(self) -> None:
-        rect = self.surface.rect()
-        handle_height = min(132, max(rect.height() - 32, 40))
-        self.session_handle.setGeometry(rect.width() - SESSION_HANDLE_WIDTH - 4,
-                                        (rect.height() - handle_height) // 2,
-                                        SESSION_HANDLE_WIDTH, handle_height)
-        width = min(SESSION_PANEL_WIDTH, max(rect.width() - 120, 200))
-        self.side_panel.setGeometry(rect.width() - SESSION_HANDLE_WIDTH - 10 - width, 16,
-                                    width, max(rect.height() - 32, 100))
-        self.side_panel.raise_()
-        self.session_handle.raise_()
-
-    def eventFilter(self, watched, event) -> bool:  # noqa: N802 (Qt naming)
-        if watched is getattr(self, "surface", None) and event.type() == QEvent.Type.Resize:
-            self._place_session_panel()
-        return super().eventFilter(watched, event)
 
     # -------------------------------------------------------------- menus
     def _build_menus(self) -> None:
@@ -913,6 +782,8 @@ class MainWindow(QMainWindow):
         custom = QAction("&Custom curve…", self)
         custom.triggered.connect(self.open_custom_curve_dialog)
         file_menu.addAction(custom)
+        self.custom_curve_action = custom
+        self._update_curve_visibility()
         file_menu.addSeparator()
         quit_action = QAction("&Quit", self)
         quit_action.setShortcut(QKeySequence.StandardKey.Quit)
@@ -1056,15 +927,3 @@ class MainWindow(QMainWindow):
             keys = "no keys yet"
         self.status_keys.setText(f"Keys: {keys}")
         self.status_signature.setText("Signature: ready" if state.last_sig is not None else "Signature: none yet")
-        self.panel_curve.setText(curve_text)
-        self.panel_counts.setText(f"Keys loaded: {int(state.priv is not None or state.pub is not None)}  ·  "
-                                  f"Signature ready: {int(state.last_sig is not None)}")
-
-    def _record_activity(self, category: int) -> None:
-        from PySide6.QtCore import QTime
-        self.activity_counts[category] += 1
-        self.activity_chart.record(category)
-        keys, signatures, verifies = self.activity_counts
-        self.panel_counts.setText(f"Keys: {keys} · Signatures: {signatures} · Verifications: {verifies}")
-        event = ("Keys updated", "Signature updated", "Verification completed")[category]
-        self.timeline.setText(f"{QTime.currentTime().toString('HH:mm')}  ·  {event}")

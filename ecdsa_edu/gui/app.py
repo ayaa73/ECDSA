@@ -264,6 +264,10 @@ QComboBox::drop-down {{ border: none; width: 32px; }}
 QComboBox::down-arrow {{ image: url(ecdsa_edu/gui/assets/icons/chevron.svg); width: 12px; height: 12px; }}
 QFrame[card="pink"] QComboBox, QFrame[card="peach"] QComboBox, QFrame[card="lavender"] QComboBox, QFrame[card="mint"] QComboBox {{ background: white; color: #141414; }}
 QFrame[card="periwinkle"] QComboBox {{ background: white; color: #141414; }}
+QComboBox[verifyCombo="true"], QFrame[card] QComboBox[verifyCombo="true"] {{ background: {input}; color: {text}; }}
+QComboBox[verifyCombo="true"] QAbstractItemView {{ background: {panel}; color: {text}; border: 1px solid {border}; selection-background-color: {accent}; selection-color: {accent_text}; outline: 0; }}
+QComboBox[verifyCombo="true"] QAbstractItemView::item {{ background: {panel}; color: {text}; padding: 6px; }}
+QComboBox[verifyCombo="true"] QAbstractItemView::item:selected, QComboBox[verifyCombo="true"] QAbstractItemView::item:hover {{ background: {accent}; color: {accent_text}; }}
 QCheckBox::indicator {{ width: 18px; height: 18px; border: 1px solid {text}; border-radius: 5px; background: {input}; }}
 QCheckBox::indicator:checked {{ background: {accent}; border-color: {accent}; image: url(ecdsa_edu/gui/assets/icons/check.svg); }}
 QRadioButton::indicator {{ width: 16px; height: 16px; border: 1px solid {text}; border-radius: 8px; background: {input}; }}

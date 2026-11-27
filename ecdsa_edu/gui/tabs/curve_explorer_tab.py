@@ -15,6 +15,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QSizePolicy,
     QComboBox, QSlider, QTabWidget, QPlainTextEdit, QDoubleSpinBox, QScrollArea, QFrame)
+from PySide6.QtGui import QTextCursor
 from PySide6.QtCore import Qt
 from ecdsa_edu.core.curve import Curve, enumerate_points, point_add, point_double, scalar_mult
 from ecdsa_edu.gui.widgets.worker import run_in_background
@@ -103,9 +104,20 @@ class CurveExplorerTab(QWidget):
         self._drag = None  # (start pixel x, y, view at the start, moved?) while the mouse is down
         self.timer=QTimer(self); self.timer.timeout.connect(self._next_multiple)
         root=QVBoxLayout(self); root.setContentsMargins(0, 0, 0, 0); self.views=QTabWidget(); root.addWidget(self.views)
+        learn_link = QLabel('<a href="learn">Learn how the calculations work</a> — open Go deeper on the first Learn ECDSA page.')
+        learn_link.setWordWrap(True)
+        learn_link.linkActivated.connect(self._open_learn)
+        root.addWidget(learn_link)
         self._setup_real(); self._setup_finite()
         state.curveChanged.connect(self.set_curve)
         self.set_curve(self.curve)
+
+    def _open_learn(self, *_):
+        self.state.open_first_learn_step = True
+        try:
+            self.state.go_to("Learn ECDSA")
+        finally:
+            self.state.open_first_learn_step = False
 
     def _canvas(self,layout,zoom=None):
         fig=Figure(figsize=(9,6)); fig.add_subplot(111)
@@ -346,17 +358,18 @@ class CurveExplorerTab(QWidget):
         self.finite_mode=QComboBox();self.finite_mode.addItems(['Add P + Q','Multiples of G'])
         self.finite_mode.currentIndexChanged.connect(self._change_finite_mode);controls.addWidget(self.finite_mode)
         self.play=QPushButton('Play / pause');self.play.clicked.connect(self._toggle_animation);controls.addWidget(self.play)
-        controls.addWidget(QLabel('Speed'));self.speed=QSlider(Qt.Orientation.Horizontal)
+        self.speed_label=QLabel('Speed');controls.addWidget(self.speed_label);self.speed=QSlider(Qt.Orientation.Horizontal)
         self.speed.setRange(1,10);self.speed.setValue(5);self.speed.valueChanged.connect(self._speed_changed);controls.addWidget(self.speed)
         middle=QHBoxLayout();v.addLayout(middle,1)
         self.finite_canvas=self._canvas(middle);self.finite_canvas.mpl_connect('button_press_event',self._click_finite)
         self.trace_text=QPlainTextEdit();self.trace_text.setReadOnly(True);middle.addWidget(self.trace_text,1)
-        self.play.setEnabled(False)
+        self.play.setEnabled(False);self.speed.setEnabled(False);self.speed_label.setEnabled(False)
         self._add_tab(page,'Finite field')
 
     def set_curve(self,curve):
         self.curve=curve;self.timer.stop();self.finite_points=[];self.multiples=[];self.index=0
         self.play.setEnabled(curve is not None and curve.p < 5000 and self.finite_mode.currentIndex() == 1)
+        self.speed.setEnabled(self.play.isEnabled());self.speed_label.setEnabled(self.play.isEnabled())
         if curve is not None:self._refresh_finite()
 
     def _refresh_finite(self):
@@ -513,6 +526,7 @@ class CurveExplorerTab(QWidget):
     def _change_finite_mode(self,*_):
         self.timer.stop();self.finite_points=[];self.index=0
         self.play.setEnabled(self.curve is not None and self.curve.p < 5000 and self.finite_mode.currentIndex() == 1)
+        self.speed.setEnabled(self.play.isEnabled());self.speed_label.setEnabled(self.play.isEnabled())
         self._refresh_finite()
 
     def _speed_changed(self,*_):
@@ -524,8 +538,11 @@ class CurveExplorerTab(QWidget):
         if not self.multiples:
             curve=self.curve
             run_in_background(lambda:[scalar_mult(curve,k,curve.G) for k in range(1,curve.n+1)],
-                on_done=self._loaded_multiples,on_error=lambda exc:self.trace_text.setPlainText(str(exc)))
-        else:self.timer.start(1100-100*self.speed.value())
+                on_done=lambda points: self._loaded_multiples(points) if self.curve is curve else None,on_error=lambda exc:self.trace_text.setPlainText(str(exc)))
+        else:
+            if self.index == len(self.multiples)-1:
+                self.index=0;self._show_multiple()
+            self.timer.start(1100-100*self.speed.value())
 
     def _loaded_multiples(self,points):
         if self.finite_mode.currentIndex() != 1:return
@@ -533,11 +550,14 @@ class CurveExplorerTab(QWidget):
 
     def _next_multiple(self):
         if not self.multiples:return
-        self.index=(self.index+1)%len(self.multiples);self._show_multiple()
+        if self.index+1 >= len(self.multiples):
+            self.timer.stop();return
+        self.index+=1;self._show_multiple()
 
     def _show_multiple(self):
         if not self.multiples:
             self._replace_finite_plot([('G',self.curve.G)]);self.trace_text.setPlainText('Press Play to animate G, 2G, …, nG = O.');return
         k=self.index+1;shown=[(f'{i+1}G',q) for i,q in enumerate(self.multiples[:k])]
         self._replace_finite_plot(shown,arrows=True)
-        self.trace_text.setPlainText(f'{k}G = {self.multiples[self.index] or "O (point at infinity)"}')
+        self.trace_text.setPlainText("\n".join(f'{i+1}G = {q if q is not None else "O (point at infinity)"}' for i,q in enumerate(self.multiples[:k])))
+        self.trace_text.moveCursor(QTextCursor.MoveOperation.End)

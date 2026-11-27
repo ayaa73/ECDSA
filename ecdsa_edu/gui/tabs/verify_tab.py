@@ -50,8 +50,9 @@ CURRENT, PASTE, FILE = "current", "paste", "file"
 # How the signer's identity is given.
 PUBLIC_KEY_MODE, CERTIFICATE_MODE = "public key", "certificate"
 CERT_FILTER = "Certificates (*.pem *.crt *.cer *.der);;All files (*)"
-CERT_ONLY_REAL_CURVES = ("Certificates name their curve with a standard identifier, which only secp256k1 and "
-                         "P-256 have. Choose one of those curves at the top to use a certificate.")
+CERT_ONLY_REAL_CURVES = ("Certificate mode is unavailable on toy and custom curves. Select secp256k1 or P-256 "
+                         "using the curve picker above. Generate a key and export a certificate on the Keys page, "
+                         "then load it here.")
 
 
 class VerifyTab(QWidget):
@@ -62,7 +63,7 @@ class VerifyTab(QWidget):
             "or an X.509 certificate (.pem, .crt, .cer, .der; secp256k1 and P-256 only), which also shows who "
             "the key belongs to. Press Verify: a green VALID means this exact message was signed with the "
             "matching private key. Then press \"Change one character\" to see that even a tiny change makes the "
-            "signature INVALID.")
+            "signature normally INVALID. On toy curves, different messages may still verify because the effective hash is small.")
 
     def __init__(self, state: Any) -> None:
         super().__init__()
@@ -199,6 +200,8 @@ class VerifyTab(QWidget):
         self.hash_combo.setCurrentIndex(self.hash_combo.findData(DEFAULT_HASH))
         self.hash_combo.setToolTip("Must be the same hash that was used to sign. Your last signature's hash is "
                                    "chosen for you.")
+        for combo in (self.key_source, self.sig_source, self.hash_combo):
+            combo.setProperty("verifyCombo", True)
         self.options_box = QGroupBox("Options")
         opt = QFormLayout(self.options_box)
         opt.addRow("Hash used when signing:", self.hash_combo)
@@ -244,6 +247,10 @@ class VerifyTab(QWidget):
         self.result_card = Card("Result", "olive")
         self.result_card.body.addWidget(self.verify_button)
         self.result_card.body.addWidget(self.banner)
+        self.toy_warning = QLabel("Toy curve warning: different messages can share an effective hash and pass verification. Teaching only — not secure.")
+        self.toy_warning.setWordWrap(True)
+        self.toy_warning.setProperty("muted", True)
+        self.result_card.body.addWidget(self.toy_warning)
         self.result_card.body.addWidget(self.tamper_button)
         self.result_card.body.addWidget(self.show_math)
         self.result_card.body.addStretch()
@@ -316,6 +323,7 @@ class VerifyTab(QWidget):
         self.certificate_button.setToolTip(
             "Load the signer's X.509 certificate and use the key inside" if supported else CERT_ONLY_REAL_CURVES)
         self.cert_note.setVisible(not supported)
+        self.toy_warning.setVisible(curve is not None and curve.n.bit_length() < 128)
         if not supported and self.certificate_button.isChecked():
             self.public_key_button.setChecked(True)
         certificate = self.identity_mode() == CERTIFICATE_MODE
@@ -595,6 +603,9 @@ class VerifyTab(QWidget):
         note = getattr(self, "_tamper_note", "")
         self._tamper_note = ""
         detail = (f"We {note}. " if note else "") + verdict.reason
+        curve = getattr(self.state, "curve", None)
+        if verdict.valid and curve is not None and curve.n.bit_length() < 128:
+            detail = (f"We {note}. " if note else "") + "The signature passes the mathematical check. On a toy curve, this does not prove the exact message is unchanged."
         self.banner.show_message("good" if verdict.valid else "bad", verdict.headline, detail)
         self.result_card.setProperty("card", "olive" if verdict.valid else "pink")
         self.result_card.style().unpolish(self.result_card)

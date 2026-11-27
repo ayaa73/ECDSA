@@ -20,7 +20,7 @@ from typing import Any
 from PySide6.QtCore import QPointF, QRectF, QSettings, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import (
-    QCheckBox, QGroupBox, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout,
+    QGroupBox, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout,
     QWidget,
 )
 
@@ -230,11 +230,6 @@ class TutorialTab(QWidget):
         try_layout.addWidget(self.sign_card)
         try_layout.addWidget(self.banner)
 
-        # ---- startup checkbox
-        self.startup_box = QCheckBox("Show this page when the app starts")
-        self.startup_box.setChecked(self.show_at_startup())
-        self.startup_box.toggled.connect(lambda on: settings().setValue(SETTINGS_KEY, bool(on)))
-
         content = QWidget()
         page = QVBoxLayout(content)
         self.welcome_heading = heading("Welcome to ECDSA Lab")
@@ -256,7 +251,6 @@ class TutorialTab(QWidget):
         page.addWidget(heading("How ECDSA works"))
         page.addWidget(story)
         page.addWidget(try_box)
-        page.addWidget(self.startup_box)
         page.addStretch(1)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)

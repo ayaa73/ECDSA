@@ -11,9 +11,6 @@ Writing the two signing equations and subtracting them leaves only one unknown:<
 give s<sub>1</sub> = 17 and s<sub>2</sub> = 10. An attacker computes
 k = 13 / 7 = 13·11 = 10 mod 19, then d = (17·10 &minus; 26) / 7 = 11·11 = 7 mod 19.
 The private key is recovered from two public signatures. Try it on the <b>Attack Demo</b> page.</p>
-<p class="warn"><b>Real incident:</b> in 2010 the fail0verflow group showed that Sony signed
-PlayStation 3 software with the same k every time. Two signed files were enough to compute
-Sony's private signing key, so anyone could sign their own code as Sony.</p>
 
 <h2>2. Weak or biased randomness</h2>
 <p>k does not have to repeat to be dangerous. If an attacker can predict k, one signature gives
@@ -33,9 +30,6 @@ addition for every 1 bit, or a shorter loop when k has leading zeros), an attack
 time many signatures learns partial information about each k. That partial information is
 exactly the bias from pitfall 2, and it leads to the same lattice attack. Real examples include
 the Minerva and TPM-FAIL attacks (2019) on smart cards and TPM chips.</p>
-<p class="warn"><b>Our app is not constant-time.</b> Python integers and our double-and-add loop
-take different amounts of time for different scalars. That is fine for teaching on your own
-computer and is exactly why educational code must never be used to protect real keys.</p>
 
 <h2>4. Signature malleability</h2>
 <p>Because the verifier only looks at the x-coordinate of X, and the points R and &minus;R share
