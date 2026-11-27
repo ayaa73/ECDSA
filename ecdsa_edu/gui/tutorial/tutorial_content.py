@@ -72,5 +72,8 @@ SUGGESTED_ORDER: tuple[Stop, ...] = (
     Stop("Verify", "check a signature, then change one letter and watch it fail."),
     Stop("Curve Explorer", "see how points are added on a curve."),
     Stop("Attack Demo", "in Games & Practice: see how reusing k reveals a private key."),
+    Stop("Verification Game", "solve a case: find out which suspect signed a threat."),
+    Stop("Pirate Adventure", "sail to the treasure by computing a public key and signing a map."),
+    Stop("Key Collision", "recover a private key yourself from two signatures that share k."),
     Stop("History", "anytime: where ECDSA came from."),
 )

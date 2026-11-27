@@ -44,7 +44,7 @@ DEFAULT_HASH = "sha512"  # used by Sign and preselected by Verify
 # The page titles go_to() understands (the sidebar entries in main_window.py).
 PAGE_TITLES = (
     "History", "Start here", "Overview", "Keys", "Sign", "Verify", "Curve Explorer",
-    "Learn ECDSA", "Attack Demo",
+    "Learn ECDSA", "Attack Demo", "Verification Game", "Pirate Adventure", "Key Collision",
 )
 
 # Names of the remembered settings.

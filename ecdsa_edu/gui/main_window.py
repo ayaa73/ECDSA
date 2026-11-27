@@ -93,6 +93,10 @@ PAGE_SPECS: list[PageSpec] = [
     PageSpec("Curve Explorer", "ecdsa_edu.gui.tabs.curve_explorer_tab", "CurveExplorerTab", "P1", "curve"),
     PageSpec("Learn ECDSA", "ecdsa_edu.gui.learn.wizard", "LearnWizard", "P4", "learn"),
     PageSpec("Attack Demo", "ecdsa_edu.gui.tabs.attack_tab", "AttackTab", "P4", "warning", GAMES_SECTION),
+    PageSpec("Verification Game", "ecdsa_edu.gui.games.verification_game_tab", "VerificationGameTab", "Game", "case",
+             GAMES_SECTION),
+    PageSpec("Pirate Adventure", "ecdsa_edu.gui.tabs.pirate_game_tab", "PirateGameTab", "P1", "start", GAMES_SECTION),
+    PageSpec("Key Collision", "ecdsa_edu.gui.tabs.key_collision_tab", "KeyCollisionTab", "P1", "key", GAMES_SECTION),
 ]
 
 START_PAGE = "Start here"  # shown first, unless the user turned that off
@@ -140,6 +144,13 @@ def _icon_path(name: str) -> QPainterPath:
     elif name == "check":
         p.addEllipse(QPointF(12, 12), 9, 9)
         p.moveTo(7.5, 12.5); p.lineTo(10.8, 15.8); p.lineTo(16.5, 9)
+    elif name == "case":  # evidence board with pins and connecting thread
+        p.addRoundedRect(QRectF(3, 4, 18, 16), 1.5, 1.5)
+        p.addEllipse(QPointF(8, 9), 1.2, 1.2)
+        p.addEllipse(QPointF(16, 8), 1.2, 1.2)
+        p.addEllipse(QPointF(13, 16), 1.2, 1.2)
+        p.moveTo(8.8, 9.8); p.lineTo(12.2, 15.2)
+        p.moveTo(15, 9); p.lineTo(13.8, 14.8)
     elif name == "curve":  # the two pieces of an elliptic curve
         p.addEllipse(QPointF(6.5, 12), 3, 4)
         p.moveTo(21, 3); p.cubicTo(9, 10, 9, 14, 21, 21)
@@ -656,9 +667,27 @@ class MainWindow(QMainWindow):
         surface.installEventFilter(self)
         self.setCentralWidget(central)
 
-        self.sidebar.currentRowChanged.connect(self.stack.setCurrentIndex)
+        self.sidebar.currentRowChanged.connect(self._on_page_changed)
         self.sidebar.guard = lambda _row: self._may_leave_current_page()
         self.show_page(self._start_page_title())
+
+    def _on_page_changed(self, row: int) -> None:
+        """Switch pages and give the investigation game a distraction-free view."""
+        self.stack.setCurrentIndex(row)
+        title = self.current_page_title()
+        game_active = title == "Verification Game"
+
+        self.rail.setVisible(not game_active)
+        self._toolbar.setVisible(not game_active)
+        self.session_handle.setVisible(not game_active)
+        if game_active:
+            self.set_session_panel_open(False)
+
+        game_page = self.pages.get("Verification Game")
+        if game_page is not None:
+            method = getattr(game_page, "activate" if game_active else "deactivate", None)
+            if callable(method):
+                method()
 
     def _tutorial_settings(self):
         """Where the "show Start here at startup" choice lives.

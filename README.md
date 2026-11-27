@@ -20,6 +20,9 @@ and watch what goes wrong when a nonce is reused.
 | Curve Explorer | Explore curves, point addition and scalar multiplication | P1 |
 | Learn ECDSA | Guided walkthrough of the whole signature story, one step per page, with "Go deeper" theory, the classic pitfalls, a quiz and a glossary | P4 (frame) + everyone's pages |
 | Attack Demo | Recover the private key from two signatures that reused a nonce | P4 |
+| Verification Game | Solve a signed-threat case by testing suspects' public keys (full screen) | Game |
+| Pirate Adventure | Sail to the treasure by computing a public key and signing a map on toy-17 | P1 |
+| Key Collision | Recover k and d from two signatures that share a nonce | P1 |
 
 The pages are listed in the sidebar on the left: History, Start here, Overview and the
 learning pages first, then the games under a "Games & Practice" divider. A slim "Session"

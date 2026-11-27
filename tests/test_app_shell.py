@@ -228,7 +228,7 @@ def test_themes_define_the_same_colours():
 
 # =========================================================== MainWindow
 PAGE_ORDER = ["History", "Start here", "Overview", "Keys", "Sign", "Verify", "Curve Explorer", "Learn ECDSA",
-              "Attack Demo"]
+              "Attack Demo", "Verification Game", "Pirate Adventure", "Key Collision"]
 
 
 def test_sidebar_lists_every_page_in_order(qtbot, state):
@@ -248,7 +248,7 @@ def test_history_is_first_and_games_sit_below_a_divider(qtbot, state):
     qtbot.addWidget(window)
     assert mw.PAGE_SPECS[0].title == "History"
     games = [spec.title for spec in mw.PAGE_SPECS if spec.section == mw.GAMES_SECTION]
-    assert games == ["Attack Demo"]
+    assert games == ["Attack Demo", "Verification Game", "Pirate Adventure", "Key Collision"]
     # every game comes after every learning page, so there is exactly one divider
     sections = [spec.section for spec in mw.PAGE_SPECS]
     assert sections == sorted(sections, key=lambda s: s == mw.GAMES_SECTION)
@@ -642,3 +642,17 @@ def test_custom_curve_summary_is_friendly(qtbot, state, monkeypatch):
     assert len(shown) == 1
     assert "n = 7 points in G's group" in shown[0] and "cofactor h = 4" in shown[0]
     assert "works for ECDSA" in shown[0]
+
+
+def test_verification_game_is_full_screen_and_hides_the_session_tab(qtbot, state):
+    window = mw.MainWindow(state)
+    qtbot.addWidget(window)
+    window.resize(1200, 800)
+    window.show()
+    qtbot.waitExposed(window)
+    window.set_session_panel_open(True)
+    window.show_page("Verification Game")
+    assert not window.rail.isVisible() and not window._toolbar.isVisible()
+    assert not window.session_handle.isVisible() and not window.side_panel.isVisible()
+    window.show_page("Pirate Adventure")
+    assert window.rail.isVisible() and window._toolbar.isVisible() and window.session_handle.isVisible()

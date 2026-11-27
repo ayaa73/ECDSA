@@ -29,3 +29,4 @@ include = ["ecdsa_edu*"]
 
 [tool.setuptools.package-data]
 "ecdsa_edu.gui.learn" = ["reading/*.html", "reading/img/*"]
+"ecdsa_edu.gui.games" = ["*.html"]

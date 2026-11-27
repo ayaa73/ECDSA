@@ -16,9 +16,12 @@ sys.path.insert(0, str(ROOT))  # so collect_submodules finds ecdsa_edu even if i
 a = Analysis(
     [str(ROOT / "packaging" / "launcher.py")],
     pathex=[str(ROOT)],
-    # The Learn ECDSA reading pages are data files, not Python modules.
-    datas=[(str(ROOT / "ecdsa_edu" / "gui" / "learn" / "reading"), "ecdsa_edu/gui/learn/reading"),
-           (str(ROOT / "ecdsa_edu" / "gui" / "assets"), "ecdsa_edu/gui/assets")],
+    # The Learn ECDSA reading pages and the HTML game are data files, not Python modules.
+    datas=[
+        (str(ROOT / "ecdsa_edu" / "gui" / "learn" / "reading"), "ecdsa_edu/gui/learn/reading"),
+        (str(ROOT / "ecdsa_edu" / "gui" / "assets"), "ecdsa_edu/gui/assets"),
+        (str(ROOT / "ecdsa_edu" / "gui" / "games"), "ecdsa_edu/gui/games"),
+    ],
     # The main window imports the tabs by name at run time (importlib), which
     # PyInstaller cannot see - so list every module of the package explicitly.
     hiddenimports=collect_submodules("ecdsa_edu") + ["matplotlib.backends.backend_qtagg"],
