@@ -672,19 +672,11 @@ class MainWindow(QMainWindow):
         self.show_page(self._start_page_title())
 
     def _on_page_changed(self, row: int) -> None:
-        """Switch pages and give the investigation game a distraction-free view."""
+        """Switch pages and activate the investigation game when selected."""
         self.stack.setCurrentIndex(row)
-        title = self.current_page_title()
-        game_active = title == "Verification Game"
-
-        self.rail.setVisible(not game_active)
-        self._toolbar.setVisible(not game_active)
-        self.session_handle.setVisible(not game_active)
-        if game_active:
-            self.set_session_panel_open(False)
-
         game_page = self.pages.get("Verification Game")
         if game_page is not None:
+            game_active = self.stack.currentWidget() is game_page
             method = getattr(game_page, "activate" if game_active else "deactivate", None)
             if callable(method):
                 method()

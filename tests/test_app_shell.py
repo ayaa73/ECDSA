@@ -644,15 +644,18 @@ def test_custom_curve_summary_is_friendly(qtbot, state, monkeypatch):
     assert "works for ECDSA" in shown[0]
 
 
-def test_verification_game_is_full_screen_and_hides_the_session_tab(qtbot, state):
+def test_verification_game_shares_pirate_adventure_navigation(qtbot, state):
+    from PySide6.QtCore import Qt
+
     window = mw.MainWindow(state)
     qtbot.addWidget(window)
     window.resize(1200, 800)
     window.show()
     qtbot.waitExposed(window)
-    window.set_session_panel_open(True)
-    window.show_page("Verification Game")
-    assert not window.rail.isVisible() and not window._toolbar.isVisible()
-    assert not window.session_handle.isVisible() and not window.side_panel.isVisible()
-    window.show_page("Pirate Adventure")
+    game_row = list(window.pages).index("Verification Game")
+    qtbot.mouseClick(window.sidebar._buttons[game_row], Qt.MouseButton.LeftButton)
+    assert window.stack.currentWidget() is window.pages["Verification Game"]
     assert window.rail.isVisible() and window._toolbar.isVisible() and window.session_handle.isVisible()
+    pirate_row = list(window.pages).index("Pirate Adventure")
+    qtbot.mouseClick(window.sidebar._buttons[pirate_row], Qt.MouseButton.LeftButton)
+    assert window.stack.currentWidget() is window.pages["Pirate Adventure"]

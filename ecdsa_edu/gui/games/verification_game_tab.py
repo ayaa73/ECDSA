@@ -20,7 +20,6 @@ class VerificationGameTab(QWidget):
 
     def __init__(self, state, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.state = state
         self._view = None
         self._active = False
         self._loaded = False
@@ -45,7 +44,7 @@ class VerificationGameTab(QWidget):
             return
 
         try:
-            from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
+            from PySide6.QtWebEngineCore import QWebEngineSettings
             from PySide6.QtWebEngineWidgets import QWebEngineView
         except ImportError:
             self._loading.setText(
@@ -59,19 +58,8 @@ class VerificationGameTab(QWidget):
             self._loading.setText(f"Verification game file is missing:\n{game_path}")
             return
 
-        state = self.state
-
-        class GamePage(QWebEnginePage):
-            def acceptNavigationRequest(self, url, nav_type, is_main_frame):  # noqa: N802
-                if url.scheme() == "ecdsa-lab" and url.host() == "back":
-                    state.go_to("Verify")
-                    return False
-                return super().acceptNavigationRequest(url, nav_type, is_main_frame)
-
         view = QWebEngineView(self)
-        page = GamePage(view)
-        page.setBackgroundColor(Qt.GlobalColor.transparent)
-        view.setPage(page)
+        view.page().setBackgroundColor(Qt.GlobalColor.transparent)
         view.settings().setAttribute(
             QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
         )
