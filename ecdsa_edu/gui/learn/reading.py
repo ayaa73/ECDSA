@@ -24,7 +24,7 @@ READING_DIR = Path(__file__).parent / "reading"
 def reading_css(colors: dict[str, str]) -> str:
     """Document style for the reading text, in the colours of the current theme."""
     return f"""
-body  {{ font-size: 11pt; color: {colors['text']}; }}
+body  {{ font-family: Georgia, serif; font-size: 11pt; color: {colors['text']}; }}
 h2    {{ font-size: 14pt; color: {colors['heading']}; margin-top: 16px; }}
 h3    {{ font-size: 12pt; color: {colors['heading']}; margin-top: 12px; }}
 code, pre {{ font-family: Consolas, 'Courier New', monospace; background: {colors['input_readonly']}; }}

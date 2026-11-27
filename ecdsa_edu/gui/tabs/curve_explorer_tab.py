@@ -110,14 +110,22 @@ class CurveExplorerTab(QWidget):
     def _canvas(self,layout,zoom=None):
         fig=Figure(figsize=(9,6)); fig.add_subplot(111)
         canvas=_ZoomCanvas(fig, zoom) if zoom else FigureCanvasQTAgg(fig)
-        canvas.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding); canvas.setMinimumHeight(350); layout.addWidget(canvas,1)
+        # Matplotlib's 9x6-inch size hint made the inner scroll area taller than
+        # the visible page. Clicking the plot then scrolled its first control row
+        # under the tab bar. Ignore that oversized hint and let the canvas fill
+        # the space that is actually available.
+        canvas.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored)
+        canvas.setMinimumHeight(350); layout.addWidget(canvas,1)
         return canvas
 
     def _add_tab(self, page, title):
         """Each tab scrolls vertically when the window is short."""
         scroll = QScrollArea(); scroll.setWidgetResizable(True); scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setWidget(page); self.views.addTab(scroll, title)
+        scroll.setAlignment(Qt.AlignmentFlag.AlignTop)
+        scroll.setWidget(page)
+        scroll.verticalScrollBar().setValue(0)
+        self.views.addTab(scroll, title)
 
     def _setup_real(self):
         page=QWidget(); v=QVBoxLayout(page); row=QHBoxLayout(); v.addLayout(row)

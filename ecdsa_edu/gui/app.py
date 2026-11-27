@@ -221,8 +221,29 @@ QLabel[cardHeader="true"] {{ font-size: 13px; font-weight: 600; }}
 QLabel[step="true"] {{ background: {accent}; color: {accent_text}; border-radius: 16px; font-weight: 600; }}
 QFrame QLabel[step="true"] {{ background: {accent}; color: {accent_text}; }}
 QPushButton[chip="true"]:checked {{ background: {accent}; color: {accent_text}; }}
-QPushButton[stepChip="true"] {{ padding: 6px 14px; }}
-QPushButton[stepChip="true"]:checked {{ background: {accent}; color: {accent_text}; border: 2px solid {accent}; }}
+QPushButton#learnStepButton {{
+    background: {panel}; border: 1px solid {border}; border-radius: 16px; padding: 8px 16px;
+}}
+QPushButton#learnStepButton:hover {{ background: {hover}; border-color: {accent}; }}
+QPushButton#learnStepButton:checked {{
+    background: {accent}; color: {accent_text}; border: 1px solid {accent}; font-weight: 600;
+}}
+QTableWidget#learnValuesTable, QTableWidget#learnMultiplesTable {{
+    background: {panel}; alternate-background-color: {input_readonly};
+    border: 1px solid {border}; border-radius: 16px; padding: 5px;
+    gridline-color: transparent;
+}}
+QTableWidget#learnValuesTable::item, QTableWidget#learnMultiplesTable::item {{
+    border: none; padding: 7px 10px;
+}}
+QTableWidget#learnValuesTable QHeaderView::section {{
+    background: {hover}; color: {heading}; border: none; border-bottom: 2px solid {accent};
+    padding: 8px 10px; font-weight: 600;
+}}
+QTableWidget#learnMultiplesTable QHeaderView::section {{
+    background: {input_readonly}; color: {heading}; border: none; border-bottom: 2px solid {border};
+    padding: 8px 10px; font-weight: 600;
+}}
 QLabel[badge="true"] {{ background: {panel}; color: {text}; border-radius: 12px; padding: 4px 10px; }}
 QLabel[heading="hero"] {{ color: {heading}; font-size: 36px; font-weight: 500; }}
 QLabel[heading="section"] {{ color: {heading}; font-size: 16pt; font-weight: 600; }}

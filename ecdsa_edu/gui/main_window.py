@@ -25,7 +25,7 @@ from dataclasses import dataclass
 
 from PySide6.QtCore import QEvent, QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (
-    QAction, QColor, QIcon, QKeySequence, QPainter, QPainterPath, QPen, QPixmap, QShortcut,
+    QAction, QColor, QFont, QIcon, QKeySequence, QPainter, QPainterPath, QPen, QPixmap, QShortcut,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -61,6 +61,8 @@ __all__ = ["MainWindow", "PAGE_SPECS", "PageSpec", "make_icon"]
 
 LEARN_SECTION = "learn"
 GAMES_SECTION = "games"
+PROSE_FONT_FAMILY = "Georgia"
+MONO_FAMILY_HINTS = ("mono", "consolas", "courier", "menlo", "cascadia", "jetbrains")
 # Label of the divider drawn above the first page of each later section.
 SECTION_LABELS = {GAMES_SECTION: "Games & Practice"}
 
@@ -372,6 +374,12 @@ class MainWindow(QMainWindow):
     def __init__(self, state: AppState, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.state = state
+        self._default_ui_font = QFont(QApplication.instance().font())
+        self._prose_font = QFont(self._default_ui_font)
+        self._prose_font.setFamily(PROSE_FONT_FAMILY)
+        # The app shell and learning pages use Georgia. Game roots are reset to
+        # the original UI font in _build_pages, below.
+        self.setFont(self._prose_font)
         self.setWindowTitle("ECDSA Lab")
         self.setMinimumSize(900, 600)
         self._restore_window_size()
@@ -380,6 +388,7 @@ class MainWindow(QMainWindow):
         self._build_pages()
         self._build_menus()
         self._build_status_bar()
+        self._apply_prose_fonts()
         self.statusBar().hide()
 
         state.curveChanged.connect(self._on_curve_changed)
@@ -559,6 +568,9 @@ class MainWindow(QMainWindow):
 
         for spec in PAGE_SPECS:
             page = self._load_page(spec)
+            page.setFont(
+                QFont(self._default_ui_font if spec.section == GAMES_SECTION else self._prose_font)
+            )
             self.pages[spec.title] = page
             self.stack.addWidget(page)
             item = QListWidgetItem("")
@@ -670,6 +682,27 @@ class MainWindow(QMainWindow):
         self.sidebar.currentRowChanged.connect(self._on_page_changed)
         self.sidebar.guard = lambda _row: self._may_leave_current_page()
         self.show_page(self._start_page_title())
+
+    def _apply_prose_fonts(self) -> None:
+        """Use Georgia outside Games & Practice without changing math fonts."""
+        game_pages = tuple(
+            self.pages[spec.title]
+            for spec in PAGE_SPECS
+            if spec.section == GAMES_SECTION and spec.title in self.pages
+        )
+
+        for widget in (self, *self.findChildren(QWidget)):
+            if any(widget is page or page.isAncestorOf(widget) for page in game_pages):
+                continue
+            font = widget.font()
+            family = font.family().casefold()
+            if widget.property("mono") or font.fixedPitch() or any(
+                hint in family for hint in MONO_FAMILY_HINTS
+            ):
+                continue
+            prose_font = QFont(font)
+            prose_font.setFamily(PROSE_FONT_FAMILY)
+            widget.setFont(prose_font)
 
     def _on_page_changed(self, row: int) -> None:
         """Switch pages and activate the investigation game when selected."""

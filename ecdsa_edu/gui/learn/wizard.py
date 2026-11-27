@@ -33,9 +33,10 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont, QKeySequence, QShortcut
+from PySide6.QtGui import QFont, QFontDatabase, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
+    QAbstractItemView,
     QFrame,
     QHBoxLayout,
     QHeaderView,
@@ -48,6 +49,7 @@ from PySide6.QtWidgets import (
     QToolButton,
     QVBoxLayout,
     QWidget,
+    QSizePolicy,
 )
 
 from ecdsa_edu.gui.learn.model import (
@@ -124,12 +126,19 @@ class LearnPage(QWidget):
         self.formula_label.setProperty("mono", True)
 
         self.values_table = QTableWidget(0, 2)
+        self.values_table.setObjectName("learnValuesTable")
         self.values_table.setHorizontalHeaderLabels(["Name", "Value"])
         self.values_table.verticalHeader().setVisible(False)
         self.values_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        # Keep a usable viewport even when a step also contains a plot or trace.
-        # Long numbers extend the column and can be read with the horizontal bar.
+        self.values_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.values_table.setAlternatingRowColors(True)
+        self.values_table.setShowGrid(False)
+        self.values_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        # Keep the teaching values compact instead of stretching an almost-empty
+        # item view over the rest of the page. Long values use the full second
+        # column and retain a horizontal scrollbar when necessary.
         self.values_table.setMinimumHeight(180)
+        self.values_table.setMaximumHeight(360)
         self.values_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.values_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.values_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -140,7 +149,7 @@ class LearnPage(QWidget):
         layout.addWidget(self.title_label)
         layout.addWidget(self.text_label)
         layout.addWidget(self.formula_label)
-        layout.addWidget(self.values_table, stretch=1)
+        layout.addWidget(self.values_table)
 
     # --- helpers for subclasses -------------------------------------------
     def set_text(self, html: str) -> None:
@@ -158,9 +167,13 @@ class LearnPage(QWidget):
         for row, (name, v) in enumerate(values.items()):
             self.values_table.setItem(row, 0, QTableWidgetItem(str(name)))
             item = QTableWidgetItem(_fmt_value(v))
+            item.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont))
             item.setToolTip(_fmt_value(v))
             self.values_table.setItem(row, 1, item)
         self.values_table.resizeRowsToContents()
+        header = self.values_table.horizontalHeader().height()
+        rows = sum(self.values_table.rowHeight(row) for row in range(self.values_table.rowCount()))
+        self.values_table.setFixedHeight(max(180, min(360, header + rows + 12)))
 
     def add_reading_section(self) -> None:
         """Append the page's "Go deeper" reading (the wizard calls this once, after building the page)."""

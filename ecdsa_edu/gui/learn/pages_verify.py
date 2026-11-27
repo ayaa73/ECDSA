@@ -35,6 +35,32 @@ def _point(s: str) -> tuple[int, int] | None:
     return _int(x), _int(y)
 
 
+def _proof_html(proof: str) -> str:
+    """Keep explanatory prose in Georgia and only indented equations monospace."""
+    parts: list[str] = ["<div style='font-family:Georgia; margin-top:10px'>"]
+    code: list[str] = []
+
+    def flush_code() -> None:
+        if code:
+            parts.append(
+                "<pre style=\"font-family:'JetBrains Mono',Consolas,monospace; font-size:9pt;\">"
+                + html.escape("\n".join(code)) + "</pre>")
+            code.clear()
+
+    for index, line in enumerate(proof.splitlines()):
+        if line.startswith("    ") or (code and line.startswith("                ")):
+            code.append(line)
+            continue
+        flush_code()
+        if not line:
+            continue
+        escaped = html.escape(line)
+        parts.append(f"<p><b>{escaped}</b></p>" if index == 0 else f"<p>{escaped}</p>")
+    flush_code()
+    parts.append("</div>")
+    return "".join(parts)
+
+
 class VerifyPage(LearnPage):
     title = "Step 6: Bob verifies the signature"
     short_title = "Verify"
@@ -76,7 +102,7 @@ class VerifyPage(LearnPage):
             f"{note}Bob knows only the public key <b>Q</b>, the message and the signature "
             f"<b>(r, s)</b>. He turns s into w, builds two scalars u1 and u2, and adds two points. "
             f"If the x-coordinate of that point (mod n) equals r, the signature is {verdict}."
-            f"<pre style='font-size:9pt'>{html.escape(explain_verify_math())}</pre>")
+            f"{_proof_html(explain_verify_math())}")
         self.set_formula("w = s⁻¹ mod n    u1 = e·w    u2 = r·w    X = u1·G + u2·Q    x(X) mod n = r ?")
         shown = {"message": st.msg, "Q": st.Q, "r": st.r, "s": st.s,
                  "e = H(m)": st.e, "w = s⁻¹ mod n": st.w, "u1 = e·w mod n": st.u1,

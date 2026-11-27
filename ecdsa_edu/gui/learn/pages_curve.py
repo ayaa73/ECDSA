@@ -1,6 +1,9 @@
 """P1 Learn wizard: the curve and its generator."""
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QHeaderView, QTableWidget, QTableWidgetItem
+from PySide6.QtGui import QFontDatabase
+from PySide6.QtWidgets import (
+    QAbstractItemView, QLabel, QHeaderView, QSizePolicy, QTableWidget, QTableWidgetItem,
+)
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from ecdsa_edu.core.curves_registry import get_curve
 from ecdsa_edu.core.curve import scalar_mult
@@ -24,7 +27,15 @@ class CurvePage(LearnPage):
         self.plot=FigureCanvasQTAgg(finite_field_figure(get_curve('toy-17')))
         self.layout().insertWidget(3,self.plot)
         self.table=QTableWidget(0,2);self.table.setHorizontalHeaderLabels(['k','kG'])
+        self.table.setObjectName('learnMultiplesTable')
+        self.table.verticalHeader().setVisible(False)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.table.setAlternatingRowColors(True)
+        self.table.setShowGrid(False)
+        self.table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.table.setMinimumHeight(180)
+        self.table.setMaximumHeight(320)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
@@ -72,12 +83,13 @@ class CurvePage(LearnPage):
                 self.table.setItem(
                     i - 1, 0, QTableWidgetItem(str(i))
                 )
-                self.table.setItem(
-                    i - 1, 1,
-                    QTableWidgetItem(
-                        str(q) if q is not None else 'O'
-                    )
-                )
+                point_item = QTableWidgetItem(str(q) if q is not None else 'O')
+                point_item.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont))
+                self.table.setItem(i - 1, 1, point_item)
+            self.table.resizeRowsToContents()
+            header = self.table.horizontalHeader().height()
+            rows = sum(self.table.rowHeight(row) for row in range(self.table.rowCount()))
+            self.table.setFixedHeight(max(180, min(320, header + rows + 12)))
         else:
             self.plot.hide()
             self.table.setRowCount(0)
