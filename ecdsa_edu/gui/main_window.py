@@ -80,7 +80,9 @@ PAGE_SPECS: list[PageSpec] = [
     ),
     PageSpec("Curve Explorer", "ecdsa_edu.gui.tabs.curve_explorer_tab", "CurveExplorerTab", "P1", "curve"),
     PageSpec("Learn ECDSA", "ecdsa_edu.gui.learn.wizard", "LearnWizard", "P4", "learn"),
+    PageSpec("Pirate Adventure", "ecdsa_edu.gui.tabs.pirate_game_tab", "PirateGameTab", "P1", "start"),
     PageSpec("Attack Demo", "ecdsa_edu.gui.tabs.attack_tab", "AttackTab", "P4", "warning"),
+    PageSpec("Key Collision", "ecdsa_edu.gui.tabs.key_collision_tab", "KeyCollisionTab", "P1", "key"),
     PageSpec("Theory", "ecdsa_edu.gui.theory.theory_tab", "TheoryTab", "P4", "book"),
     PageSpec("History", "ecdsa_edu.gui.tabs.history_tab", "HistoryTab", "P4", "clock"),
 ]
