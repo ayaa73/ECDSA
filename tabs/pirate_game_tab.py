@@ -374,8 +374,6 @@ QLabel#story { font-family:Georgia,'Times New Roman',serif; font-size:19px; colo
 QPushButton#restart { background:rgba(60,36,17,215); color:#ffe9b0; border:2px solid #2a170a; border-radius:8px; padding:6px 12px; font-weight:bold; font-size:13px; }
 QPushButton#restart:hover { background:rgba(100,62,30,235); }
 QLineEdit#answerEntry { background:#fff9e9; color:#3e2a14; border:3px solid #8a6a38; border-radius:10px; padding:10px 12px; font-size:19px; font-weight:bold; }
-QDialog#tableDialog { background:#f4e2b0; }
-QLabel#tableCell { background:rgba(255,255,255,120); border:1px solid #b99b65; border-radius:6px; padding:5px 8px; font-size:14px; font-weight:600; }
 """
 
 
@@ -384,7 +382,7 @@ def _restyle(w):
 
 
 class PirateGameTab(QWidget):
-    HELP = 'Sail through three islands: make a public key, sign a map, then check a signature and catch a forgery. Each answer comes with an explanation. Use hints or the curve table if needed. The game uses toy-17 only for hand calculations.'
+    HELP = 'Sail through three islands: make a public key, sign a map, then check a signature and catch a forgery. Each answer comes with an explanation. Use the parrot\'s hints if you get stuck. The game uses toy-17 only for hand calculations.'
 
     def __init__(self, state=None):
         super().__init__(); self.curve = get_curve('toy-17'); self.mode = 'guided'
@@ -521,31 +519,32 @@ class PirateGameTab(QWidget):
                 seen.add(str(v)); out.append((str(v), note))
             return out
 
-        # question: stage, title, body, answer, hint, explain, wrong [(value, note)], choices, shuffle, table
-        def q(stage, title, body, answer, hint, explain, wrong=(), choices=None, shuffle=True, table=False):
+        # question: stage, title, body, answer, hint, explain, wrong [(value, note)], choices, shuffle
+        def q(stage, title, body, answer, hint, explain, wrong=(), choices=None, shuffle=True):
             return dict(stage=stage, title=title, body=body, answer=str(answer), hint=hint, explain=explain,
-                        wrong=uniq(wrong, answer), choices=choices, shuffle=shuffle, table=table)
+                        wrong=uniq(wrong, answer), choices=choices, shuffle=shuffle)
 
+        ex = 2 if k != 2 else 3
         mirror = (Q[0], (-Q[1]) % p)
         self.questions = [
             q(0, 'Key Island — make the public key',
               f'Captain Finn\'s private key is d = {d}.\nG = {G}.\nCalculate his public key Q = d·G (add G to itself d times).',
-              Q, 'Add G to itself, one step at a time (G, 2G, 3G, ...), modulo 17. The curve table has them all.',
+              Q, f'Q = d·G means adding G to itself, one step at a time. Start: 1G = {G}, 2G = {mul(2)}. Keep adding G to the last result until you have added it d times.',
               f'Q = d·G means adding G to itself d times: G → 2G → … → {d}G = {Q}. Q is public. Nobody can work '
               'backwards from Q to d, and that is what keeps the private key safe.',
               [(mul(d - 1), f'That is (d−1)·G = {mul(d - 1)}, one addition short.'),
                (mul(d + 1), f'That is (d+1)·G = {mul(d + 1)}, one addition too many.'),
-               (mirror, 'Close! That is −Q, the mirror image: same x, flipped y.')], table=True),
+               (mirror, 'Close! That is −Q, the mirror image: same x, flipped y.')]),
             q(1, 'Signature Cove — find r',
               f'Original map: {original}\nIts truncated SHA-256 hash (fingerprint) is z = {z}.\n'
               f'Fresh secret nonce k = {k}, so kG = {K}.\nCalculate r = x(kG) mod {n}.',
-              r, 'r only uses the x-coordinate of kG.',
+              r, f'First find kG by adding G to itself k times (1G = {G}). Then keep only the x-coordinate, mod {n}. '
+              f'Example: {ex}G = {mul(ex)} would give r = {mul(ex)[0]} mod {n} = {mul(ex)[0] % n}.',
               f'kG = {K}. Keep only the x-coordinate, reduced mod {n}: {K[0]} mod {n} = {r}. '
               f'So r = {r}. This is the first half of the signature, and it is public.',
               [(K[1] % n, 'That is the y-coordinate of kG. r uses x.'),
                (mul(k + 1)[0] % n if mul(k + 1) else None, 'That is x of (k+1)·G, one addition too many.'),
-               (mul(k - 1)[0] % n if k > 1 and mul(k - 1) else None, 'That is x of (k−1)·G, one addition too few.')],
-              table=True),
+               (mul(k - 1)[0] % n if k > 1 and mul(k - 1) else None, 'That is x of (k−1)·G, one addition too few.')]),
             q(1, 'Find the nonce inverse', f'Calculate k⁻¹ mod {n}, where k = {k}.',
               kinv, 'Find a number that, multiplied by k, leaves remainder 1 when divided by 19.',
               f'k⁻¹ is the number that gives 1 when multiplied by k, mod {n}. Check: {k} × {kinv} = {k * kinv} '
@@ -654,7 +653,6 @@ class PirateGameTab(QWidget):
             self.content.addWidget(self.entry); self.entry.textChanged.connect(self.select); self.entry.returnPressed.connect(self._enter)
         row = QHBoxLayout(); row.setSpacing(10); self.content.addLayout(row)
         self.hint_button = self.button('Ask the parrot for a hint', lambda: self.show_hint(qd['hint']), 'smallBtn', row)
-        if qd['table']: self.button('Curve reference table', self.show_table, 'smallBtn', row)
         row.addStretch(1)
         self.submit = self.button('Submit answer', self.check, 'goBtn', row)
         if self.click_mode: self.submit.setVisible(False)
@@ -669,13 +667,6 @@ class PirateGameTab(QWidget):
 
     def _enter(self):
         if self.submit.isEnabled(): self.check()
-
-    def show_table(self):
-        dlg = QDialog(self); dlg.setObjectName('tableDialog'); dlg.setWindowTitle('Curve reference table'); g = QGridLayout(dlg); g.setSpacing(6)
-        for j in range(1, 20):
-            pt = scalar_mult(self.curve, j, self.curve.G)
-            c = QLabel(f'{j}G = {pt if pt is not None else "O"}'); c.setObjectName('tableCell'); g.addWidget(c, (j - 1) // 4, (j - 1) % 4)
-        dlg.exec()
 
     def select(self, value):
         if self.solved: return
