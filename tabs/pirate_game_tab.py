@@ -9,6 +9,7 @@ from PySide6.QtGui import (QPainter, QColor, QPen, QPolygonF, QPainterPath,
                            QLinearGradient, QRadialGradient, QFont, QFontMetrics)
 from PySide6.QtWidgets import (QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout,
                                QGridLayout, QLineEdit, QScrollArea, QFrame, QDialog)
+from ecdsa_edu.gui.tabs.p4_widgets import go_to
 from ecdsa_edu.core.curves_registry import get_curve
 from ecdsa_edu.core.curve import scalar_mult, point_add
 
@@ -460,8 +461,7 @@ class PirateGameTab(QWidget):
         self._clear(self.content)
         self.label('Ahoy, matey! Solve the cryptographic challenges to find the lost treasure. Choose your difficulty.')
         self.content.addStretch(1)
-        self.button('Easy Seas  —  pick from four answers', lambda: self.start('guided'))
-        self.button("Captain's Challenge  —  type your own answers", lambda: self.start('expert'))
+        self.button('Play  —  pick the right answer, new values every time', lambda: self.start('guided'))
         self.button('Demo Mode  —  fixed answers for presentations', lambda: self.start('demo'), 'smallBtn')
         self.content.addStretch(1)
 
@@ -538,7 +538,7 @@ class PirateGameTab(QWidget):
             q(1, 'Signature Cove — find r',
               f'Original map: {original}\nIts truncated SHA-256 hash (fingerprint) is z = {z}.\n'
               f'Fresh secret nonce k = {k}, so kG = {K}.\nCalculate r = x(kG) mod {n}.',
-              r, f'First find kG by adding G to itself k times (1G = {G}). Then keep only the x-coordinate, mod {n}. '
+              r, f'r only needs the x-coordinate of the point kG: take its x, then reduce it mod {n}. '
               f'Example: {ex}G = {mul(ex)} would give r = {mul(ex)[0]} mod {n} = {mul(ex)[0] % n}.',
               f'kG = {K}. Keep only the x-coordinate, reduced mod {n}: {K[0]} mod {n} = {r}. '
               f'So r = {r}. This is the first half of the signature, and it is public.',
@@ -621,7 +621,7 @@ class PirateGameTab(QWidget):
         sc.set_stage(qd['stage']); sc.mode = 'play'
         self.label(f'QUEST {self.i + 1} OF {n}   —   {qd["title"]}', 'qtitle')
         self.label(qd['body']).setMinimumHeight(96)
-        self.click_mode = bool(qd['choices']) or self.mode in ('guided', 'demo')
+        self.click_mode = True
         if self.click_mode:
             demo = self.mode == 'demo'
             rnd = random.Random(1000 + self.i) if demo else None
@@ -648,15 +648,12 @@ class PirateGameTab(QWidget):
                 b.clicked.connect(lambda checked=False, v=opt, bt=b: self.pick(v, bt))
                 grid.addWidget(b, idx // 2, idx % 2); self.options.append((b, opt))
             self.content.addLayout(grid)
-        else:
-            self.entry = QLineEdit(); self.entry.setObjectName('answerEntry'); self.entry.setPlaceholderText('Enter coordinates x, y or a number')
-            self.content.addWidget(self.entry); self.entry.textChanged.connect(self.select); self.entry.returnPressed.connect(self._enter)
         row = QHBoxLayout(); row.setSpacing(10); self.content.addLayout(row)
         self.hint_button = self.button('Ask the parrot for a hint', lambda: self.show_hint(qd['hint']), 'smallBtn', row)
+        self.button('Open the lesson', lambda: go_to(self, None, 'Curve Explorer' if self.i < 2 else 'Learn ECDSA'), 'smallBtn', row)
         row.addStretch(1)
         self.submit = self.button('Submit answer', self.check, 'goBtn', row)
-        if self.click_mode: self.submit.setVisible(False)
-        else: self.submit.setEnabled(False)
+        self.submit.setVisible(False)
         self.feedback = self.label('', 'feedback'); self.feedback.setMinimumHeight(46); self.feedback.setProperty('kind', 'none')
         self.explain = self.explain_box('How it works', qd['explain']); self.explain.hide()
         self.content.addStretch(1)
@@ -664,13 +661,6 @@ class PirateGameTab(QWidget):
     def explain_box(self, title, text):
         w = QLabel(f'<b>{html.escape(title)}</b><br>' + self._rich(text)); w.setWordWrap(True)
         w.setTextFormat(Qt.TextFormat.RichText); w.setObjectName('explain'); self.content.addWidget(w); return w
-
-    def _enter(self):
-        if self.submit.isEnabled(): self.check()
-
-    def select(self, value):
-        if self.solved: return
-        self.choice = value; self.submit.setEnabled(bool(value.strip()))
 
     def pick(self, value, btn):
         if self.solved: return
@@ -690,7 +680,6 @@ class PirateGameTab(QWidget):
             for b, v in self.options:
                 b.setEnabled(False)
                 if v == answer: b.setProperty('state', 'right'); _restyle(b)
-            if not self.options: self.entry.setEnabled(False)
             self.explain.show()
             self.submit.setText('Claim the treasure!' if self.i == len(self.questions) - 1 else 'Continue voyage')
             self.submit.setVisible(True); self.submit.setEnabled(True)
