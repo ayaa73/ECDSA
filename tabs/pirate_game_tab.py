@@ -2,6 +2,7 @@
 import html
 import math
 import random
+import re
 from hashlib import sha256
 from secrets import randbelow
 from PySide6.QtCore import Qt, QRectF, QPointF, QTimer
@@ -462,6 +463,7 @@ class PirateGameTab(QWidget):
         self.label('Ahoy, matey! Solve the cryptographic challenges to find the lost treasure. Choose your difficulty.')
         self.content.addStretch(1)
         self.button('Play  —  pick the right answer, new values every time', lambda: self.start('guided'))
+        self.button("Captain's Challenge  —  type your answers, 3 tries per quest", lambda: self.start('expert'))
         self.button('Demo Mode  —  fixed answers for presentations', lambda: self.start('demo'), 'smallBtn')
         self.content.addStretch(1)
 
@@ -520,9 +522,9 @@ class PirateGameTab(QWidget):
             return out
 
         # question: stage, title, body, answer, hint, explain, wrong [(value, note)], choices, shuffle
-        def q(stage, title, body, answer, hint, explain, wrong=(), choices=None, shuffle=True):
+        def q(stage, title, body, answer, hint, explain, wrong=(), choices=None, shuffle=True, extra=()):
             return dict(stage=stage, title=title, body=body, answer=str(answer), hint=hint, explain=explain,
-                        wrong=uniq(wrong, answer), choices=choices, shuffle=shuffle)
+                        wrong=uniq(wrong, answer), choices=choices, shuffle=shuffle, extra=list(extra))
 
         ex = 2 if k != 2 else 3
         mirror = (Q[0], (-Q[1]) % p)
@@ -592,9 +594,27 @@ class PirateGameTab(QWidget):
                        'How many points are on the curve']),
         ]
 
+        # Captain's Challenge: after each wrong typed answer the parrot adds one more, more specific, clue.
+        prod = lambda x: ', '.join(f'{x}×{j} = {x * j % n}' for j in (1, 2, 3))
+        self.questions[0]['extra'] = [
+            f'Step by step: 1G = {G}, 2G = {mul(2)}. To get 3G, add 2G and G. Keep going until you have added G a total of {d} times.',
+            f'Almost there: ({d - 1})G = {mul(d - 1)}. Now add G to it once more, and that point is Q.']
+        self.questions[1]['extra'] = [
+            f'The point kG is given in the question: {K}. Which of its two numbers is the x-coordinate?',
+            f'The x-coordinate is the first number: {K[0]}. Now reduce it mod {n}.']
+        self.questions[2]['extra'] = [
+            f'Multiply k by 1, 2, 3, ... and reduce mod {n} each time. You want the result to be 1. First few: {prod(k)} (all mod {n}).',
+            f'Keep going: k × {kinv - 1} = {k * (kinv - 1) % n}. What number should you try next?']
+        self.questions[3]['extra'] = [
+            f'Do it in two steps. First r·d = {r}×{d} = {r * d}.',
+            f'Then z + r·d = {z} + {r * d} = {z + r * d}. Multiply that by k⁻¹ = {kinv} and reduce mod {n}.']
+        self.questions[4]['extra'] = [
+            f'Multiply s by 1, 2, 3, ... and reduce mod {n} each time. You want the result to be 1. First few: {prod(s)} (all mod {n}).',
+            f'Keep going: s × {w - 1} = {s * (w - 1) % n}. What number should you try next?']
+
     # ── rendering ──
     def render(self):
-        self._clear(self.content); self.hinted = False; self.solved = False; self.choice = ''; self.options = []
+        self._clear(self.content); self.hinted = False; self.solved = False; self.choice = ''; self.options = []; self.mistakes = 0
         sc = self.scene; n = len(self.questions)
         sc.hp = self.hp; sc.gold = self.gold; sc.qnum = self.i; sc.qtotal = n; sc.max_gold = 100 * n
         d, Q, r, s = self.inventory
@@ -621,7 +641,7 @@ class PirateGameTab(QWidget):
         sc.set_stage(qd['stage']); sc.mode = 'play'
         self.label(f'QUEST {self.i + 1} OF {n}   —   {qd["title"]}', 'qtitle')
         self.label(qd['body']).setMinimumHeight(96)
-        self.click_mode = True
+        self.click_mode = not (self.mode == 'expert' and not qd['choices'])
         if self.click_mode:
             demo = self.mode == 'demo'
             rnd = random.Random(1000 + self.i) if demo else None
@@ -648,12 +668,21 @@ class PirateGameTab(QWidget):
                 b.clicked.connect(lambda checked=False, v=opt, bt=b: self.pick(v, bt))
                 grid.addWidget(b, idx // 2, idx % 2); self.options.append((b, opt))
             self.content.addLayout(grid)
+        else:
+            kind = 'point' if answer.startswith('(') else 'number'
+            self.entry = QLineEdit(); self.entry.setObjectName('answerEntry')
+            self.entry.setPlaceholderText('Type a point as (x, y), for example (7, 3)' if kind == 'point'
+                                          else 'Type a whole number, for example 12')
+            self.content.addWidget(self.entry); self.entry.textChanged.connect(self.select)
+            self.entry.returnPressed.connect(self._enter)
+            self.label(('Format: two whole numbers in brackets separated by a comma, like (7, 3).' if kind == 'point'
+                        else 'Format: one whole number, like 12.') + '  You have 3 tries, and each mistake earns an extra hint.', 'qbody')
         row = QHBoxLayout(); row.setSpacing(10); self.content.addLayout(row)
         self.hint_button = self.button('Ask the parrot for a hint', lambda: self.show_hint(qd['hint']), 'smallBtn', row)
         self.button('Open the lesson', lambda: go_to(self, None, 'Curve Explorer' if self.i < 2 else 'Learn ECDSA'), 'smallBtn', row)
         row.addStretch(1)
         self.submit = self.button('Submit answer', self.check, 'goBtn', row)
-        self.submit.setVisible(False)
+        self.submit.setVisible(False) if self.click_mode else self.submit.setEnabled(False)
         self.feedback = self.label('', 'feedback'); self.feedback.setMinimumHeight(46); self.feedback.setProperty('kind', 'none')
         self.explain = self.explain_box('How it works', qd['explain']); self.explain.hide()
         self.content.addStretch(1)
@@ -661,6 +690,13 @@ class PirateGameTab(QWidget):
     def explain_box(self, title, text):
         w = QLabel(f'<b>{html.escape(title)}</b><br>' + self._rich(text)); w.setWordWrap(True)
         w.setTextFormat(Qt.TextFormat.RichText); w.setObjectName('explain'); self.content.addWidget(w); return w
+
+    def _enter(self):
+        if self.submit.isEnabled(): self.check()
+
+    def select(self, value):
+        if self.solved: return
+        self.choice = value; self.submit.setEnabled(bool(value.strip()))
 
     def pick(self, value, btn):
         if self.solved: return
@@ -672,22 +708,47 @@ class PirateGameTab(QWidget):
     def check(self, btn=None):
         if self.solved: self.i += 1; self.render(); return
         norm = lambda s: ''.join(s.lower().split()).replace('(', '').replace(')', '')
-        qd = self.questions[self.i]; answer = qd['answer']
+        qd = self.questions[self.i]; answer = qd['answer']; typed = not self.click_mode
+        if typed:
+            ok_format = (re.fullmatch(r'\(?\s*-?\d+\s*,\s*-?\d+\s*\)?', self.choice) if answer.startswith('(')
+                         else re.fullmatch(r'\s*-?\d+\s*', self.choice))
+            if not ok_format:   # a formatting slip is not a mistake: no try is used
+                self._feedback('Please type it like (7, 3): two whole numbers in brackets, separated by a comma.'
+                               if answer.startswith('(') else 'Please type one whole number, like 12.', 'hint')
+                return
         if norm(self.choice) == norm(answer):
-            self.solved = True; earned = 75 if self.hinted else 100; self.gold += earned
+            self.solved = True
+            earned = max(100 - 25 * self.mistakes - (25 if self.hinted else 0), 25); self.gold += earned
             shown = answer if len(answer) < 30 else 'Correct answer!'
             self._feedback(f'Correct! {shown}     +{earned} gold', 'good'); self.hint_button.setEnabled(False); self.scene.cheer(earned)
             for b, v in self.options:
                 b.setEnabled(False)
                 if v == answer: b.setProperty('state', 'right'); _restyle(b)
+            if typed: self.entry.setEnabled(False)
             self.explain.show()
             self.submit.setText('Claim the treasure!' if self.i == len(self.questions) - 1 else 'Continue voyage')
             self.submit.setVisible(True); self.submit.setEnabled(True)
         else:
-            self.hp -= 1; self.scene.hit()
             notes = {norm(v): note for v, note in qd['wrong']}
             note = notes.get(norm(self.choice), '')
-            self._feedback('Not quite, matey! One life lost.' + (f'\n{note}' if note else ''), 'bad')
-            if btn is not None: btn.setProperty('state', 'wrong'); btn.setEnabled(False); _restyle(btn)
-            if not self.hp: self.scene.hp = 0; self.render(); return
+            if typed:
+                self.mistakes += 1; self.scene.hit() if self.mistakes >= 3 else None
+                if self.mistakes < 3:
+                    left = 3 - self.mistakes
+                    extra = qd['extra'][self.mistakes - 1] if self.mistakes - 1 < len(qd['extra']) else ''
+                    self._feedback(f'Not quite, matey! {left} {"try" if left == 1 else "tries"} left.'
+                                   + (f'\n{note}' if note else '') + (f'\nExtra hint: {extra}' if extra else ''), 'bad')
+                    self.entry.selectAll(); self.entry.setFocus(); self.submit.setEnabled(False)
+                    self.scene.squawk = 45; return
+                # Third miss: lose a life, show the answer and how to get it.
+                self.hp -= 1
+                if not self.hp: self.scene.hp = 0; self.render(); return
+                self.solved = True; self.hint_button.setEnabled(False); self.entry.setEnabled(False)
+                self._feedback(f'Out of tries! One life lost. The answer was {answer}.', 'bad')
+                self.explain.show(); self.submit.setText('Continue voyage'); self.submit.setVisible(True); self.submit.setEnabled(True)
+            else:
+                self.hp -= 1; self.scene.hit()
+                self._feedback('Not quite, matey! One life lost.' + (f'\n{note}' if note else ''), 'bad')
+                if btn is not None: btn.setProperty('state', 'wrong'); btn.setEnabled(False); _restyle(btn)
+                if not self.hp: self.scene.hp = 0; self.render(); return
         self.scene.hp = self.hp; self.scene.gold = self.gold
