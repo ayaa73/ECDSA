@@ -1,0 +1,77 @@
+<h2>Understanding the curve equation</h2>
+<p>An elliptic curve over a prime finite field is defined by:</p>
+<p><b>y² = x³ + ax + b (mod p)</b></p>
+<p>Here, p is a prime number, a and b determine the shape of the curve, and x and y are integers between 0 and p − 1. All calculations are performed modulo p, meaning that results wrap around after reaching p.</p>
+
+<h3>Checking whether a point is on the curve</h3>
+<p>Consider our toy curve <b>y² = x³ + 2x + 2 (mod 17)</b>. We can verify that G = (5, 1) belongs to it:</p>
+<ol>
+<li>Left-hand side: y² = 1² = 1.</li>
+<li>Right-hand side: 5³ + 2(5) + 2 = 137.</li>
+<li>Reduce modulo 17: 137 mod 17 = 1.</li>
+<li>Both sides equal 1, so (5, 1) is on the curve.</li>
+</ol>
+
+<h3>Why the curve must be non-singular</h3>
+<p>For the equation y² = x³ + ax + b, the curve must satisfy <b>(4a³ + 27b²) mod p ≠ 0</b>. This prevents singularities (cusps and self-crossings) and makes the group operations well-defined.</p>
+<p>For our toy curve, a = 2 and b = 2: 4(2³) + 27(2²) = 32 + 108 = 140, and 140 mod 17 = 4, which is not zero. So the curve is non-singular.</p>
+
+<h3>The point at infinity</h3>
+<p>Elliptic curves include a special point called the point at infinity, written O. It acts as the identity element for point addition: <b>P + O = P</b>.</p>
+<p>Every point P = (x, y) has an inverse −P = (x, −y mod p), with <b>P + (−P) = O</b>. For example, on our curve (5, 1) and (5, 16) are inverses because 1 + 16 = 17, which is zero modulo 17.</p>
+<p>These properties make the curve's points a mathematical group, which is the foundation of elliptic-curve cryptography.</p>
+
+<h2>The group law: adding points</h2>
+<h3>Point addition: P + Q</h3>
+<p>Suppose P = (x1, y1) and Q = (x2, y2) are two different points on the curve, with x1 ≠ x2. First calculate the slope:</p>
+<p><b>λ = (y2 − y1) · (x2 − x1)⁻¹ mod p</b></p>
+<p>Then the result R = (x3, y3) is:</p>
+<p><b>x3 = (λ² − x1 − x2) mod p</b><br><b>y3 = (λ(x1 − x3) − y1) mod p</b></p>
+<p>The notation ⁻¹ is a modular multiplicative inverse, not ordinary division.</p>
+
+<h3>Worked example: 3G</h3>
+<p>On our toy curve, G = (5, 1) and 2G = (6, 3). To calculate 3G, add these two points:</p>
+<ol>
+<li>Slope: λ = (3 − 1) · (6 − 5)⁻¹ mod 17 = 2.</li>
+<li>x3 = (2² − 5 − 6) mod 17 = −7 mod 17 = 10.</li>
+<li>y3 = (2(5 − 10) − 1) mod 17 = −11 mod 17 = 6.</li>
+</ol>
+<p><b>Therefore, 3G = (10, 6).</b></p>
+
+<h3>Point doubling: 2P</h3>
+<p>When adding a point to itself, use the tangent slope instead of the chord slope. For P = (x1, y1), provided y1 ≠ 0:</p>
+<p><b>λ = (3x1² + a) · (2y1)⁻¹ mod p</b></p>
+<p>The coordinates then follow from the same x3 and y3 formulas.</p>
+
+<h3>Worked example: 2G</h3>
+<p>Let G = (5, 1), a = 2 and p = 17.</p>
+<ol>
+<li>Numerator: 3(5²) + 2 = 77.</li>
+<li>Denominator: 2(1) = 2. Its inverse modulo 17 is 9, because 2 · 9 mod 17 = 1.</li>
+<li>λ = 77 · 9 mod 17 = 13.</li>
+<li>x3 = (13² − 5 − 5) mod 17 = 6.</li>
+<li>y3 = (13(5 − 6) − 1) mod 17 = 3.</li>
+</ol>
+<p><b>Therefore, 2G = (6, 3).</b></p>
+
+<h3>Special cases</h3>
+<ul>
+<li>Adding O to any point P returns P.</li>
+<li>Adding a point to its inverse returns O.</li>
+<li>Doubling a point whose y-coordinate is zero returns O.</li>
+<li>Modular division is only possible when the denominator has an inverse modulo p.</li>
+</ul>
+
+<h2>Scalar multiplication and double-and-add</h2>
+<p>Scalar multiplication means repeatedly adding a point to itself: <b>Q = k·G</b>, where k is a whole number (a <i>scalar</i>). For example 1G = (5, 1), 2G = (6, 3), 3G = (10, 6), 4G = (3, 1), 7G = (0, 6). The table on this step lists every multiple of G for the toy curve.</p>
+<p>Adding G to itself k times would be far too slow for the huge k of real curves. Instead, <b>double-and-add</b> writes k in binary and combines doublings with additions.</p>
+<h3>Worked example: 7G</h3>
+<p>7 is 111 in binary, so 7G = 4G + 2G + G:</p>
+<ol>
+<li>Start with G = (5, 1).</li>
+<li>Double G to obtain 2G = (6, 3).</li>
+<li>Double 2G to obtain 4G = (3, 1).</li>
+<li>Add 4G and 2G to obtain 6G = (16, 13).</li>
+<li>Add G to 6G to obtain 7G = (0, 6).</li>
+</ol>
+<p>Double-and-add needs only about 2 · (number of bits of k) group operations, so even a 256-bit scalar takes a few hundred steps. The Keys page shows every one of these steps for your own key.</p>

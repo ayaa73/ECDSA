@@ -1,0 +1,71 @@
+<h2>How a key pair is generated</h2>
+<table border="1" cellspacing="0" cellpadding="6">
+<tr><th align="left">Name</th><th align="left">What it is</th><th align="left">Who knows it</th><th align="left">Used for</th></tr>
+<tr><td><b>Private key d</b></td><td>a whole number, 1 ≤ d ≤ n − 1</td><td>only the owner</td><td>creating signatures</td></tr>
+<tr><td><b>Public key Q</b></td><td>a point on the curve, Q = d · G</td><td>everybody</td><td>checking signatures</td></tr>
+</table>
+<ol>
+<li><b>Pick d at random</b> from 1, 2, …, n − 1. Every value must be equally likely.</li>
+<li><b>Compute Q = d · G</b> with double-and-add (see step 1).</li>
+<li>Keep d secret. Publish Q.</li>
+</ol>
+<p>There is no "encryption" step: the public key is just the result of a multiplication on the curve.</p>
+
+<h3>Why d must be truly random</h3>
+<ul>
+<li>If an attacker can <b>guess</b> d, they own the key. A d taken from a weak generator (a timestamp, <code>random.random()</code>, a small number) can be guessed quickly.</li>
+<li>If d is <b>biased</b> (some values more likely than others), the search becomes easier.</li>
+</ul>
+<p>ECDSA Lab therefore takes d from the operating system's cryptographic random generator (Python's <code>secrets</code> module): <code>d = secrets.randbelow(n − 1) + 1</code>. <code>randbelow</code> gives a uniform number in 0 … n − 2, and adding 1 moves it to 1 … n − 1.</p>
+
+<h3>Why 0 and n are not allowed</h3>
+<ul>
+<li>d = 0 would give Q = O (the point at infinity), which is not a usable public key.</li>
+<li>d = n gives the same result, because n · G = O. In general d and d + n produce the same Q, so only 1 … n − 1 are different keys.</li>
+</ul>
+
+<h3>Checking a public key you receive</h3>
+<p>A public key from somebody else is untrusted input. Before using it, check that:</p>
+<ol>
+<li>Q is not the point at infinity;</li>
+<li>both coordinates are in the range 0 … p − 1;</li>
+<li>Q satisfies the curve equation y² = x³ + ax + b (mod p);</li>
+<li>n · Q = O, i.e. Q is one of the multiples of G.</li>
+</ol>
+<p>Skipping these checks allows "invalid-curve" tricks, where an attacker sends a point from a different, weaker curve. ECDSA Lab runs all four checks whenever a public key is pasted or loaded.</p>
+
+<h2>Why Q hides d: the ECDLP</h2>
+<p>Everyone knows the curve, G and your public key Q = d · G. The problem "<b>given G and Q, find d</b>" is the <b>elliptic-curve discrete-logarithm problem</b> (ECDLP). The security of ECDSA rests on it being too hard to solve.</p>
+<h3>On a toy curve it is easy</h3>
+<p>On toy-17 there are only 18 possible private keys, so an attacker simply lists all multiples of G (the table in step 1) and looks for Q. If Q = (0, 6), the list says d = 7.</p>
+<h3>On a real curve it is hopeless</h3>
+<p>The points k·G jump around the curve with no visible pattern, so there is nothing better to do than to search. The best known general method (Pollard's rho) needs about √n steps:</p>
+<table border="1" cellspacing="0" cellpadding="6">
+<tr><th align="left">Curve</th><th align="left">Size of n</th><th align="left">Work to find d</th><th align="left">Comment</th></tr>
+<tr><td>toy-17</td><td>5 bits</td><td>a handful of steps</td><td>by hand</td></tr>
+<tr><td>secp256k1, P-256</td><td>256 bits</td><td>about 2<sup>128</sup> steps</td><td>far beyond all computers on Earth</td></tr>
+</table>
+<p>Computing Q from d takes a few hundred point operations; computing d from Q takes about 2<sup>128</sup>. That gap is the "one-way street" that makes public-key signatures possible.</p>
+<p><b>Note.</b> Nobody has <i>proved</i> that the ECDLP is hard; it is an assumption that has survived decades of research. A large quantum computer running Shor's algorithm would break it.</p>
+
+<h2>Writing a public key down: SEC 1 encoding</h2>
+<p>The standard way to turn a point into bytes puts one marker byte in front and writes each coordinate with a fixed length (as many bytes as p needs):</p>
+<table border="1" cellspacing="0" cellpadding="6">
+<tr><th align="left">Form</th><th align="left">Bytes</th><th align="left">Meaning</th></tr>
+<tr><td>Uncompressed</td><td><code>04 | X | Y</code></td><td>both coordinates</td></tr>
+<tr><td>Compressed</td><td><code>02 | X</code></td><td>X only, and Y is <b>even</b></td></tr>
+<tr><td>Compressed</td><td><code>03 | X</code></td><td>X only, and Y is <b>odd</b></td></tr>
+</table>
+<h3>Why compression works</h3>
+<p>For a given x, the curve equation has at most two solutions: y and p − y. Because p is odd, one of them is even and the other is odd. So X plus one bit ("even or odd?") is enough to rebuild the whole point, and the key is half as long.</p>
+<p><b>Example:</b> Q = (0, 6) on toy-17 is <code>04 00 06</code> uncompressed and <code>02 00</code> compressed (6 is even). Decompressing <code>02 00</code>: x = 0 gives y² = 2 (mod 17), whose square roots are 6 and 11 (6² = 36 = 2 mod 17). The marker 02 asks for the even one, so y = 6.</p>
+<p>On secp256k1 a compressed public key is 33 bytes (66 hex digits) and an uncompressed one is 65 bytes (130 hex digits).</p>
+
+<h2>Keeping keys safe</h2>
+<ul>
+<li>ECDSA Lab can save your <b>public key</b> as a small JSON file (or a certificate) so others can check your signatures. For a custom curve the file also stores the curve itself, and everything in it is checked again when it is loaded.</li>
+<li>Your <b>private key is never saved by the app</b>. Copy it and keep it in a safe place such as a password manager; real software also protects keys with a password or keeps them in secure hardware.</li>
+<li>Never share, e-mail or screenshot a private key.</li>
+<li>Generate keys with a cryptographic random generator, never by hand.</li>
+<li>Use standard curves with at least 256 bits for anything real.</li>
+</ul>

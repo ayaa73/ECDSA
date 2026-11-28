@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Case File: The Signed Threat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Caveat:wght@600&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme:dark;
+  --c0:#4A1220; --c1:#7A1F35; --c2:#A63A50; --c3:#D17A88; --c4:#F8E6E9;
+  --ink:#2B1A24; --string:#d6243b; --bg:#050304;
+  --type:"Special Elite","Courier New",monospace; --hand:"Caveat","Comic Sans MS",cursive;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at 50% 15%,#150b0d,#050304 72%);color:var(--c4);font-family:var(--type);min-height:100vh}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;background:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='260'%20height='260'%3E%3Cfilter%20id='n'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='.75'%20numOctaves='3'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20values='0%200%200%200%201%200%200%200%200%201%200%200%200%200%201%200%200%200%20.07%200'/%3E%3C/filter%3E%3Crect%20width='260'%20height='260'%20filter='url%28%23n%29'/%3E%3C/svg%3E")}
+header{padding:14px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+  background:linear-gradient(var(--c0),#32101a);border-bottom:2px solid var(--c1)}
+header h1{margin:0;font-size:20px;letter-spacing:.08em;font-weight:400}
+header .sub{font-size:12px;opacity:.7}
+header .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.mode-chip{font-size:12px;color:var(--c4);border:1px solid var(--c2);background:#2a0a12;padding:8px 10px;border-radius:999px}
+button{font-family:var(--type);cursor:pointer;border:1px solid var(--c3);background:var(--c1);color:var(--c4);
+  padding:9px 14px;border-radius:3px;font-size:14px}
+button:hover{background:var(--c2)}
+button:disabled{opacity:.4;cursor:default}
+#board{position:relative;margin:14px auto;max-width:1100px;min-height:840px;border-radius:4px;overflow:hidden;
+  border:14px solid #1d0a0c;border-image:linear-gradient(135deg,#3b1a12,#1a0808 50%,#34170f) 1;
+  box-shadow:inset 0 0 60px #000d,inset 0 0 0 2px #0008,0 10px 40px #000;
+  background:radial-gradient(ellipse at 50% 45%,transparent 30%,#000b 100%),linear-gradient(#1a0806aa,#1a0806aa),url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='320'%20height='320'%3E%3Crect%20width='320'%20height='320'%20fill='%237b5232'/%3E%3Cfilter%20id='a'%20x='0'%20y='0'%20width='100%25'%20height='100%25'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='.03'%20numOctaves='3'%20seed='7'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20values='0%200%200%200%20.13%200%200%200%200%20.06%200%200%200%200%20.02%201.5%200%200%200%20-.5'/%3E%3C/filter%3E%3Cfilter%20id='b'%20x='0'%20y='0'%20width='100%25'%20height='100%25'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='.85'%20numOctaves='2'%20seed='11'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20values='0%200%200%200%20.86%200%200%200%200%20.63%200%200%200%200%20.38%207%200%200%200%20-3.9'/%3E%3C/filter%3E%3Cfilter%20id='c'%20x='0'%20y='0'%20width='100%25'%20height='100%25'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='.7'%20numOctaves='3'%20seed='5'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20values='0%200%200%200%20.09%200%200%200%200%20.04%200%200%200%200%20.01%200%208%200%200%20-4.4'/%3E%3C/filter%3E%3Crect%20width='320'%20height='320'%20filter='url%28%23a%29'/%3E%3Crect%20width='320'%20height='320'%20filter='url%28%23b%29'/%3E%3Crect%20width='320'%20height='320'%20filter='url%28%23c%29'/%3E%3C/svg%3E") 0 0/320px 320px}
+#strings{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
+.paper{position:absolute;color:var(--ink);padding:14px 14px 12px;border:1px solid #b9a27d;
+  background:radial-gradient(circle at 18% 12%,#fff8 0 1px,transparent 2px),linear-gradient(102deg,#f1e6cc,#e8d8b7 52%,#f5ead2);
+  box-shadow:0 7px 15px #35170e99,0 1px 0 #fff8 inset;z-index:2}
+.pin{position:absolute;top:-7px;left:50%;width:16px;height:16px;margin-left:-8px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#ff8a97,#b0162b 55%,#5a0a15);box-shadow:0 3px 4px #0008;z-index:3}
+#case{left:50%;top:50%;width:min(340px,86%);transform:translate(-50%,-50%) rotate(-1deg);
+  background:radial-gradient(circle at 82% 14%,#a66b3822 0 2px,transparent 3px),linear-gradient(105deg,#f3e6cf,#ead8bd 56%,#f5ead6)}
+#case h2{margin:0 0 6px;font-size:15px;letter-spacing:.1em;border-bottom:2px solid var(--c2);padding-bottom:4px;color:var(--c0)}
+#case .msg{font-family:var(--hand);font-size:25px;line-height:1.05;color:#7a1226;margin:8px 0;transform:rotate(-1deg)}
+#case .meta{font-size:11.5px;line-height:1.5;word-break:break-all}
+.stamp{display:inline-block;border:2px solid #9b1b30;color:#9b1b30;padding:1px 7px;font-size:12px;letter-spacing:.15em;transform:rotate(-4deg);margin-top:4px}
+.sus{width:220px;cursor:pointer;transition:transform .15s;border-radius:1px}
+.sus:hover{transform:rotate(0deg) scale(1.04)!important;z-index:5}
+.sus .nm{font-size:16px;color:#3a0f1a;font-weight:bold;border-bottom:1px solid #9d7d5c;padding-bottom:3px}
+.sus .rl{font-size:11.5px;opacity:.8;margin-bottom:6px}
+.sus .pk{font-size:12px;background:#dfcda7;padding:4px 6px;border-left:3px solid #A63A50;color:#332319}
+.sus .go{font-family:var(--hand);font-size:19px;color:var(--c2);margin-top:6px}
+#s0{background:linear-gradient(108deg,#f2e6c9,#e5d1a9 58%,#f3e4c7)}
+#s1{background:linear-gradient(95deg,#ead9b9,#f3e7cd 52%,#dfcaa2)}
+#s2{background:linear-gradient(112deg,#f5e9d0,#e6d3ae 55%,#eee0c3)}
+#s3{background:linear-gradient(100deg,#e9d6b2,#f2e6cb 60%,#ddc79f)}
+#s4{background:linear-gradient(115deg,#f1e1c1,#e4cea7 57%,#f4e8ce)}
+.sus.out{filter:grayscale(.85) brightness(.7);cursor:default}
+.sus.out:hover{transform:none!important}
+.sus.out .go{display:none}
+.sus.out::before,.sus.out::after{content:"";position:absolute;left:-6%;top:50%;width:112%;height:9px;background:#d1162f;
+  box-shadow:0 0 8px #000a;z-index:4;border-radius:3px}
+.sus.out::before{transform:rotate(38deg)}.sus.out::after{transform:rotate(-38deg)}
+.sus.hit{box-shadow:0 0 0 4px #e8b13c,0 0 40px #e8b13c88}
+#s0{left:3%;top:3%;transform:rotate(-2deg)}#s1{right:3%;top:5%;transform:rotate(2.5deg)}
+#s2{left:2%;bottom:5%;transform:rotate(2deg)}#s3{left:50%;bottom:2%;margin-left:-110px;transform:rotate(-1.5deg)}
+#s4{right:2%;bottom:5%;transform:rotate(-2.5deg)}
+.note{position:absolute;right:3%;top:44%;width:150px;background:#f3d77a;color:#4a3a08;font-family:var(--hand);font-size:18px;
+  padding:10px;transform:rotate(4deg);box-shadow:0 5px 10px #0008;z-index:2;line-height:1.05}
+#status{text-align:center;font-size:13px;opacity:.8;margin:0 0 20px}
+.ovl{position:fixed;inset:0;background:#0009;display:none;align-items:center;justify-content:center;z-index:20;padding:16px;
+  padding-top:max(16px,env(safe-area-inset-top,0px));padding-bottom:max(16px,env(safe-area-inset-bottom,0px))}
+.ovl.on{display:flex}
+.dlg{background:var(--c4);color:var(--ink);width:min(640px,100%);max-height:100%;overflow:auto;padding:20px;border-radius:4px;
+  border-top:8px solid var(--c2);box-shadow:0 20px 60px #000}
+.dlg h3{margin:0 0 4px;font-weight:400;font-size:20px;color:var(--c0)}
+.dlg .lead{font-size:13px;margin:0 0 12px}
+.step{border-left:4px solid var(--c3);background:#f0d3d8;padding:8px 10px;margin:8px 0;font-size:13px;line-height:1.5;animation:in .3s}
+.step b{color:var(--c1)}
+.step code{font-family:var(--type);background:#fff8;padding:0 3px;word-break:break-all}
+.step.bad{border-color:#c4122c;background:#f5cfd5}.step.good{border-color:#2e8a57;background:#d3ecdc}
+@keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.dlg button{background:var(--c1)}
+.dlg button.ghost{background:transparent;color:var(--c1);border-color:var(--c1)}
+.dlg button.red{background:#9b1b30;border-color:#9b1b30}
+.dlg button.grn{background:#23704a;border-color:#23704a}
+.ovl.wall{background:radial-gradient(ellipse at 50% 40%,#160c0e,#030203 78%);z-index:30}
+.ovl.wall::before{content:"";position:absolute;inset:0;pointer-events:none;background:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='260'%20height='260'%3E%3Cfilter%20id='n'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='.75'%20numOctaves='3'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20values='0%200%200%200%201%200%200%200%200%201%200%200%200%200%201%200%200%200%20.07%200'/%3E%3C/filter%3E%3Crect%20width='260'%20height='260'%20filter='url%28%23n%29'/%3E%3C/svg%3E")}
+.corkpanel{position:relative;width:min(860px,100%);max-height:100%;overflow:auto;padding:34px 30px 38px;text-align:center;
+  border:14px solid #1d0a0c;border-image:linear-gradient(135deg,#3b1a12,#1a0808 50%,#34170f) 1;
+  box-shadow:0 0 80px #000,inset 0 0 60px #000d;
+  background:radial-gradient(ellipse at 50% 45%,transparent 30%,#000b 100%),linear-gradient(#1a0806aa,#1a0806aa),url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='320'%20height='320'%3E%3Crect%20width='320'%20height='320'%20fill='%237b5232'/%3E%3Cfilter%20id='a'%20x='0'%20y='0'%20width='100%25'%20height='100%25'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='.03'%20numOctaves='3'%20seed='7'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20values='0%200%200%200%20.13%200%200%200%200%20.06%200%200%200%200%20.02%201.5%200%200%200%20-.5'/%3E%3C/filter%3E%3Cfilter%20id='b'%20x='0'%20y='0'%20width='100%25'%20height='100%25'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='.85'%20numOctaves='2'%20seed='11'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20values='0%200%200%200%20.86%200%200%200%200%20.63%200%200%200%200%20.38%207%200%200%200%20-3.9'/%3E%3C/filter%3E%3Cfilter%20id='c'%20x='0'%20y='0'%20width='100%25'%20height='100%25'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='.7'%20numOctaves='3'%20seed='5'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20values='0%200%200%200%20.09%200%200%200%200%20.04%200%200%200%200%20.01%200%208%200%200%20-4.4'/%3E%3C/filter%3E%3Crect%20width='320'%20height='320'%20filter='url%28%23a%29'/%3E%3Crect%20width='320'%20height='320'%20filter='url%28%23b%29'/%3E%3Crect%20width='320'%20height='320'%20filter='url%28%23c%29'/%3E%3C/svg%3E") 0 0/320px 320px}
+.corkpanel .strip{display:inline-block;background:#f0e3c8;color:#4A1220;padding:5px 14px;font-size:12px;letter-spacing:.2em;transform:rotate(-1.5deg);box-shadow:0 5px 10px #000a;margin-bottom:12px}
+.corkpanel h3{margin:6px 0 6px;font-weight:400;font-size:28px;letter-spacing:.06em;color:#f6e9d2;text-shadow:0 2px 6px #000}
+.corkpanel .lead{color:#e6d3b4;font-size:13px;margin:0 auto;max-width:520px;text-shadow:0 1px 4px #000}
+.difficulty-grid{position:relative;display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:34px}
+.difficulty-grid .link{position:absolute;left:0;top:0;width:100%;height:34px;z-index:0;pointer-events:none}
+.difficulty{position:relative;z-index:1;padding:22px 16px 18px;text-align:left;min-height:210px;color:var(--ink);cursor:pointer;
+  border:1px solid #b9a27d;border-radius:1px;background:linear-gradient(104deg,#f2e6c9,#e5d1a9 58%,#f3e4c7);box-shadow:0 9px 16px #000b;transition:transform .15s,box-shadow .15s}
+.difficulty:nth-of-type(1){transform:rotate(-1.6deg)}.difficulty:nth-of-type(2){transform:rotate(1deg)}.difficulty:nth-of-type(3){transform:rotate(-.8deg)}
+.difficulty:hover,.difficulty:focus-visible{transform:rotate(0) translateY(-5px) scale(1.03);box-shadow:0 0 0 3px #a3152b,0 14px 26px #000c;outline:none;background:linear-gradient(104deg,#f6ecd2,#ead8b2 58%,#f6e9cd)}
+.difficulty .fno{display:block;font-family:var(--hand);font-size:19px;color:#a3152b;margin-bottom:2px}
+.difficulty h4{margin:0 0 8px;color:#3a0f1a;font-size:19px;border-bottom:1px solid #9d7d5c;padding-bottom:4px}.difficulty p{font-size:13px;line-height:1.45;margin:0 0 12px}
+.difficulty .tag{display:inline-block;border:2px solid #9b1b30;color:#9b1b30;padding:2px 7px;font-size:11px;letter-spacing:.12em;transform:rotate(-2deg)}
+.sheet{position:relative;width:min(660px,100%);max-height:100%;overflow:auto;padding:38px 36px 26px;color:#2a1a14;transform:rotate(-.5deg);
+  background:radial-gradient(circle at 15% 10%,#fff6 0 1px,transparent 2px),linear-gradient(102deg,#efe2c4,#e6d3ad 55%,#f1e5c8);border:1px solid #b9a27d;box-shadow:0 20px 70px #000,0 0 0 1px #000}
+.sheet .cls{position:absolute;right:20px;top:16px;border:2px solid #9b1b30;color:#9b1b30;padding:1px 8px;font-size:12px;letter-spacing:.18em;transform:rotate(5deg);opacity:.85}
+.folio{font-size:11px;letter-spacing:.2em;color:#7a1f35;margin-bottom:14px}
+.typed{font-size:17px;line-height:1.75;min-height:230px;white-space:pre-wrap}
+.caret{display:inline-block;width:9px;height:1.1em;background:#2a1a14;vertical-align:text-bottom;margin-left:2px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.sheet button{background:#7A1F35;border-color:#A63A50;color:#F8E6E9}.sheet button:hover{background:#A63A50}
+.sheet button.ghost{background:transparent;color:#7A1F35;border-color:#7A1F35}
+.evidence{background:#f0d3d8;border-left:4px solid var(--c2);padding:10px;margin:10px 0;font-size:13px;line-height:1.55}
+.hint-card{background:#f3d77a;color:#4a3a08;padding:10px;margin:10px 0;font-family:var(--hand);font-size:19px;transform:rotate(-.4deg)}
+.review{margin-top:14px}.review details{background:#f0d3d8;border-left:4px solid var(--c2);padding:8px 10px;margin:8px 0}
+.review summary{cursor:pointer;color:var(--c0);font-weight:bold}.review .math{font-size:12px;line-height:1.55;margin-top:8px;word-break:break-word}
+#end h3{font-size:24px}
+#end.win .dlg{border-top-color:#2e8a57}#end.lose .dlg{border-top-color:#c4122c}
+html.embedded,html.embedded body{width:100%;height:100%;min-height:0;overflow:hidden;background:transparent}
+html.embedded body{display:flex;flex-direction:column;border-radius:18px}
+html.embedded header{flex:0 0 auto;padding:10px 16px;border-radius:18px 18px 0 0}
+html.embedded header h1{font-size:18px}
+html.embedded .board-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
+html.embedded #board{flex:1 0 auto;width:auto;max-width:none;min-height:520px;margin:8px 10px;border-width:10px;border-radius:14px}
+html.embedded #status{flex:0 0 auto;margin:0 0 6px}
+html.embedded .ovl{padding:12px;border-radius:18px;overflow:hidden}
+html.embedded .dlg,html.embedded .sheet,html.embedded .corkpanel{max-height:calc(100vh - 24px);border-radius:12px}
+@media(max-height:780px){
+  html.embedded .sus{width:200px;padding:10px 11px 9px}
+  html.embedded #case{width:min(310px,82%);padding:11px}
+  html.embedded #case .msg{font-size:22px}
+  html.embedded .note{font-size:16px;width:138px}
+}
+@media(max-width:860px){
+  #board{display:grid;grid-template-columns:1fr 1fr;gap:34px 16px;padding:30px 14px;min-height:0;border-width:6px}
+  html.embedded .sus,html.embedded #case,html.embedded .note{width:auto}
+  .paper{position:relative}
+  #case{grid-column:1/3;left:auto;top:auto;width:100%;transform:rotate(-1deg);order:-1}
+  .sus{width:auto}
+  #s0,#s1,#s2,#s3,#s4{left:auto;right:auto;top:auto;bottom:auto;margin:0}
+  #s4{grid-column:1/3}
+  .note{position:relative;grid-column:1/3;right:auto;top:auto;width:auto;order:5}
+  .difficulty-grid{grid-template-columns:1fr}.difficulty{min-height:0}.difficulty-grid .link{display:none}.sheet{padding:34px 20px 22px}.typed{font-size:15px;min-height:260px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>CASE FILE · THE SIGNED THREAT</h1><div class="sub">ECDSA verification · toy-97 curve · y² = x³ + 5 (mod 97), G = (1, 43), n = 79</div></div>
+  <div class="actions"><span class="mode-chip" id="modeChip">Difficulty: —</span><button id="modeBtn">Change difficulty</button><button id="newBtn">New case</button></div>
+</header>
+<div class="board-scroll">
+  <div id="board">
+    <svg id="strings"></svg>
+    <div class="paper" id="case"><div class="pin"></div></div>
+    <div class="note" id="note">Click a suspect, run their public key against the signature, then decide.</div>
+  </div>
+</div>
+<p id="status"></p>
+
+<div class="ovl" id="lab"><div class="dlg" id="labBox"></div></div>
+<div class="ovl" id="end"><div class="dlg" id="endBox"></div></div>
+<div class="ovl wall" id="mode"><div class="corkpanel">
+  <div class="strip"><span>CASE Nº 047 · OPEN FILES</span></div>
+  <h3>Choose your investigation</h3>
+  <p class="lead">The mathematics is identical in every file. Only the amount of support changes.</p>
+  <div class="difficulty-grid">
+    <svg class="link" viewBox="0 0 100 20" preserveAspectRatio="none"><path d="M16.7,1 Q33.3,16 50,1 Q66.7,16 83.3,1" fill="none" stroke="#000" stroke-width="5" opacity=".4" vector-effect="non-scaling-stroke" transform="translate(0,2)"/><path d="M16.7,1 Q33.3,16 50,1 Q66.7,16 83.3,1" fill="none" stroke="#a3152b" stroke-width="2.6" vector-effect="non-scaling-stroke"/></svg>
+    <button class="difficulty" data-mode="beginner"><div class="pin"></div><span class="fno">FILE 01</span><h4>Beginner</h4><p>Run the complete ECDSA verification one step at a time before making your call.</p><span class="tag">FULL WALKTHROUGH</span></button>
+    <button class="difficulty" data-mode="medium"><div class="pin"></div><span class="fno">FILE 02</span><h4>Investigator</h4><p>Work from the evidence yourself. Two case-wide hints can reveal formulas or a partial computation.</p><span class="tag">2 HINTS</span></button>
+    <button class="difficulty" data-mode="hard"><div class="pin"></div><span class="fno">FILE 03</span><h4>Expert</h4><p>No hints and no computed trail. Inspect a public key, then accuse or cross it off.</p><span class="tag">NO ASSISTANCE</span></button>
+  </div>
+</div></div>
+<div class="ovl wall" id="intro"><div class="sheet" id="sheet"><div class="pin"></div><span class="cls">CONFIDENTIAL</span>
+  <div class="folio" id="folio"></div><div class="typed"><span id="tx"></span><span class="caret"></span></div>
+  <div class="row"><button class="ghost" id="skip">Skip intro</button><button id="nextP" disabled>Next ▸</button></div></div></div>
+
+<script>
+const PAGE_PARAMS=new URLSearchParams(location.search);
+if(PAGE_PARAMS.get("embedded")==="1")document.documentElement.classList.add("embedded");
+// ---------- ECDSA on toy-97 (same maths as core/verify.py: SEC 1 §4.1.4) ----------
+const P=97,A=0,B=5,G=[1,43],N=79;
+const mod=(x,m)=>((x%m)+m)%m;
+function inv(a,m){a=mod(a,m);let [r0,r1]=[m,a],[t0,t1]=[0,1];while(r1){const q=Math.floor(r0/r1);[r0,r1]=[r1,r0-q*r1];[t0,t1]=[t1,t0-q*t1];}return mod(t0,m);}
+function add(p,q){if(!p)return q;if(!q)return p;
+  if(p[0]===q[0]&&mod(p[1]+q[1],P)===0)return null;
+  const l=p[0]===q[0]?mod((3*p[0]*p[0]+A)*inv(2*p[1],P),P):mod((q[1]-p[1])*inv(q[0]-p[0],P),P);
+  const x=mod(l*l-p[0]-q[0],P);return [x,mod(l*(p[0]-x)-p[1],P)];}
+function mul(k,p){let r=null,a=p;k=mod(k,N);while(k){if(k&1)r=add(r,a);a=add(a,a);k>>=1;}return r;}
+const onCurve=q=>!!q&&mod(q[1]*q[1],P)===mod(q[0]**3+A*q[0]+B,P);
+const f=q=>q?`(${q[0]}, ${q[1]})`:"O (point at infinity)";
+async function hashE(msg){ // top 7 bits of SHA-256 (n has 7 bits), as in hashing.py
+  const d=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(msg)));
+  const hex=[...d].map(b=>b.toString(16).padStart(2,"0")).join("");
+  return {e:d[0]>>1,hex};}
+function sign(d,e,k){const R=mul(k,G);const r=mod(R[0],N);if(!r)return null;const s=mod(inv(k,N)*(e+r*d),N);return s?{r,s}:null;}
+// verification: returns every intermediate value so the UI can reveal them step by step
+function verifyTrace(Q,e,sig){
+  const t={ok:false,rangeOk:1<=sig.r&&sig.r<=N-1&&1<=sig.s&&sig.s<=N-1,keyOk:onCurve(Q)};
+  t.w=inv(sig.s,N);t.u1=mod(e*t.w,N);t.u2=mod(sig.r*t.w,N);
+  t.P1=mul(t.u1,G);t.P2=mul(t.u2,Q);t.X=add(t.P1,t.P2);
+  t.v=t.X?mod(t.X[0],N):null;t.ok=t.rangeOk&&t.keyOk&&t.X&&t.v===sig.r;return t;}
+
+// ---------- Case generation ----------
+const SUSPECTS=[
+ ["Marcus Hale","Business partner"],["Elena Voss","Former assistant"],["Dr. Theo Rask","Professional rival"],
+ ["Ivy Calloway","Investigative journalist"],["Julian Frost","Personal chauffeur"]];
+const THREATS=["You will regret ignoring me. Step down by Friday.","I know what you buried in the east vault. Pay, or it all comes out.",
+ "Cancel the merger or the next letter will not be a warning.","Your signature on that contract is the last one you will ever write."];
+let C=null,MODE=null,cur=null,stepIdx=0,hintsUsed=0;
+const MODES={beginner:{label:"Beginner",hints:0},medium:{label:"Investigator",hints:2},hard:{label:"Expert",hints:0}};
+const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+async function newCase(){
+  for(;;){
+    const count=rnd(3,5),ds=new Set();while(ds.size<count)ds.add(rnd(2,N-1));
+    const keys=[...ds].map(d=>({d,Q:mul(d,G)}));
+    const outsider=Math.random()<0.3, ci=rnd(0,count-1);
+    let dSigner=outsider?rnd(2,N-1):keys[ci].d; if(outsider&&ds.has(dSigner))continue;
+    const msg=THREATS[rnd(0,THREATS.length-1)]+" — "+["A friend","Someone who remembers","The one you wronged"][rnd(0,2)];
+    const {e,hex}=await hashE(msg);const sig=sign(dSigner,e,rnd(1,N-1));if(!sig)continue;
+    // make sure ONLY the real signer's key verifies (tiny curves can collide by chance)
+    if(keys.some((k,i)=>(!outsider&&i===ci)?false:verifyTrace(k.Q,e,sig).ok))continue;
+    if(!outsider&&!verifyTrace(keys[ci].Q,e,sig).ok)continue;
+    const order=[...SUSPECTS].sort(()=>Math.random()-.5).slice(0,count);
+    C={no:rnd(41,98),msg,e,hex,sig,outsider,ci,over:false,
+       sus:keys.map((k,i)=>({name:order[i][0],role:order[i][1],Q:k.Q,out:false,hit:false}))};
+    return;}}
+
+// ---------- Rendering ----------
+const $=id=>document.getElementById(id);
+function render(){
+  const c=$("case");
+  c.innerHTML=`<div class="pin"></div><h2>CASE Nº 0${C.no} · RECEIVED THREAT</h2>
+   <div class="msg">“${C.msg}”</div>
+   <div class="meta"><b>Signature:</b> r = ${C.sig.r}, s = ${C.sig.s}<br>
+   <b>SHA-256:</b> ${C.hex.slice(0,24)}…<br><b>e</b> (first 7 bits) = ${C.e}</div>
+   <span class="stamp">UNVERIFIED</span>`;
+  document.querySelectorAll(".sus").forEach(e=>e.remove());
+  C.sus.forEach((s,i)=>{
+    const d=document.createElement("div");d.className="paper sus"+(s.out?" out":"")+(s.hit?" hit":"");d.id="s"+i;
+    d.innerHTML=`<div class="pin"></div><div class="nm">${s.name}</div><div class="rl">${s.role}</div>
+      <div class="pk">Q = ${f(s.Q)}</div><div class="go">${s.out?"":"→ verify against this key"}</div>`;
+    if(!s.out&&!C.over)d.onclick=()=>openLab(i);
+    $("board").appendChild(d);});
+  const left=C.sus.filter(s=>!s.out).length;
+  $("status").textContent=C.over?"":`${left} suspect${left===1?"":"s"} still on the board${MODE==="medium"?` · ${MODES.medium.hints-hintsUsed} hint${MODES.medium.hints-hintsUsed===1?"":"s"} remaining`:""}.`;
+  $("modeChip").textContent=`Difficulty: ${MODES[MODE].label}`;
+  $("note").textContent=MODE==="beginner"?"Open a suspect and reconstruct the verification step by step.":MODE==="medium"?"Do the math. Two hints are available across the entire case.":"No hints. Trust your ECDSA verification and make the call.";
+  drawStrings();}
+function pinPos(el){
+  const b=$("board").getBoundingClientRect(),r=el.getBoundingClientRect(),m=getComputedStyle(el).transform;
+  let th=0;try{const d=new DOMMatrix(m==="none"?undefined:m);th=Math.atan2(d.b,d.a);}catch(e){}
+  const h=el.offsetHeight/2-1,cx=r.left-b.left+r.width/2,cy=r.top-b.top+r.height/2;
+  return [cx+h*Math.sin(th),cy-h*Math.cos(th)];}
+function drawStrings(){
+  const svg=$("strings"),[cx,cy]=pinPos($("case"));
+  let out=`<defs>
+    <filter id="fuzz" filterUnits="userSpaceOnUse" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="4" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="1.3" xChannelSelector="R" yChannelSelector="G"/></filter>
+    <filter id="tsh" filterUnits="userSpaceOnUse" x="0" y="0" width="100%" height="100%"><feGaussianBlur stdDeviation="2.2"/></filter></defs>`;
+  C.sus.forEach((s,i)=>{
+    const [x,y]=pinPos($("s"+i)),len=Math.hypot(cx-x,cy-y),sag=14+len*.06;
+    const mx=(x+cx)/2+(i-2)*7,my=(y+cy)/2+sag*1.7,p=`M${x},${y} Q${mx},${my} ${cx},${cy}`;
+    if(s.out){ // slack, dulled thread once a suspect is cleared
+      out+=`<path d="${p}" fill="none" stroke="#000" stroke-width="3" opacity=".25" transform="translate(2,4)" filter="url(#tsh)"/>
+        <path d="${p}" fill="none" stroke="#5a2a32" stroke-width="2.2" stroke-dasharray="5 4" opacity=".6"/>`;
+    }else{
+      out+=`<g filter="url(#fuzz)">
+        <path d="${p}" fill="none" stroke="#000" stroke-width="4" opacity=".5" transform="translate(3,6)" filter="url(#tsh)"/>
+        <path d="${p}" fill="none" stroke="#8a0e22" stroke-width="3.2" stroke-linecap="round"/>
+        <path d="${p}" fill="none" stroke="#c6283f" stroke-width="3.2" stroke-dasharray="2.6 2.4" opacity=".6"/>
+        <path d="${p}" fill="none" stroke="#3f050f" stroke-width="3.2" stroke-dasharray="1 4" stroke-dashoffset="1.6" opacity=".55"/>
+        <path d="${p}" fill="none" stroke="#ff9aa6" stroke-width=".8" stroke-dasharray="11 8" opacity=".4" transform="translate(-.5,-1)"/>
+        <path d="${p}" fill="none" stroke="#d95a6c" stroke-width=".5" stroke-dasharray="1 3 7 2" opacity=".5" transform="translate(.6,.8)"/></g>`;
+    }
+  });
+  svg.innerHTML=out;}
+addEventListener("resize",()=>C&&drawStrings());
+
+// ---------- Verification lab ----------
+function steps(i){
+  const s=C.sus[i],t=verifyTrace(s.Q,C.e,C.sig),{r,s:ss}=C.sig,e=C.e;
+  return {t,list:[
+   [`1 · Sanity checks`,`Is <code>1 ≤ r ≤ ${N-1}</code> and <code>1 ≤ s ≤ ${N-1}</code>? r = ${r}, s = ${ss} → <b>${t.rangeOk?"yes":"NO"}</b>.<br>Is ${s.name}’s key Q on the curve? → <b>${t.keyOk?"yes":"NO"}</b>.`,""],
+   [`2 · Message hash`,`e = first 7 bits of SHA-256(message) = <code>${e}</code> (same for every suspect).`,""],
+   [`3 · Inverse of s`,`w = s⁻¹ mod n = ${ss}⁻¹ mod ${N} = <code>${t.w}</code>`,""],
+   [`4 · Scalars u1, u2`,`u1 = e·w mod n = ${e}·${t.w} mod ${N} = <code>${t.u1}</code><br>u2 = r·w mod n = ${r}·${t.w} mod ${N} = <code>${t.u2}</code>`,""],
+   [`5 · Rebuild the point`,`u1·G = ${f(t.P1)}<br>u2·Q = ${f(t.P2)}<br><b>X = u1·G + u2·Q = ${f(t.X)}</b>`,""],
+   [`6 · Compare`,t.X?`v = x₁ mod n = ${t.X[0]} mod ${N} = <code>${t.v}</code><br>The signature’s r = <code>${r}</code>.<br>Does v equal r? <b>Your call below.</b>`:`X is the point at infinity — nothing to compare.`,""]]};}
+function openLab(i){
+  cur=i;stepIdx=0;const s=C.sus[i];
+  const intro=`<h3>Interrogating ${s.name}</h3><p class="lead">Public key Q = ${f(s.Q)}. If ${s.name} signed the message, then <code>u1·G + u2·Q</code> must produce an x-coordinate (mod n) equal to r.</p>`;
+  if(MODE==="beginner"){
+    $("labBox").innerHTML=`${intro}<div id="stepsBox"></div><div class="row" id="ctl"><button id="nx">Run next step</button><button class="ghost" id="cl">Close</button></div>`;
+    $("lab").classList.add("on");$("cl").onclick=closeLab;$("nx").onclick=nextStep;return;}
+  const hint=MODE==="medium"?`<button id="hint">Use hint (${MODES.medium.hints-hintsUsed} left)</button>`:"";
+  $("labBox").innerHTML=`${intro}<div class="evidence"><b>Your evidence</b><br>Curve: y² = x³ + 5 (mod 97) · G = (1, 43) · n = 79<br>e = ${C.e} · r = ${C.sig.r} · s = ${C.sig.s}<br>Test Q = ${f(s.Q)}</div><div id="hintBox"></div><div class="row"><button class="grn" id="yes">Accuse ${s.name}</button><button class="red" id="no">Cross off</button>${hint}<button class="ghost" id="cl">Close</button></div>`;
+  $("lab").classList.add("on");$("cl").onclick=closeLab;$("yes").onclick=()=>decide(true);$("no").onclick=()=>decide(false);
+  if(MODE==="medium"){$("hint").disabled=hintsUsed>=MODES.medium.hints;$("hint").onclick=useHint;}}
+function closeLab(){$("lab").classList.remove("on");}
+function useHint(){
+  if(hintsUsed>=MODES.medium.hints)return;const t=verifyTrace(C.sus[cur].Q,C.e,C.sig);hintsUsed++;
+  const body=hintsUsed===1?`Start with <b>w = s⁻¹ mod n</b>. Here, ${C.sig.s}⁻¹ mod ${N} = <b>${t.w}</b>. Then compute u1 = e·w and u2 = r·w (mod n).`:`Your scalars are <b>u1 = ${t.u1}</b> and <b>u2 = ${t.u2}</b>. Compute u1·G + u2·Q, then compare its x-coordinate mod ${N} with r = ${C.sig.r}.`;
+  $("hintBox").innerHTML+=`<div class="hint-card">${body}</div>`;$("hint").textContent=`Use hint (${MODES.medium.hints-hintsUsed} left)`;$("hint").disabled=hintsUsed>=MODES.medium.hints;render();}
+function nextStep(){
+  const {t,list}=steps(cur);const [h,body]=list[stepIdx];
+  const d=document.createElement("div");d.className="step";d.innerHTML=`<b>${h}</b><br>${body}`;
+  $("stepsBox").appendChild(d);stepIdx++;
+  if(stepIdx>=list.length){
+    $("ctl").innerHTML=`<button class="grn" id="yes">✓ v = r — signature valid, accuse</button>
+      <button class="red" id="no">✗ v ≠ r — not them, cross off</button>`;
+    $("yes").onclick=()=>decide(true);$("no").onclick=()=>decide(false);}}
+function decide(valid){
+  const i=cur,s=C.sus[i];closeLab();
+  if(valid){ // accusation
+    const truth=!C.outsider&&C.ci===i;
+    s.hit=true;C.over=true;render();
+    return setTimeout(()=>truth?finish(true,"CASE SOLVED",`${s.name}’s public key verifies the signature: v equals r. Only the holder of the matching private key could have produced it. Case closed.`):
+      finish(false,"WRONG ACCUSATION",`v did not actually equal r for ${s.name}. You accused an innocent person while the real author walked free${C.outsider?" — and it was none of your suspects":""}.`),700);}
+  s.out=true;
+  const wrong=!C.outsider&&C.ci===i;
+  render();
+  if(C.sus.every(x=>x.out)){C.over=true;render();
+    setTimeout(()=>C.outsider?finish(true,"NONE OF THE SUSPECTS","Every key failed to verify, and rightly so: the threat was signed by someone who isn’t on your board. You didn’t blame the wrong person — good detective work."):
+      finish(false,"THEY GOT AWAY",`You crossed off ${C.sus[C.ci].name}, but their key was the one that verifies. You dismissed the real author after misreading the comparison, and the culprit escaped.`),700);}}
+function finish(win,title,text){
+  const who=C.outsider?"An unlisted outsider":C.sus[C.ci].name;
+  const review=win?"":`<div class="review"><h4>Evidence review · complete calculations</h4><p class="lead">Compare your reasoning with every public key. The valid signer is the row where v = r.</p>${C.sus.map((sus,i)=>{
+    const t=verifyTrace(sus.Q,C.e,C.sig);return `<details ${i===C.ci&&!C.outsider?"open":""}><summary>${sus.name} · ${t.ok?"VALID SIGNATURE":"does not verify"}</summary><div class="math">Q = ${f(sus.Q)}<br>w = s⁻¹ mod n = ${C.sig.s}⁻¹ mod ${N} = <b>${t.w}</b><br>u1 = e·w mod n = ${C.e}·${t.w} mod ${N} = <b>${t.u1}</b><br>u2 = r·w mod n = ${C.sig.r}·${t.w} mod ${N} = <b>${t.u2}</b><br>u1·G = ${f(t.P1)}<br>u2·Q = ${f(t.P2)}<br>X = u1·G + u2·Q = <b>${f(t.X)}</b><br>v = ${t.v===null?"undefined":t.v}; r = ${C.sig.r} → <b>${t.ok?"v = r":"v ≠ r"}</b></div></details>`;}).join("")}${C.outsider?`<div class="step bad"><b>Why none matched:</b> the signature was created with a private key whose public key was not pinned to this board. Every listed verification correctly produced v ≠ r.</div>`:""}</div>`;
+  $("end").className="ovl on "+(win?"win":"lose");
+  $("endBox").innerHTML=`<h3>${win?"✓ ":"✗ "}${title}</h3><p class="lead">${text}</p>
+   <div class="step ${win?"good":"bad"}"><b>The truth:</b> the signer was <b>${who}</b>.<br>Signature r = ${C.sig.r}, s = ${C.sig.s}.</div>
+   ${review}
+   <div class="row"><button id="again">Open a new case</button><button class="ghost" id="rev">Back to the board</button></div>`;
+  $("again").onclick=start;$("rev").onclick=()=>$("end").classList.remove("on");}
+async function start(){$("end").classList.remove("on");closeLab();hintsUsed=0;await newCase();render();}
+function chooseMode(mode){MODE=mode;$("mode").classList.remove("on");start();}
+function showModes(){$("mode").classList.add("on");}
+document.querySelectorAll("[data-mode]").forEach(b=>b.onclick=()=>chooseMode(b.dataset.mode));
+$("newBtn").onclick=()=>MODE?start():showModes();$("modeBtn").onclick=showModes;
+const PAGES=[
+"The letter arrived at 6:41 a.m., slipped under the door of Director Adrian Wren’s office.\n\nNo stamp. No sender. Four lines of ink and a signature that no one in the building could explain.",
+"Five people had access to the building that night. Each one has a public key on file with the registry.\n\nOnly one of them holds the private key that could have signed this letter. The others are just names with alibis.",
+"You can’t read minds. You can’t lift fingerprints from a number.\n\nBut a valid ECDSA signature can only be produced by the holder of the matching private key. Run each suspect’s public key against the signature, and the truth will show itself.",
+"Be careful, Detective. Clear the guilty by mistake and they walk. Accuse the wrong name and the real author keeps writing.\n\nAnd sometimes, the one who signed isn’t on your board at all.\n\nHow do you want to work this case?"];
+let pg=0,tmr=null,full=false;
+function typePage(){
+  const t=PAGES[pg],tx=$("tx"),nb=$("nextP");let i=0;full=false;clearTimeout(tmr);
+  $("folio").textContent=`FILE 047 · PAGE ${pg+1} OF ${PAGES.length}`;tx.textContent="";nb.disabled=true;
+  nb.textContent=pg===PAGES.length-1?"Choose investigation ▸":"Next ▸";
+  const done=()=>{full=true;tx.textContent=t;nb.disabled=false;nb.focus();};
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches)return done();
+  (function tick(){ if(full)return; i++;tx.textContent=t.slice(0,i);
+    if(i>=t.length)return done();
+    const ch=t[i-1];tmr=setTimeout(tick,/[.!?]/.test(ch)?330:/[,:—]/.test(ch)?170:ch==="\n"?220:28);})();}
+function showIntro(){pg=0;$("intro").classList.add("on");typePage();}
+function endIntro(){clearTimeout(tmr);$("intro").classList.remove("on");showModes();}
+$("sheet").onclick=e=>{if(!full&&!e.target.closest("button")){full=true;clearTimeout(tmr);$("tx").textContent=PAGES[pg];$("nextP").disabled=false;}};
+$("nextP").onclick=()=>{pg<PAGES.length-1?(pg++,typePage()):endIntro();};
+$("skip").onclick=endIntro;
+let gameStarted=false;
+window.startEmbeddedGame=()=>{if(gameStarted)return;gameStarted=true;showIntro();};
+if(PAGE_PARAMS.get("autostart")!=="0")window.startEmbeddedGame();
+</script>
+</body>
+</html>

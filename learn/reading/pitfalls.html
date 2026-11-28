@@ -1,0 +1,57 @@
+<p>ECDSA is secure when every detail is right. Almost every real-world break of ECDSA came
+from an implementation mistake, not from the math. These are the classic ones.</p>
+
+<h2>1. Reusing the nonce k</h2>
+<p>If the same k signs two different messages, both signatures share the same R, so the same r.
+Writing the two signing equations and subtracting them leaves only one unknown:</p>
+<p align="center"><img src="img/p4_nonce_k.png"></p>
+<p>and once k is known, the private key follows from the first signature:</p>
+<p align="center"><img src="img/p4_nonce_d.png"></p>
+<p><b>Toy-17 example:</b> d = 7, k = 10 (so r = 7), hashes e<sub>1</sub> = 26 and e<sub>2</sub> = 13
+give s<sub>1</sub> = 17 and s<sub>2</sub> = 10. An attacker computes
+k = 13 / 7 = 13·11 = 10 mod 19, then d = (17·10 &minus; 26) / 7 = 11·11 = 7 mod 19.
+The private key is recovered from two public signatures. Try it on the <b>Attack Demo</b> page.</p>
+<p class="warn"><b>Real incident:</b> in 2010 the fail0verflow group showed that Sony signed
+PlayStation 3 software with the same k every time. Two signed files were enough to compute
+Sony's private signing key, so anyone could sign their own code as Sony.</p>
+
+<h2>2. Weak or biased randomness</h2>
+<p>k does not have to repeat to be dangerous. If an attacker can predict k, one signature gives
+away d. If k is only slightly biased (for example its top few bits are often zero), collecting
+many signatures lets lattice techniques (the "hidden number problem") recover d.</p>
+<p>In 2013 a flaw in Android's random number generator made some Bitcoin wallet apps produce
+repeated k values, and funds were stolen from those wallets.</p>
+<p class="note"><b>Fix weak or biased nonce generation: use RFC 6979.</b> It derives k
+deterministically from the private key and message hash with HMAC. The same key and message
+produce the same k; for different messages, the HMAC-derived values are computationally
+unpredictable. No random number generator is needed at signing time. Our Sign page uses RFC 6979
+by default.</p>
+
+<h2>3. Code that is not constant-time</h2>
+<p>If the time taken to compute k·G depends on the bits of k (for example, an extra point
+addition for every 1 bit, or a shorter loop when k has leading zeros), an attacker who can
+time many signatures learns partial information about each k. That partial information is
+exactly the bias from pitfall 2, and it leads to the same lattice attack. Real examples include
+the Minerva and TPM-FAIL attacks (2019) on smart cards and TPM chips.</p>
+<p class="warn"><b>Our app is not constant-time.</b> Python integers and our double-and-add loop
+take different amounts of time for different scalars. That is fine for teaching on your own
+computer and is exactly why educational code must never be used to protect real keys.</p>
+
+<h2>4. Signature malleability</h2>
+<p>Because the verifier only looks at the x-coordinate of X, and the points R and &minus;R share
+the same x-coordinate, flipping the sign of s gives a second valid signature:</p>
+<p align="center"><img src="img/p4_malleable.png"></p>
+<p>Anyone can do this without the private key. It doesn't let an attacker sign new messages,
+but it breaks systems that use the signature bytes as an identifier. Bitcoin had this problem
+with transaction IDs, which is why Bitcoin nodes now only relay transactions with "low-s"
+signatures (s &le; n/2).</p>
+
+<h2>5. Skipping input checks</h2>
+<ul>
+<li><b>r, s out of range:</b> always require 1 &le; r, s &le; n&minus;1. Java's 2022 "psychic signatures"
+bug (CVE-2022-21449) accepted r = s = 0 for any message.</li>
+<li><b>Invalid public key:</b> check that Q is on the curve and is not the point at infinity before
+using it.</li>
+<li><b>Hash truncation:</b> signer and verifier must truncate the hash to the bit length of n in
+exactly the same way, or valid signatures fail and interoperability breaks.</li>
+</ul>
