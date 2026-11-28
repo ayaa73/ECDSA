@@ -1,0 +1,196 @@
+"""Shared application state (owner: P2).
+
+One ``AppState`` object is created at start-up and handed to every page. Pages
+read the current curve / keys / last signature from it and listen to its
+signals, so they never need to know about each other.
+
+Contract attributes:  .curve  .priv  .pub  .last_sig  .last_msg  .last_hash
+Contract signals:     curveChanged(Curve)  keysChanged()  signatureChanged()
+                      pageRequested(str)
+
+How to change the state:
+
+    state.set_curve(curve)            # or: state.curve = curve
+    state.set_keys(priv, pub)         # sets both, emits keysChanged once
+    state.set_signature(sig, msg, "sha512")  # also the hash it used; one signatureChanged
+    state.go_to("Keys")               # ask the main window to show another page
+
+Plain assignment to .priv / .pub / .last_sig / .last_msg also works, but then
+the caller must emit the matching signal itself.
+
+The curve starts at toy-17. The main window keeps the window size and the
+"show Start here at startup" choice in the settings object ``state.settings``.
+
+``state.curve`` is None only while P1's curve registry does not exist yet.
+"""
+from __future__ import annotations
+
+import sys
+import traceback
+from typing import TYPE_CHECKING
+
+from PySide6.QtCore import QObject, QSettings, Signal
+
+from ecdsa_edu.core.types import PrivateKey, PublicKey, Signature
+
+if TYPE_CHECKING:
+    from ecdsa_edu.core.curve import Curve
+
+__all__ = ["AppState", "DEFAULT_CURVE", "DEFAULT_HASH", "PAGE_TITLES"]
+
+DEFAULT_CURVE = "toy-17"  # small numbers first: best for teaching
+DEFAULT_HASH = "sha512"  # used by Sign and preselected by Verify
+
+# The page titles go_to() understands (the sidebar entries in main_window.py).
+PAGE_TITLES = (
+    "History", "Start here", "Overview", "Keys", "Sign", "Verify", "Curve Explorer",
+    "Learn ECDSA", "Attack Demo", "Verification Game", "Pirate Adventure", "Key Collision",
+)
+
+# Names of the remembered settings.
+SETTING_CURVE = "state/curve"
+
+
+def _builtin_curves() -> dict[str, Curve]:
+    """P1's CURVES registry, or {} while it is still a stub."""
+    try:
+        from ecdsa_edu.core.curves_registry import CURVES
+    except ImportError:  # module or name not there yet
+        return {}
+    except Exception:  # the registry exists but is broken: report it, keep the app alive
+        traceback.print_exc(file=sys.stderr)
+        return {}
+    return dict(CURVES)
+
+
+def make_settings() -> QSettings:
+    """The application's settings store: a small .ini file in the user's settings folder."""
+    return QSettings(QSettings.Format.IniFormat, QSettings.Scope.UserScope, "ECDSA Lab", "ECDSA Lab")
+
+
+class AppState(QObject):
+    """Single source of truth shared by all pages."""
+
+    curveChanged = Signal(object)  # carries the new Curve
+    keysChanged = Signal()
+    signatureChanged = Signal()
+    verificationCompleted = Signal(bool)
+    pageRequested = Signal(str)  # a page title, see PAGE_TITLES
+    # Extra (not in the contract): the list of selectable curves changed.
+    curvesListChanged = Signal()
+
+    def __init__(
+        self,
+        curve: Curve | None = None,
+        parent: QObject | None = None,
+        settings: QSettings | None = None,
+    ) -> None:
+        super().__init__(parent)
+        if settings is None:
+            settings = make_settings()
+        self.settings = settings
+        self._builtin: dict[str, Curve] = _builtin_curves()
+        self.custom_curves: dict[str, Curve] = {}
+
+        # Start each run with the teaching curve unless one was explicitly supplied.
+        if curve is None:
+            curve = self._builtin.get(DEFAULT_CURVE) or next(iter(self._builtin.values()), None)
+        self._curve: Curve | None = curve
+        if curve is not None and curve.name not in self._builtin:
+            self.custom_curves[curve.name] = curve
+
+        self.priv: PrivateKey | None = None
+        self.pub: PublicKey | None = None
+        self.last_sig: Signature | None = None
+        self.last_msg: bytes | None = None
+        self.last_hash: str = DEFAULT_HASH  # the hash the last signature was made with
+        # In words, what the last curve change cleared ("keys and signature"),
+        # so the main window can tell the user. Empty when nothing was cleared.
+        self.cleared_by_last_curve_change = ""
+
+    # ------------------------------------------------------------ curve
+    @property
+    def curve(self) -> Curve | None:
+        return self._curve
+
+    @curve.setter
+    def curve(self, curve: Curve) -> None:
+        self.set_curve(curve)
+
+    def set_curve(self, curve: Curve) -> None:
+        """Switch curve. Keys and signatures belong to the old curve, so they are cleared."""
+        if curve is None:
+            raise ValueError("a curve is required")
+        if curve == self._curve:
+            return
+        had_keys = self.priv is not None or self.pub is not None
+        had_sig = self.last_sig is not None or self.last_msg is not None
+
+        # Describe in words what is about to be cleared.
+        if had_keys and had_sig:
+            self.cleared_by_last_curve_change = "keys and signature"
+        elif had_keys:
+            self.cleared_by_last_curve_change = "keys"
+        elif had_sig:
+            self.cleared_by_last_curve_change = "signature"
+        else:
+            self.cleared_by_last_curve_change = ""
+
+        # Update everything first, then notify: listeners always see a consistent state.
+        self._curve = curve
+        self.priv = self.pub = None
+        self.last_sig = self.last_msg = None
+
+        self.curveChanged.emit(curve)
+        if had_keys:
+            self.keysChanged.emit()
+        if had_sig:
+            self.signatureChanged.emit()
+
+    def available_curves(self) -> dict[str, Curve]:
+        """Built-in curves followed by the user's custom curves, by name."""
+        result = dict(self._builtin)
+        result.update(self.custom_curves)
+        return result
+
+    def register_curve(self, curve: Curve) -> None:
+        """Make a custom curve selectable in the curve list."""
+        builtin = self._builtin.get(curve.name)
+        if builtin is not None:
+            if curve != builtin:
+                raise ValueError(f"'{curve.name}' is the name of a built-in curve")
+            return
+        if self.custom_curves.get(curve.name) == curve:
+            return
+        self.custom_curves[curve.name] = curve
+        self.curvesListChanged.emit()
+
+    # ------------------------------------------------------- navigation
+    def go_to(self, page_title: str) -> None:
+        """Ask the main window to show another page, e.g. go_to("Keys").
+
+        The title must be one of PAGE_TITLES. Pages use this for buttons such as
+        "You need a key first -> Go to Keys".
+        """
+        if page_title not in PAGE_TITLES:
+            raise ValueError(f"unknown page {page_title!r}; use one of: {', '.join(PAGE_TITLES)}")
+        self.pageRequested.emit(page_title)
+
+    # ------------------------------------------------------------- keys
+    def set_keys(self, priv: PrivateKey | None, pub: PublicKey | None) -> None:
+        """Set the active keys. ``priv`` may be None (public key only)."""
+        for key in (priv, pub):
+            if key is not None and key.curve != self._curve:
+                raise ValueError("this key belongs to a different curve than the active one")
+        self.priv, self.pub = priv, pub
+        self.keysChanged.emit()
+
+    def clear_keys(self) -> None:
+        self.set_keys(None, None)
+
+    # -------------------------------------------------------- signature
+    def set_signature(self, sig: Signature | None, msg: bytes | None, hash_name: str | None = None) -> None:
+        """Remember the most recent signature, the message it signs and the hash it used."""
+        self.last_sig, self.last_msg = sig, msg
+        self.last_hash = hash_name or DEFAULT_HASH
+        self.signatureChanged.emit()

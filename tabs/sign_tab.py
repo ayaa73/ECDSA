@@ -1,0 +1,526 @@
+"""Practical ECDSA signing page (owner: P3).
+
+Students use this page to sign text or a file. The page never
+implements cryptographic arithmetic: it calls the P3 core functions, displays
+their result, and hands their recorded steps to the shared trace widget.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction, QFont, QKeySequence, QPainter, QPen
+from PySide6.QtWidgets import (
+    QButtonGroup,
+    QComboBox,
+    QFileDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QPlainTextEdit,
+    QPushButton,
+    QRadioButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
+
+from ecdsa_edu.core.sig_encoding import sig_to_der, sig_to_hex
+from ecdsa_edu.core.sign import sign, sign_file
+from ecdsa_edu.core.trace import TraceStep
+from ecdsa_edu.core.types import PrivateKey, Signature
+from ecdsa_edu.gui.app_state import DEFAULT_HASH
+from ecdsa_edu.gui.tabs.keys_tab import set_message
+from ecdsa_edu.gui.tabs.p4_widgets import go_to, make_trace_view
+from ecdsa_edu.gui.widgets.bigint_field import BigIntField
+from ecdsa_edu.gui.widgets.file_limits import FILE_LIMIT_TEXT, file_size_problem, format_size
+from ecdsa_edu.gui.widgets.hex_field import HexOutputField
+from ecdsa_edu.gui.widgets.worker import run_in_background
+
+__all__ = ["SignTab"]
+
+
+class _ModernComboBox(QComboBox):
+    """Draw a small clean chevron instead of the platform's dated arrow."""
+
+    def paintEvent(self, event) -> None:  # noqa: N802 (Qt naming)
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(self.palette().text().color(), 1.6)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        centre_x = self.width() - 20
+        centre_y = self.height() // 2
+        painter.drawLine(centre_x - 4, centre_y - 2, centre_x, centre_y + 2)
+        painter.drawLine(centre_x, centre_y + 2, centre_x + 4, centre_y - 2)
+
+    def wheelEvent(self, event) -> None:  # noqa: N802 (Qt naming)
+        """Ignore wheel selection while closed so page scrolling stays safe."""
+        if self.view().isVisible():
+            super().wheelEvent(event)
+        else:
+            event.ignore()
+
+
+def _sign_request(
+    priv: PrivateKey,
+    message: bytes,
+    file_path: str | None,
+    hash_name: str,
+    nonce_mode: str,
+    manual_k: int | None,
+) -> tuple[Signature, list, bytes | None]:
+    """Run one core signing request away from the GUI thread."""
+    trace: list = []
+    if file_path is not None:
+        # sign_file hashes in chunks. Its fixed contract supports deterministic
+        # and random modes, but intentionally has no manual-k argument.
+        sig = sign_file(
+            priv,
+            file_path,
+            hash_name,
+            deterministic=nonce_mode != "random",
+            trace=trace,
+        )
+        remembered_message = None
+    else:
+        sig = sign(
+            priv,
+            message,
+            hash_name,
+            k=manual_k if nonce_mode == "manual" else None,
+            deterministic=nonce_mode != "random",
+            trace=trace,
+        )
+        remembered_message = message
+    return sig, trace, remembered_message
+
+
+def _hide_private_values(trace: list) -> list[TraceStep]:
+    """Copy a trace while replacing any accidentally recorded private key."""
+    cleaned: list[TraceStep] = []
+    for step in trace:
+        values = {
+            str(name): "hidden" if str(name).strip().lower() == "d" else str(value)
+            for name, value in step.values.items()
+        }
+        cleaned.append(TraceStep(step.title, step.formula, values))
+    return cleaned
+
+
+class SignTab(QWidget):
+    """Sign text or a file using the private key stored in ``AppState``."""
+
+    HELP = (
+        "Enter a message (or choose a file) and press Sign to create an ECDSA signature. "
+        "Advanced options let you choose the hash and how the nonce k is picked; the safe "
+        "RFC 6979 nonce is the default. The result shows r and s, the encoded signature "
+        "(fixed-width hex or DER) and every step of the calculation. "
+        "Never reuse a manually chosen nonce with a real private key."
+    )
+
+    def __init__(self, state, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("signTab")
+        self.state = state
+        self._curve = state.curve
+        self._file_path: str | None = None
+        self._busy = False
+        self._job_priv: PrivateKey | None = None
+        self._job_hash = DEFAULT_HASH
+        self._last_signature: Signature | None = None
+        self._last_trace: list[TraceStep] = []
+
+        heading = QLabel("Sign a message")
+        heading.setObjectName("signHeading")
+        intro = QLabel(
+            "Alice uses her private key to sign a message. Anyone with her public key can then check "
+            "that the message is authentic and unchanged."
+        )
+        intro.setObjectName("signIntro")
+        intro.setWordWrap(True)
+
+        # The empty state is deliberately actionable instead of being a dead warning.
+        self.no_key_box = QGroupBox("You need a private key first")
+        self.no_key_box.setObjectName("emptyCard")
+        no_key_layout = QHBoxLayout(self.no_key_box)
+        no_key_text = QLabel("Create or load a private key before signing.")
+        self.go_to_keys_button = QPushButton("Go to Keys")
+        no_key_layout.addWidget(no_key_text)
+        no_key_layout.addStretch(1)
+        no_key_layout.addWidget(self.go_to_keys_button)
+
+        self.message_edit = QPlainTextEdit()
+        self.message_edit.setObjectName("signMessageInput")
+        self.message_edit.setAccessibleName("Message to sign")
+        self.message_edit.setPlaceholderText("Type the message Alice wants to sign")
+        self.message_edit.setPlainText("Hello, ECDSA!")
+        self.message_edit.setMinimumHeight(90)
+
+        self.file_label = QLabel("Using the typed message")
+        self.file_label.setWordWrap(True)
+        self.choose_file_button = QPushButton("Choose file…")
+        self.file_limit_label = QLabel(FILE_LIMIT_TEXT)
+        self.file_limit_label.setProperty("muted", True)
+        self.use_text_button = QPushButton("Use typed message")
+        self.use_text_button.setEnabled(False)
+        file_row = QHBoxLayout()
+        file_row.addWidget(self.choose_file_button)
+        file_row.addWidget(self.file_limit_label)
+        file_row.addWidget(self.use_text_button)
+        file_row.addWidget(self.file_label, 1)
+
+        self.hash_combo = _ModernComboBox()
+        self.hash_combo.setObjectName("modernCombo")
+        for label, name in (
+            ("SHA-512 (recommended)", "sha512"),
+            ("SHA-384", "sha384"),
+            ("SHA-256", "sha256"),
+            ("SHA-1 (insecure; comparison only)", "sha1"),
+        ):
+            self.hash_combo.addItem(label, name)
+        self.hash_combo.setCurrentIndex(self.hash_combo.findData(DEFAULT_HASH))
+
+        self.deterministic_radio = QRadioButton("Deterministic (RFC 6979)")
+        self.random_radio = QRadioButton("Random")
+        self.manual_radio = QRadioButton("Manual k")
+        self.deterministic_radio.setChecked(True)
+        self.nonce_group = QButtonGroup(self)
+        self.nonce_group.addButton(self.deterministic_radio)
+        self.nonce_group.addButton(self.random_radio)
+        self.nonce_group.addButton(self.manual_radio)
+        nonce_row = QHBoxLayout()
+        nonce_row.addWidget(self.deterministic_radio)
+        nonce_row.addWidget(self.random_radio)
+        nonce_row.addWidget(self.manual_radio)
+        nonce_row.addStretch(1)
+
+        self.manual_k_field = BigIntField(minimum=1)
+        self.manual_k_field.setAccessibleName("Manual nonce k")
+        self.manual_k_field.setPlaceholderText("k from 1 to n - 1")
+        self.manual_warning = QLabel("⚠ Never reuse k. Reuse can reveal the private key.")
+        self.manual_warning.setProperty("kind", "error")
+        self.manual_warning.setWordWrap(True)
+        manual_row = QHBoxLayout()
+        manual_row.addWidget(QLabel("k ="))
+        manual_row.addWidget(self.manual_k_field, 1)
+        manual_row.addWidget(self.manual_warning, 2)
+        self.manual_row_widget = QWidget()
+        self.manual_row_widget.setLayout(manual_row)
+        self.manual_row_widget.hide()
+
+        self.advanced_options = QGroupBox("Advanced options")
+        self.advanced_options.setObjectName("advancedCard")
+        advanced_layout = QVBoxLayout(self.advanced_options)
+        advanced_layout.addLayout(file_row)
+        hash_form = QFormLayout()
+        hash_form.addRow("Hash", self.hash_combo)
+        advanced_layout.addLayout(hash_form)
+        advanced_layout.addLayout(nonce_row)
+        advanced_layout.addWidget(self.manual_row_widget)
+
+        self.sign_button = QPushButton("Sign")
+        self.sign_button.setProperty("primary", True)
+        self.sign_button.setProperty("big", True)
+        self.sign_button.setMinimumHeight(44)
+        self.status = QLabel()
+        self.status.setWordWrap(True)
+
+        self.result_box = QGroupBox("Signature")
+        self.result_box.setObjectName("resultCard")
+        result_layout = QFormLayout(self.result_box)
+        self.r_output = HexOutputField(lines=1, save_name="signature-r", show_save=False)
+        self.s_output = HexOutputField(lines=1, save_name="signature-s", show_save=False)
+        self.r_output.setAccessibleName("Signature value r")
+        self.s_output.setAccessibleName("Signature value s")
+        result_layout.addRow("r", self.r_output)
+        result_layout.addRow("s", self.s_output)
+
+        encoding_heading = QLabel("Signature encoding")
+        encoding_heading.setObjectName("encodingHeading")
+        self.encoding_panel = QGroupBox()
+        self.encoding_panel.setObjectName("encodingCard")
+        encoding_layout = QVBoxLayout(self.encoding_panel)
+        encoding_layout.setContentsMargins(14, 9, 14, 9)
+        encoding_layout.setSpacing(5)
+        encoding_help = QLabel(
+            "Fixed-width hex places padded r followed by padded s. DER is the standard binary "
+            "format used by cryptography tools and saved certificates."
+        )
+        encoding_help.setWordWrap(True)
+        self.hex_encoding_radio = QRadioButton("Fixed-width hex: r followed by s")
+        self.der_encoding_radio = QRadioButton("DER: standard ASN.1 format")
+        self.hex_encoding_radio.setChecked(True)
+        self.encoding_group = QButtonGroup(self)
+        self.encoding_group.addButton(self.hex_encoding_radio)
+        self.encoding_group.addButton(self.der_encoding_radio)
+        encoding_choices = QHBoxLayout()
+        encoding_choices.addWidget(self.hex_encoding_radio)
+        encoding_choices.addWidget(self.der_encoding_radio)
+        encoding_choices.addStretch(1)
+        self.encoding_output = HexOutputField(lines=2, save_name="signature")
+        self.encoding_output.setAccessibleName("Encoded signature")
+        self.encoding_output.setMinimumHeight(76)
+        encoding_layout.addWidget(encoding_help)
+        encoding_layout.addLayout(encoding_choices)
+        encoding_layout.addWidget(QLabel("Encoded signature"))
+        encoding_layout.addWidget(self.encoding_output)
+        result_layout.addRow(encoding_heading)
+        result_layout.addRow(self.encoding_panel)
+        self.result_box.hide()
+
+        self.trace_toggle = QPushButton("Show calculations")
+        self.trace_toggle.setCheckable(True)
+        self.trace_toggle.hide()
+        self.trace_box = QGroupBox("How was this calculated?")
+        self.trace_box.setObjectName("traceCard")
+        trace_layout = QVBoxLayout(self.trace_box)
+        self.trace_view = make_trace_view(self)
+        trace_layout.addWidget(self.trace_view)
+        self.trace_box.hide()
+
+        # This page is tall. Keeping one outer scroll area
+        # lets every output and trace control stay at a readable height.
+        page_content = QWidget()
+        page_content.setObjectName("signPage")
+        self.page_content = page_content
+        content_layout = QVBoxLayout(page_content)
+        content_layout.addWidget(heading)
+        content_layout.addWidget(intro)
+        content_layout.addWidget(self.no_key_box)
+        content_layout.addWidget(QLabel("Message"))
+        content_layout.addWidget(self.message_edit)
+        content_layout.addWidget(self.advanced_options)
+        content_layout.addWidget(self.sign_button)
+        content_layout.addWidget(self.status)
+        content_layout.addWidget(self.result_box)
+        content_layout.addWidget(self.trace_toggle, alignment=Qt.AlignmentFlag.AlignLeft)
+        content_layout.addWidget(self.trace_box)
+        content_layout.addStretch(1)
+
+        self.page_scroll = QScrollArea()
+        self.page_scroll.setWidgetResizable(True)
+        self.page_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self.page_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.page_scroll.setWidget(page_content)
+        if hasattr(self.trace_view, "use_page_scrolling"):
+            self.trace_view.use_page_scrolling(self.page_scroll)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.page_scroll)
+
+        self.go_to_keys_button.clicked.connect(lambda: go_to(self, self.state, "Keys"))
+        self.choose_file_button.clicked.connect(self.choose_file)
+        self.use_text_button.clicked.connect(self.use_typed_message)
+        self.sign_button.clicked.connect(self.sign_current_input)
+        self.trace_toggle.toggled.connect(lambda on: self._toggle_trace(on))
+        self.manual_radio.toggled.connect(self.manual_row_widget.setVisible)
+        self.encoding_group.buttonClicked.connect(self._show_encoding)
+        self.message_edit.textChanged.connect(self._input_changed)
+        self.hash_combo.currentIndexChanged.connect(self._input_changed)
+        self.nonce_group.buttonClicked.connect(self._input_changed)
+        self.manual_k_field.textChanged.connect(self._input_changed)
+        state.keysChanged.connect(self._refresh_key_state)
+
+        self.save_action = QAction("Save signature", self)
+        self.save_action.setShortcut(QKeySequence.StandardKey.Save)
+        self.save_action.setEnabled(self.encoding_output.save_button.isEnabled())
+        self.save_action.triggered.connect(self.encoding_output.save_dialog)
+        self.addAction(self.save_action)
+
+        self._update_curve_controls()
+        self._refresh_key_state()
+        self._apply_visual_style()
+
+    # ---------------------------------------------------------------- input
+    def choose_file(self) -> None:
+        """Choose a file; signing later uses ``sign_file`` and chunked hashing."""
+        path, _ = QFileDialog.getOpenFileName(self, "Choose a file to sign", "", "All files (*)")
+        if not path:
+            return
+        problem = file_size_problem(path)
+        if problem:  # keep whatever was selected before
+            set_message(self.status, f"{Path(path).name}: {problem}", "error")
+            return
+        self._file_path = path
+        self.file_label.setText(f"File: {Path(path).name} ({format_size(Path(path).stat().st_size)})")
+        self.file_label.setToolTip(path)
+        self.message_edit.setEnabled(False)
+        self.use_text_button.setEnabled(True)
+        # The contract for sign_file has no manual-k parameter. Keep the user
+        # on a mode that the core supports rather than secretly reading the file.
+        self.manual_radio.setEnabled(False)
+        if self.manual_radio.isChecked():
+            self.deterministic_radio.setChecked(True)
+        self._input_changed()
+
+    def use_typed_message(self) -> None:
+        """Leave file mode and return to the message box."""
+        self._file_path = None
+        self.file_label.setText("Using the typed message")
+        self.file_label.setToolTip("")
+        self.message_edit.setEnabled(True)
+        self.use_text_button.setEnabled(False)
+        self.manual_radio.setEnabled(True)
+        self._input_changed()
+
+    def _nonce_mode(self) -> str:
+        if self.random_radio.isChecked():
+            return "random"
+        if self.manual_radio.isChecked():
+            return "manual"
+        return "deterministic"
+
+    def _input_changed(self, *_: Any) -> None:
+        """A previous result no longer describes the visible input."""
+        if self._last_signature is not None:
+            self._clear_result()
+            if self.state.last_sig is not None:
+                self.state.set_signature(None, None)
+
+    # --------------------------------------------------------------- signing
+    def sign_current_input(self) -> None:
+        """Validate the page and send the core signing call to a worker."""
+        if self._busy:
+            return
+        priv = self.state.priv
+        if priv is None:
+            set_message(self.status, "Create or load a private key first.", "warning")
+            return
+
+        mode = self._nonce_mode()
+        manual_k = self.manual_k_field.value() if mode == "manual" else None
+        if mode == "manual" and manual_k is None:
+            reason = self.manual_k_field.error() or "enter k first"
+            set_message(self.status, f"Manual k is not valid: {reason}.", "error")
+            return
+        if self._file_path is not None and mode == "manual":
+            set_message(self.status, "Manual k is available for text messages only.", "warning")
+            return
+
+        message = self.message_edit.toPlainText().encode("utf-8")
+        hash_name = str(self.hash_combo.currentData() or DEFAULT_HASH)
+        self._busy = True
+        self._job_priv = priv
+        self._job_hash = hash_name
+        self.sign_button.setEnabled(False)
+        set_message(self.status, "Signing…", "info")
+        run_in_background(
+            _sign_request,
+            priv,
+            message,
+            self._file_path,
+            hash_name,
+            mode,
+            manual_k,
+            on_done=self._sign_done,
+            on_error=self._sign_failed,
+        )
+
+    def _sign_done(self, result: tuple[Signature, list, bytes | None]) -> None:
+        """Display a worker result, unless the key changed while it ran."""
+        self._busy = False
+        self.sign_button.setEnabled(self.state.priv is not None)
+        sig, trace, remembered_message = result
+        if self.state.priv is not self._job_priv or self.state.priv is None:
+            set_message(self.status, "The key changed while signing. Please sign again.", "warning")
+            return
+
+        self._last_signature = sig
+        self._last_trace = _hide_private_values(trace)
+        self.state.set_signature(sig, remembered_message, self._job_hash)
+        self._show_result()
+        target = f"file {Path(self._file_path).name}" if self._file_path else "message"
+        hash_name = self._job_hash.upper().replace("SHA", "SHA-")
+        note = f"Signature created for the {target} with {hash_name}."
+        if self._job_hash == "sha1":
+            note += " SHA-1 is insecure and is included only for comparison."
+        set_message(self.status, note, "ok")
+
+    def _sign_failed(self, exc: Exception) -> bool:
+        self._busy = False
+        self.sign_button.setEnabled(self.state.priv is not None)
+        set_message(self.status, str(exc) or "The signature could not be created.", "error")
+        return True  # this page has already shown the friendly error
+
+    # --------------------------------------------------------------- display
+    def _show_result(self) -> None:
+        sig = self._last_signature
+        if sig is None or self._curve is None:
+            return
+        size = (self._curve.n.bit_length() + 7) // 8
+        self.r_output.set_hex(sig.r.to_bytes(size, "big").hex())
+        self.s_output.set_hex(sig.s.to_bytes(size, "big").hex())
+        self._show_encoding()
+        self.trace_view.set_trace(self._last_trace)
+        self.result_box.show()
+        self.trace_toggle.show()
+        self._toggle_trace(self.trace_toggle.isChecked())
+
+    def _toggle_trace(self, visible: bool) -> None:
+        """Keep the long calculation below the signature until requested."""
+        self.trace_toggle.setText("Hide calculations" if visible else "Show calculations")
+        self.trace_box.setVisible(visible and self._last_signature is not None)
+
+    def _show_encoding(self, *_: Any) -> None:
+        sig = self._last_signature
+        if sig is None or self._curve is None:
+            self.encoding_output.clear()
+            self.save_action.setEnabled(False)
+            return
+        if self.der_encoding_radio.isChecked():
+            self.encoding_output.set_bytes(sig_to_der(sig))
+        else:
+            self.encoding_output.set_hex(sig_to_hex(sig, self._curve))
+        self.save_action.setEnabled(self.encoding_output.save_button.isEnabled())
+
+    def _clear_result(self) -> None:
+        self._last_signature = None
+        self._last_trace = []
+        self.r_output.clear()
+        self.s_output.clear()
+        self.encoding_output.clear()
+        self.save_action.setEnabled(False)
+        self.trace_view.set_trace([])
+        self.trace_toggle.setChecked(False)
+        self.trace_toggle.hide()
+        self.result_box.hide()
+        self.trace_box.hide()
+
+    def _refresh_key_state(self) -> None:
+        has_key = self.state.priv is not None
+        self.no_key_box.setVisible(not has_key)
+        self.sign_button.setEnabled(has_key and not self._busy)
+        if not has_key:
+            self._clear_result()
+
+    def _update_curve_controls(self) -> None:
+        if self._curve is None:
+            return
+        self.manual_k_field.set_range(1, self._curve.n - 1)
+        self.manual_k_field.set_display_hex(self._curve.n.bit_length() > 64)
+
+    def _apply_visual_style(self) -> None:
+        """Set the teaching font on text controls without changing numbers."""
+        teaching_font = QFont("Georgia", 10)
+        self.setFont(teaching_font)
+        self.message_edit.setFont(teaching_font)
+        for widget_type in (QLabel, QPushButton, QRadioButton, QComboBox, QGroupBox):
+            for widget in self.findChildren(widget_type):
+                if widget is not self.trace_view and not self.trace_view.isAncestorOf(widget):
+                    widget.setFont(teaching_font)
+
+    # ------------------------------------------------------------- tab API
+    def set_curve(self, curve) -> None:
+        """Clear results that belonged to the previous curve."""
+        changed = self._curve is not None and curve != self._curve
+        self._curve = curve
+        self._update_curve_controls()
+        self._clear_result()
+        self._refresh_key_state()
+        if changed:
+            set_message(self.status, "The curve changed, so the previous signature was cleared.", "info")
+
