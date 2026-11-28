@@ -131,3 +131,32 @@ def test_full_run_sha512_text_and_file_valid_then_tampered(qtbot, tmp_path, monk
         document.write_bytes(document.read_bytes() + b"!")  # change the file
         verify_tab.run_verify()
         qtbot.waitUntil(lambda: not verify_tab._busy and verify_tab.banner.headline == "INVALID", timeout=WAIT)
+
+
+def test_selecting_another_file_clears_the_verdict_and_trace(qtbot, tmp_path, monkeypatch):
+    from ecdsa_edu.core.sign import sign_file
+
+    state = _state("P-256")
+    original = tmp_path / "original.txt"
+    original.write_bytes(b"Signed document")
+    other = tmp_path / "other.txt"
+    other.write_bytes(b"Different document")
+    state.set_signature(sign_file(state.priv, original, "sha512"), None, "sha512")
+    tab = VerifyTab(state)
+    qtbot.addWidget(tab)
+    selections = iter((original, other))
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a, **k: (str(next(selections)), ""))
+
+    tab.file_button.click()
+    tab.verify_button.click()
+    qtbot.waitUntil(lambda: tab.banner.headline == "VALID", timeout=WAIT)
+    tab.show_math.click()
+    assert tab.show_math.isChecked()
+
+    tab.file_button.click()
+    assert tab.banner.headline == "Inputs changed"
+    assert not tab.show_math.isEnabled()
+    assert not tab.show_math.isChecked()
+
+    tab.verify_button.click()
+    qtbot.waitUntil(lambda: tab.banner.headline == "INVALID", timeout=WAIT)

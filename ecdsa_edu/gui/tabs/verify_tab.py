@@ -74,6 +74,8 @@ class VerifyTab(QWidget):
         self._loaded_sig_text: str | None = None
         self._autofilled = True  # message box still holds the last signed message
         self._busy = False
+        self._input_revision = 0
+        self._has_verdict = False
         self._tamper_note = ""  # set by "Change one character", shown with the next result
 
         # ---- message
@@ -275,7 +277,13 @@ class VerifyTab(QWidget):
         outer.addWidget(scroll)
 
         # ---- state wiring
-        for name, slot in (("keysChanged", self._refresh_key_status), ("signatureChanged", self._on_new_signature)):
+        self.certificate_button.toggled.connect(self._invalidate_verdict)
+        for combo in (self.key_source, self.sig_source, self.hash_combo):
+            combo.currentIndexChanged.connect(self._invalidate_verdict)
+        for field in (self.key_hex, self.sig_text):
+            field.textChanged.connect(self._invalidate_verdict)
+        for name, slot in (("keysChanged", self._on_keys_changed), ("signatureChanged", self._on_new_signature),
+                           ("curveChanged", self._invalidate_verdict)):
             signal = getattr(state, name, None)
             if signal is not None:
                 signal.connect(slot)
@@ -297,19 +305,17 @@ class VerifyTab(QWidget):
     # ------------------------------------------------------------ tab contract
     def set_curve(self, curve: Any) -> None:
         """New curve: keys and signatures from the old curve no longer apply."""
+        self._invalidate_verdict()
         self._loaded_pub = None
         self._loaded_sig_text = None
         self.key_hex.clear()
         self.sig_text.clear()
-        self.trace_view.set_trace([])
-        self.show_math.setChecked(False)
-        self.show_math.setEnabled(False)
-        name = getattr(curve, "name", "the new curve")
-        self.banner.show_message("info", f"Curve changed to {name}",
-                                 "Keys and signatures from the old curve were cleared.")
         self._on_identity_mode()
         self._refresh_key_status()
         self._on_new_signature()
+        name = getattr(curve, "name", "the new curve")
+        self.banner.show_message("info", f"Curve changed to {name}",
+                                 "Keys and signatures from the old curve were cleared.")
 
     # ------------------------------------------------------------ identity: key or certificate
     def identity_mode(self) -> str:
@@ -353,6 +359,7 @@ class VerifyTab(QWidget):
             self.banner.show_message("bad", "Not a valid certificate", f"{name}: {exc}")
             return
         self._certificate = info
+        self._invalidate_verdict()
         self.banner.show_message("info", "Certificate loaded", f"{name}: press Verify to check the signature.")
         self._show_certificate()
 
@@ -389,13 +396,14 @@ class VerifyTab(QWidget):
 
     # ------------------------------------------------------------ inputs
     def _on_message_edited(self) -> None:
-        if not self.msg_edit.signalsBlocked():
-            self._autofilled = False
+        self._autofilled = False
+        self._invalidate_verdict()
 
     def _set_message(self, text: str) -> None:
         self.msg_edit.blockSignals(True)
         self.msg_edit.setPlainText(text)
         self.msg_edit.blockSignals(False)
+        self._invalidate_verdict()
 
     def _choose_file(self, *_: Any) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Choose the file that was signed", "", "All files (*)")
@@ -407,6 +415,7 @@ class VerifyTab(QWidget):
                                      f"{Path(path).name}: {problem}")
             return
         self._file_path = Path(path)
+        self._invalidate_verdict()
         self.file_label.setText(f"File: <b>{html.escape(self._file_path.name)}</b> "
                                 f"({format_size(self._file_path.stat().st_size)})")
         self.msg_edit.setEnabled(False)
@@ -415,6 +424,7 @@ class VerifyTab(QWidget):
 
     def _clear_file(self, *_: Any) -> None:
         self._file_path = None
+        self._invalidate_verdict()
         self.file_label.setText("")
         self.msg_edit.setEnabled(True)
         self.file_clear.setVisible(False)
@@ -422,6 +432,8 @@ class VerifyTab(QWidget):
 
     def _on_new_signature(self) -> None:
         """Pre-fill the message with the one just signed (unless the user typed their own)."""
+        if self.sig_source.currentData() == CURRENT:
+            self._invalidate_verdict()
         last_msg = getattr(self.state, "last_msg", None)
         if last_msg is not None and (self._autofilled or not self.msg_edit.toPlainText()):
             self._set_message(last_msg.decode("utf-8", errors="replace"))
@@ -432,6 +444,11 @@ class VerifyTab(QWidget):
             if index >= 0:
                 self.hash_combo.setCurrentIndex(index)
         self._on_sig_source()
+
+    def _on_keys_changed(self) -> None:
+        if self.identity_mode() == PUBLIC_KEY_MODE and self.key_source.currentData() == CURRENT:
+            self._invalidate_verdict()
+        self._refresh_key_status()
 
     def _key_source_chosen(self, *_: Any) -> None:
         if self.key_source.currentData() == FILE:
@@ -454,6 +471,8 @@ class VerifyTab(QWidget):
             self._loaded_pub = None
             self.key_source.setCurrentIndex(0)
             self.banner.show_message("bad", "Could not load the key", str(exc))
+        else:
+            self._invalidate_verdict()
 
     def _refresh_key_status(self, *_: Any) -> None:
         source = self.key_source.currentData()
@@ -512,6 +531,21 @@ class VerifyTab(QWidget):
             self._loaded_sig_text = raw.decode("ascii").strip()
         except UnicodeDecodeError:
             self._loaded_sig_text = raw.hex()  # binary DER: hand it over as hex
+        self._invalidate_verdict()
+
+    def _invalidate_verdict(self, *_: Any) -> None:
+        """Clear the displayed result and invalidate any worker using older inputs."""
+        self._input_revision += 1
+        self._tamper_note = ""
+        if self._has_verdict:
+            self._has_verdict = False
+            self.trace_view.set_trace([])
+            self.show_math.setChecked(False)
+            self.show_math.setEnabled(False)
+            self._set_result_card_color("olive")
+        elif not self._busy:
+            return
+        self.banner.show_message("info", "Inputs changed", "Press Verify to check the current inputs.")
 
     # ------------------------------------------------------------ collect + verify
     def _collect(self) -> tuple[PublicKey, Any, Any, str]:
@@ -573,6 +607,7 @@ class VerifyTab(QWidget):
         try:
             pub, message, sig, hash_name = self._collect()
         except ValueError as exc:
+            self._tamper_note = ""
             text = str(exc)
             # "...first" messages mean a missing step; anything else is input that can't be used.
             missing_step = "first" in text
@@ -582,11 +617,26 @@ class VerifyTab(QWidget):
             return
         trace: list = []
         fn = verify_file if isinstance(message, Path) else verify
+        revision = self._input_revision
         self._set_busy(True)
-        run_in_background(fn, pub, message, sig, hash_name, trace,
-                          on_done=lambda ok: self._show_result(ok, trace), on_error=self._show_error)
+
+        def on_done(ok: bool) -> None:
+            self._set_busy(False)
+            if revision == self._input_revision:
+                self._show_result(ok, trace)
+
+        def on_error(exc: Exception) -> bool:
+            self._set_busy(False)
+            if revision == self._input_revision:
+                self._tamper_note = ""
+                self.banner.show_message("bad", "Could not verify", str(exc))
+            return True  # The page handles errors for both current and stale requests.
+
+        run_in_background(fn, pub, message, sig, hash_name, trace, on_done=on_done, on_error=on_error)
 
     def tamper_and_verify(self, *_: Any) -> None:
+        if self._busy:
+            return
         if self._file_path is not None:
             self.banner.show_message("info", "Tamper works on typed messages",
                                      "Switch back to text to try it, or edit the file and verify again.")
@@ -598,28 +648,26 @@ class VerifyTab(QWidget):
         self.run_verify()
 
     def _show_result(self, ok: bool, trace: list) -> None:
-        self._set_busy(False)
         verdict = verdict_from_trace(ok, trace)
-        note = getattr(self, "_tamper_note", "")
+        self._has_verdict = True
+        note = self._tamper_note
         self._tamper_note = ""
         detail = (f"We {note}. " if note else "") + verdict.reason
         curve = getattr(self.state, "curve", None)
         if verdict.valid and curve is not None and curve.n.bit_length() < 128:
             detail = (f"We {note}. " if note else "") + "The signature passes the mathematical check. On a toy curve, this does not prove the exact message is unchanged."
         self.banner.show_message("good" if verdict.valid else "bad", verdict.headline, detail)
-        self.result_card.setProperty("card", "olive" if verdict.valid else "pink")
-        self.result_card.style().unpolish(self.result_card)
-        self.result_card.style().polish(self.result_card)
+        self._set_result_card_color("olive" if verdict.valid else "pink")
         self.trace_view.set_trace(trace)
         self.show_math.setEnabled(bool(trace))
         signal = getattr(self.state, "verificationCompleted", None)
         if signal is not None:
             signal.emit(bool(ok))
 
-    def _show_error(self, exc: Exception) -> bool:
-        self._set_busy(False)
-        self.banner.show_message("bad", "Could not verify", str(exc))
-        return True  # handled: no extra message box
+    def _set_result_card_color(self, color: str) -> None:
+        self.result_card.setProperty("card", color)
+        self.result_card.style().unpolish(self.result_card)
+        self.result_card.style().polish(self.result_card)
 
     def _set_busy(self, busy: bool) -> None:
         self._busy = busy

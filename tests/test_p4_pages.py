@@ -70,6 +70,38 @@ def test_verify_curve_change_clears(qtbot, signed_state):
     assert "Curve changed" in tab.banner.headline
 
 
+@pytest.mark.parametrize("completion", ["on_done", "on_error"])
+def test_verify_discards_an_in_flight_result_after_input_changes(qtbot, signed_state, monkeypatch, completion):
+    from ecdsa_edu.gui.tabs import verify_tab
+
+    tab = verify_tab.VerifyTab(signed_state)
+    qtbot.addWidget(tab)
+    reported = []
+    signed_state.verificationCompleted.connect(reported.append)
+    callbacks = {}
+
+    with monkeypatch.context() as worker:
+        worker.setattr(verify_tab, "run_in_background", lambda *args, **kwargs: callbacks.update(kwargs))
+        tab.verify_button.click()
+        assert not tab.verify_button.isEnabled()
+        tab.hash_combo.setCurrentIndex(tab.hash_combo.findData("sha256"))
+        tab.hash_combo.setCurrentIndex(tab.hash_combo.findData("sha512"))
+        assert tab.banner.headline == "Inputs changed"
+
+        if completion == "on_done":
+            callbacks[completion](True)
+        else:
+            assert callbacks[completion](ValueError("Stale worker error")) is True
+
+    assert tab.banner.headline == "Inputs changed"
+    assert tab.verify_button.isEnabled()
+    assert reported == []
+
+    tab.verify_button.click()
+    qtbot.waitUntil(lambda: tab.banner.headline == "VALID", timeout=WAIT)
+    assert reported == [True]
+
+
 # --- Attack Demo ------------------------------------------------------------------
 @pytest.mark.parametrize("curve_name", ["toy-17", "secp256k1"])
 def test_attack_shows_match(qtbot, state, curve_name):
